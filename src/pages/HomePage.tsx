@@ -1,9 +1,21 @@
+import Navbar from "../components/home/Navbar";
+import Hero from "../components/home/Hero";
+import Stats from "../components/home/Stats";
+import FeaturedCourses from "../components/home/FeaturedCourses";
+import WhyChooseUs from "../components/home/WhyChooseUs";
+import Testimonials from "../components/home/Testimonials";
+import Footer from "../components/home/Footer";
+
 export default function HomePage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100">
-      <h1 className="text-5xl font-bold text-blue-700">
-        Medical Elites LMS
-      </h1>
-    </div>
+    <main className="min-h-screen bg-slate-50 text-slate-900">
+      <Navbar />
+      <Hero />
+      <Stats />
+      <FeaturedCourses />
+      <WhyChooseUs />
+      <Testimonials />
+      <Footer />
+    </main>
   );
 }
