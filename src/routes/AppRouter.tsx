@@ -8,6 +8,7 @@ import CoursePage from "../pages/CoursePage";
 import LessonPage from "../pages/LessonPage";
 
 import ProtectedRoute from "../components/ProtectedRoute";
+import CourseDetailsPage from "../pages/CourseDetailsPage";
 
 export default function AppRouter() {
   return (
@@ -29,6 +30,7 @@ export default function AppRouter() {
         />
 
         <Route path="/courses" element={<CoursePage />} />
+<Route path="/courses/:slug" element={<CourseDetailsPage />} />
 
         <Route path="/lesson" element={<LessonPage />} />
       </Routes>
