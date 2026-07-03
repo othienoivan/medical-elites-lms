@@ -9,6 +9,7 @@ import Statistics from "../components/home/Statistics";
 import LearningJourney from "../components/home/LearningJourney";
 import CallToAction from "../components/home/CallToAction";
 
+
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
