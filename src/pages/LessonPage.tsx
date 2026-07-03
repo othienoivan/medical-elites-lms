@@ -19,10 +19,13 @@ import Container from "../components/ui/Container";
 import { lessons } from "../data/lessons";
 import { courseModules } from "../data/modules";
 import { quizzes } from "../data/quizzes";
+import { handleModuleQuizPassed } from "../firebase/progress";
+import useAuth from "../hooks/useAuth";
 
 export default function LessonPage() {
   const { moduleId } = useParams();
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
 
   const module = courseModules.find((item) => item.id === moduleId);
   const lesson = lessons.find((item) => item.moduleId === moduleId);
@@ -30,7 +33,9 @@ export default function LessonPage() {
 
   const [sectionIndex, setSectionIndex] = useState(0);
   const [slideIndex, setSlideIndex] = useState(0);
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>(
+    {}
+  );
 
   const currentSection = lesson?.sections[sectionIndex];
   const currentSlide = currentSection?.slides[slideIndex];
@@ -38,16 +43,18 @@ export default function LessonPage() {
   const totalSections = lesson?.sections.length ?? 0;
 
   const progress = useMemo(() => {
-    if (!lesson) return 0;
+    if (!lesson || !currentSection) return 0;
 
     const completedSections = sectionIndex;
+
     const currentSectionProgress =
-      currentSection && currentSection.slides.length > 0
+      currentSection.slides.length > 0
         ? (slideIndex + 1) / currentSection.slides.length
         : 0;
 
     return Math.round(
-      ((completedSections + currentSectionProgress) / lesson.sections.length) * 100
+      ((completedSections + currentSectionProgress) / lesson.sections.length) *
+        100
     );
   }, [lesson, sectionIndex, slideIndex, currentSection]);
 
@@ -78,6 +85,7 @@ export default function LessonPage() {
 
     if (sectionIndex > 0) {
       const previousSection = lesson.sections[sectionIndex - 1];
+
       setSectionIndex((prev) => prev - 1);
       setSlideIndex(previousSection.slides.length - 1);
     }
@@ -94,7 +102,9 @@ export default function LessonPage() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6">
         <Card className="max-w-md text-center">
-          <h1 className="text-2xl font-bold text-slate-900">Lesson not found</h1>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Lesson not found
+          </h1>
 
           <p className="mt-3 text-slate-600">
             We could not find a lesson for this module.
@@ -109,6 +119,7 @@ export default function LessonPage() {
   }
 
   const isFirstSlide = sectionIndex === 0 && slideIndex === 0;
+
   const isLastSlide =
     sectionIndex === lesson.sections.length - 1 &&
     slideIndex === currentSection.slides.length - 1;
@@ -122,14 +133,20 @@ export default function LessonPage() {
               Medical Elites LMS
             </p>
 
-            <h1 className="text-2xl font-bold text-slate-950">{lesson.title}</h1>
+            <h1 className="text-2xl font-bold text-slate-950">
+              {lesson.title}
+            </h1>
 
             <p className="mt-1 text-sm text-slate-500">
               {module.title} • Estimated {lesson.estimatedMinutes} minutes
             </p>
           </div>
 
-          <Button variant="outline" className="gap-2" onClick={() => navigate(-1)}>
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => navigate(-1)}
+          >
             <ArrowLeft size={18} />
             Back
           </Button>
@@ -170,7 +187,9 @@ export default function LessonPage() {
                   Slide {slideIndex + 1} of {currentSection.slides.length}
                 </p>
 
-                <h3 className="mt-3 text-3xl font-bold">{currentSlide.title}</h3>
+                <h3 className="mt-3 text-3xl font-bold">
+                  {currentSlide.title}
+                </h3>
 
                 <p className="mt-6 text-lg leading-9 text-blue-50">
                   {currentSlide.content}
@@ -178,7 +197,11 @@ export default function LessonPage() {
               </div>
 
               <div className="mt-6 flex flex-wrap justify-between gap-3">
-                <Button variant="outline" disabled={isFirstSlide} onClick={goPrevious}>
+                <Button
+                  variant="outline"
+                  disabled={isFirstSlide}
+                  onClick={goPrevious}
+                >
                   Previous
                 </Button>
 
@@ -244,6 +267,7 @@ export default function LessonPage() {
                 <Card>
                   <div className="mb-4 flex items-center gap-3">
                     <HelpCircle className="text-blue-700" size={28} />
+
                     <h3 className="text-xl font-bold text-slate-950">
                       Knowledge Check
                     </h3>
@@ -291,6 +315,7 @@ export default function LessonPage() {
                               <p className="font-bold">
                                 {isCorrect ? "Correct" : "Not quite"}
                               </p>
+
                               <p className="mt-1">{check.explanation}</p>
                             </div>
                           )}
@@ -315,6 +340,7 @@ export default function LessonPage() {
                       className="mt-1 shrink-0 text-green-700"
                       size={18}
                     />
+
                     <span>{objective}</span>
                   </li>
                 ))}
@@ -382,8 +408,39 @@ export default function LessonPage() {
           <section id="module-quiz" className="mt-10">
             <QuizPlayer
               quiz={quiz}
-              onPassed={(score) => {
-                alert(`Congratulations! You scored ${score}%. Module passed.`);
+              onPassed={async (score) => {
+                if (!currentUser || !module) {
+                  navigate("/login");
+                  return;
+                }
+
+                try {
+                  const result = await handleModuleQuizPassed({
+                    userId: currentUser.uid,
+                    courseId: module.courseId,
+                    moduleId: module.id,
+                    quizId: quiz.id,
+                    score,
+                    passMark: quiz.passMark,
+                  });
+
+                  if (result.passed) {
+                    alert(
+                      result.nextModuleId
+                        ? `🎉 Congratulations! You scored ${score}%.\n\nModule completed successfully.\n\nThe next module has been unlocked!`
+                        : `🎉 Congratulations! You scored ${score}%.\n\nYou have completed this course.`
+                    );
+
+                    navigate("/dashboard");
+                  } else {
+                    alert(
+                      `You scored ${score}%.\n\nYou need at least ${quiz.passMark}% to unlock the next module.`
+                    );
+                  }
+                } catch (error) {
+                  console.error(error);
+                  alert("Failed to save your progress. Please try again.");
+                }
               }}
             />
           </section>
