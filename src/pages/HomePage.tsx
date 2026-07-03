@@ -7,6 +7,7 @@ import Testimonials from "../components/home/Testimonials";
 import Footer from "../components/home/Footer";
 import Statistics from "../components/home/Statistics";
 import LearningJourney from "../components/home/LearningJourney";
+import CallToAction from "../components/home/CallToAction";
 
 export default function HomePage() {
   return (
@@ -19,6 +20,7 @@ export default function HomePage() {
              <LearningJourney />
             <WhyChooseUs />
       <Testimonials />
+      <CallToAction />
       <Footer />
     </main>
   );
