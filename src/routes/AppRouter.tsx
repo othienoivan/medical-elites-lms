@@ -32,7 +32,14 @@ export default function AppRouter() {
         <Route path="/courses" element={<CoursePage />} />
 <Route path="/courses/:slug" element={<CourseDetailsPage />} />
 
-        <Route path="/lesson" element={<LessonPage />} />
+       <Route
+  path="/lesson/:moduleId"
+  element={
+    <ProtectedRoute>
+      <LessonPage />
+    </ProtectedRoute>
+  }
+/>
       </Routes>
     </BrowserRouter>
   );
