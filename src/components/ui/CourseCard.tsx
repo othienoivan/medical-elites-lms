@@ -39,10 +39,14 @@ export default function CourseCard({ course }: CourseCardProps) {
     <Card className="group overflow-hidden p-0 hover:-translate-y-1 hover:shadow-xl">
       <div className="relative h-44 overflow-hidden bg-blue-100">
         <img
-          src={course.image}
-          alt={course.title}
-          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-        />
+  src={course.image}
+  alt={course.title}
+  className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+  onError={(event) => {
+    event.currentTarget.src =
+      "https://placehold.co/800x500/1D4ED8/FFFFFF?text=Medical+Elites";
+  }}
+/>
 
         <div className="absolute left-4 top-4 flex gap-2">
           {course.isNew && <Badge>New</Badge>}

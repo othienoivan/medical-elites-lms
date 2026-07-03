@@ -5,6 +5,7 @@ import FeaturedCourses from "../components/home/FeaturedCourses";
 import WhyChooseUs from "../components/home/WhyChooseUs";
 import Testimonials from "../components/home/Testimonials";
 import Footer from "../components/home/Footer";
+import LearningJourney from "../components/home/LearningJourney";
 
 export default function HomePage() {
   return (
@@ -13,7 +14,9 @@ export default function HomePage() {
       <Hero />
       <Stats />
       <FeaturedCourses />
-      <WhyChooseUs />
+       import Statistics from "../components/home/Statistics";
+             <LearningJourney />
+            <WhyChooseUs />
       <Testimonials />
       <Footer />
     </main>
