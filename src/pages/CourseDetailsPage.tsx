@@ -1,4 +1,5 @@
 import type React from "react";
+
 import {
   Award,
   BookOpen,
@@ -7,18 +8,40 @@ import {
   Star,
   Users,
 } from "lucide-react";
+
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Container from "../components/ui/Container";
 import { featuredCourses } from "../data/courses";
+import { enrollInCourse } from "../firebase/enrollments";
+import useAuth from "../hooks/useAuth";
 
 export default function CourseDetailsPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
 
   const course = featuredCourses.find((item) => item.slug === slug);
+
+  async function handleEnroll() {
+    if (!course) return;
+
+    if (!currentUser) {
+      navigate("/login");
+      return;
+    }
+
+    await enrollInCourse({
+      userId: currentUser.uid,
+      courseId: course.id,
+      courseSlug: course.slug,
+      courseTitle: course.title,
+    });
+
+    navigate("/dashboard");
+  }
 
   if (!course) {
     return (
@@ -58,12 +81,18 @@ export default function CourseDetailsPage() {
             </p>
 
             <div className="mt-8 flex flex-wrap gap-4">
-              <Button className="bg-white text-blue-700 hover:bg-slate-100">
+              <Button
+                onClick={handleEnroll}
+                className="bg-white text-blue-700 hover:bg-slate-100"
+              >
                 Enroll Now
               </Button>
 
               <Link to="/courses">
-                <Button variant="outline" className="border-white text-white hover:border-white hover:text-white">
+                <Button
+                  variant="outline"
+                  className="border-white text-white hover:border-white hover:text-white"
+                >
                   Back to Courses
                 </Button>
               </Link>
@@ -96,14 +125,48 @@ export default function CourseDetailsPage() {
             </p>
 
             <div className="mt-8 grid gap-4 md:grid-cols-2">
-              <Info icon={<GraduationCap size={20} />} label="Tutor" value={course.tutor} />
-              <Info icon={<Clock size={20} />} label="Duration" value={course.duration} />
-              <Info icon={<BookOpen size={20} />} label="Modules" value={`${course.modules} modules`} />
-              <Info icon={<BookOpen size={20} />} label="Lessons" value={`${course.lessons} lessons`} />
-              <Info icon={<Star size={20} />} label="Rating" value={`${course.rating.toFixed(1)} / 5.0`} />
-              <Info icon={<Users size={20} />} label="Students" value={course.students} />
+              <Info
+                icon={<GraduationCap size={20} />}
+                label="Tutor"
+                value={course.tutor}
+              />
+
+              <Info
+                icon={<Clock size={20} />}
+                label="Duration"
+                value={course.duration}
+              />
+
+              <Info
+                icon={<BookOpen size={20} />}
+                label="Modules"
+                value={`${course.modules} modules`}
+              />
+
+              <Info
+                icon={<BookOpen size={20} />}
+                label="Lessons"
+                value={`${course.lessons} lessons`}
+              />
+
+              <Info
+                icon={<Star size={20} />}
+                label="Rating"
+                value={`${course.rating.toFixed(1)} / 5.0`}
+              />
+
+              <Info
+                icon={<Users size={20} />}
+                label="Students"
+                value={course.students}
+              />
+
               {course.certificate && (
-                <Info icon={<Award size={20} />} label="Certificate" value="Included" />
+                <Info
+                  icon={<Award size={20} />}
+                  label="Certificate"
+                  value="Included"
+                />
               )}
             </div>
           </Card>
@@ -118,7 +181,7 @@ export default function CourseDetailsPage() {
               Learners must score at least 80% to unlock the next module.
             </p>
 
-            <Button className="mt-6 w-full">
+            <Button onClick={handleEnroll} className="mt-6 w-full">
               Enroll Now
             </Button>
           </Card>
@@ -140,6 +203,7 @@ function Info({
   return (
     <div className="flex items-center gap-3 rounded-xl bg-slate-100 p-4">
       <div className="text-blue-700">{icon}</div>
+
       <div>
         <p className="text-sm text-slate-500">{label}</p>
         <p className="font-bold text-slate-900">{value}</p>
