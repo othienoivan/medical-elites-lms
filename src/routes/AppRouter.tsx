@@ -7,15 +7,29 @@ import DashboardPage from "../pages/DashboardPage";
 import CoursePage from "../pages/CoursePage";
 import LessonPage from "../pages/LessonPage";
 
+import ProtectedRoute from "../components/ProtectedRoute";
+
 export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<HomePage />} />
+
         <Route path="/login" element={<LoginPage />} />
+
         <Route path="/register" element={<RegisterPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
+
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+
         <Route path="/courses" element={<CoursePage />} />
+
         <Route path="/lesson" element={<LessonPage />} />
       </Routes>
     </BrowserRouter>
