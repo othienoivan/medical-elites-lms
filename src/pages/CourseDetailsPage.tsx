@@ -14,7 +14,9 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Container from "../components/ui/Container";
+import ModuleCard from "../components/ui/ModuleCard";
 import { featuredCourses } from "../data/courses";
+import { courseModules } from "../data/modules";
 import { enrollInCourse } from "../firebase/enrollments";
 import useAuth from "../hooks/useAuth";
 
@@ -24,6 +26,12 @@ export default function CourseDetailsPage() {
   const { currentUser } = useAuth();
 
   const course = featuredCourses.find((item) => item.slug === slug);
+
+  const modules = course
+    ? courseModules
+        .filter((module) => module.courseId === course.id)
+        .sort((a, b) => a.order - b.order)
+    : [];
 
   async function handleEnroll() {
     if (!course) return;
@@ -41,6 +49,10 @@ export default function CourseDetailsPage() {
     });
 
     navigate("/dashboard");
+  }
+
+  function handleStartModule(moduleId: string) {
+    navigate(`/lesson/${moduleId}`);
   }
 
   if (!course) {
@@ -186,6 +198,30 @@ export default function CourseDetailsPage() {
             </Button>
           </Card>
         </div>
+
+        <section className="mt-12">
+          <div className="mb-6">
+            <h2 className="text-3xl font-bold text-slate-950">
+              Course Modules
+            </h2>
+
+            <p className="mt-2 text-slate-600">
+              Start with Module 1. Other modules unlock after passing the
+              previous module assessment with at least 80%.
+            </p>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {modules.map((module) => (
+              <ModuleCard
+                key={module.id}
+                module={module}
+                isUnlocked={module.id === "module-1"}
+                onStart={() => handleStartModule(module.id)}
+              />
+            ))}
+          </div>
+        </section>
       </Container>
     </main>
   );
