@@ -16,6 +16,26 @@ export interface LessonSlide {
   order: number;
 }
 
+export interface LessonKnowledgeCheck {
+  id: string;
+  question: string;
+  options: string[];
+  correctAnswer: string;
+  explanation: string;
+}
+
+export interface LessonSection {
+  id: string;
+  title: string;
+  order: number;
+  slides: LessonSlide[];
+  videos: LessonVideo[];
+  notes?: string;
+  clinicalPearl?: string;
+  caseScenario?: string;
+  knowledgeChecks?: LessonKnowledgeCheck[];
+}
+
 export interface Lesson {
   id: string;
   moduleId: string;
@@ -23,8 +43,8 @@ export interface Lesson {
   description: string;
   order: number;
   estimatedMinutes: number;
-  slides: LessonSlide[];
-  videos: LessonVideo[];
+  learningObjectives: string[];
+  sections: LessonSection[];
   notesUrl?: string;
   quizId?: string;
   isPublished: boolean;
