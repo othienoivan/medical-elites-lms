@@ -22,7 +22,7 @@ export default function CallToAction() {
 
           <div className="mt-10">
             <Link to="/register">
-              <Button className="bg-white text-blue-700 hover:bg-slate-100">
+              <Button className="bg-black text-blue-700 hover:bg-gray-100">
                 Create Free Account
                 <ArrowRight className="ml-2" size={20} />
               </Button>
