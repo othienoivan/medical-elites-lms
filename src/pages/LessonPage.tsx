@@ -12,11 +12,13 @@ import {
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
+import QuizPlayer from "../components/lesson/QuizPlayer";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Container from "../components/ui/Container";
 import { lessons } from "../data/lessons";
 import { courseModules } from "../data/modules";
+import { quizzes } from "../data/quizzes";
 
 export default function LessonPage() {
   const { moduleId } = useParams();
@@ -24,12 +26,11 @@ export default function LessonPage() {
 
   const module = courseModules.find((item) => item.id === moduleId);
   const lesson = lessons.find((item) => item.moduleId === moduleId);
+  const quiz = quizzes.find((item) => item.moduleId === moduleId);
 
   const [sectionIndex, setSectionIndex] = useState(0);
   const [slideIndex, setSlideIndex] = useState(0);
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>(
-    {}
-  );
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
 
   const currentSection = lesson?.sections[sectionIndex];
   const currentSlide = currentSection?.slides[slideIndex];
@@ -46,8 +47,7 @@ export default function LessonPage() {
         : 0;
 
     return Math.round(
-      ((completedSections + currentSectionProgress) / lesson.sections.length) *
-        100
+      ((completedSections + currentSectionProgress) / lesson.sections.length) * 100
     );
   }, [lesson, sectionIndex, slideIndex, currentSection]);
 
@@ -94,9 +94,7 @@ export default function LessonPage() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6">
         <Card className="max-w-md text-center">
-          <h1 className="text-2xl font-bold text-slate-900">
-            Lesson not found
-          </h1>
+          <h1 className="text-2xl font-bold text-slate-900">Lesson not found</h1>
 
           <p className="mt-3 text-slate-600">
             We could not find a lesson for this module.
@@ -124,20 +122,14 @@ export default function LessonPage() {
               Medical Elites LMS
             </p>
 
-            <h1 className="text-2xl font-bold text-slate-950">
-              {lesson.title}
-            </h1>
+            <h1 className="text-2xl font-bold text-slate-950">{lesson.title}</h1>
 
             <p className="mt-1 text-sm text-slate-500">
               {module.title} • Estimated {lesson.estimatedMinutes} minutes
             </p>
           </div>
 
-          <Button
-            variant="outline"
-            className="gap-2"
-            onClick={() => navigate(-1)}
-          >
+          <Button variant="outline" className="gap-2" onClick={() => navigate(-1)}>
             <ArrowLeft size={18} />
             Back
           </Button>
@@ -178,9 +170,7 @@ export default function LessonPage() {
                   Slide {slideIndex + 1} of {currentSection.slides.length}
                 </p>
 
-                <h3 className="mt-3 text-3xl font-bold">
-                  {currentSlide.title}
-                </h3>
+                <h3 className="mt-3 text-3xl font-bold">{currentSlide.title}</h3>
 
                 <p className="mt-6 text-lg leading-9 text-blue-50">
                   {currentSlide.content}
@@ -188,11 +178,7 @@ export default function LessonPage() {
               </div>
 
               <div className="mt-6 flex flex-wrap justify-between gap-3">
-                <Button
-                  variant="outline"
-                  disabled={isFirstSlide}
-                  onClick={goPrevious}
-                >
+                <Button variant="outline" disabled={isFirstSlide} onClick={goPrevious}>
                   Previous
                 </Button>
 
@@ -204,7 +190,11 @@ export default function LessonPage() {
                 ) : (
                   <Button
                     className="gap-2"
-                    onClick={() => alert("Quiz engine coming next.")}
+                    onClick={() => {
+                      document
+                        .getElementById("module-quiz")
+                        ?.scrollIntoView({ behavior: "smooth" });
+                    }}
                   >
                     Proceed to Quiz
                     <CheckCircle2 size={18} />
@@ -373,9 +363,7 @@ export default function LessonPage() {
             <Card>
               <FileText className="text-green-700" size={30} />
 
-              <h3 className="mt-4 text-xl font-bold text-slate-950">
-                Notes
-              </h3>
+              <h3 className="mt-4 text-xl font-bold text-slate-950">Notes</h3>
 
               {currentSection.notes ? (
                 <p className="mt-2 leading-7 text-slate-600">
@@ -389,6 +377,17 @@ export default function LessonPage() {
             </Card>
           </aside>
         </div>
+
+        {quiz && (
+          <section id="module-quiz" className="mt-10">
+            <QuizPlayer
+              quiz={quiz}
+              onPassed={(score) => {
+                alert(`Congratulations! You scored ${score}%. Module passed.`);
+              }}
+            />
+          </section>
+        )}
       </Container>
     </main>
   );
