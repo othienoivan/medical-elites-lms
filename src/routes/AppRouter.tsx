@@ -22,6 +22,7 @@ import ModuleManagerPage from "../pages/ModuleManagerPage";
 import CreateModulePage from "../pages/CreateModulePage";
 
 import CreateLessonPage from "../pages/CreateLessonPage";
+import LessonBuilderPage from "../pages/LessonBuilderPage";
 
 import ProtectedRoute from "../components/ProtectedRoute";
 
@@ -158,6 +159,15 @@ export default function AppRouter() {
           element={
             <ProtectedRoute>
               <CreateLessonPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/tutor/lessons/builder"
+          element={
+            <ProtectedRoute>
+              <LessonBuilderPage />
             </ProtectedRoute>
           }
         />
