@@ -13,7 +13,8 @@ import LessonPage from "../pages/LessonPage";
 import TutorDashboardPage from "../pages/TutorDashboardPage";
 import ProgrammeManagerPage from "../pages/ProgrammeManagerPage";
 import CreateProgrammePage from "../pages/CreateProgrammePage";
-import CreateCoursePage from "../pages/CreateCoursePage";
+import CreateCourseUnitPage from "../pages/CreateCourseUnitPage";
+import ModuleManagerPage from "../pages/ModuleManagerPage";
 
 import ProtectedRoute from "../components/ProtectedRoute";
 
@@ -61,7 +62,7 @@ export default function AppRouter() {
         />
 
         {/* ========================= */}
-        {/* Tutor Portal */}
+        {/* Academic Management Portal */}
         {/* ========================= */}
 
         <Route
@@ -96,10 +97,21 @@ export default function AppRouter() {
         {/* Course Unit Management */}
 
         <Route
-          path="/tutor/courses/new"
+          path="/tutor/course-units/new"
           element={
             <ProtectedRoute>
-              <CreateCoursePage />
+              <CreateCourseUnitPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Module Management */}
+
+        <Route
+          path="/tutor/modules"
+          element={
+            <ProtectedRoute>
+              <ModuleManagerPage />
             </ProtectedRoute>
           }
         />

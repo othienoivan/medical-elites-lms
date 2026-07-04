@@ -1,8 +1,25 @@
-export interface Course {
+export type ProgrammeLevel =
+  | "Certificate"
+  | "Diploma"
+  | "Higher Diploma"
+  | "Degree"
+  | "Postgraduate Diploma"
+  | "Master's"
+  | "PhD";
+
+export interface CourseUnit {
   id: string;
+
+  // Parent Programme
+  programmeId: string;
+  programmeTitle: string;
+
   slug: string;
+
   title: string;
+
   category: string;
+
   description: string;
 
   image: string;
@@ -15,14 +32,7 @@ export interface Course {
 
   lessons: number;
 
-  level:
-  | "Certificate"
-  | "Diploma"
-  | "Higher Diploma"
-  | "Degree"
-  | "Postgraduate Diploma"
-  | "Master's"
-  | "PhD";
+  level: ProgrammeLevel;
 
   rating: number;
 
