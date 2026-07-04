@@ -15,7 +15,14 @@ export interface Course {
 
   lessons: number;
 
-  level: "Beginner" | "Intermediate" | "Advanced";
+  level:
+  | "Certificate"
+  | "Diploma"
+  | "Higher Diploma"
+  | "Degree"
+  | "Postgraduate Diploma"
+  | "Master's"
+  | "PhD";
 
   rating: number;
 
