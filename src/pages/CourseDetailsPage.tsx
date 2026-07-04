@@ -16,9 +16,9 @@ import Card from "../components/ui/Card";
 import Container from "../components/ui/Container";
 import ModuleCard from "../components/ui/ModuleCard";
 import { featuredCourses } from "../data/courses";
-import { courseModules } from "../data/modules";
 import { enrollInCourse } from "../firebase/enrollments";
 import useAuth from "../hooks/useAuth";
+import useModules from "../hooks/useModules";
 
 export default function CourseDetailsPage() {
   const { slug } = useParams();
@@ -27,11 +27,7 @@ export default function CourseDetailsPage() {
 
   const course = featuredCourses.find((item) => item.slug === slug);
 
-  const modules = course
-    ? courseModules
-        .filter((module) => module.courseId === course.id)
-        .sort((a, b) => a.order - b.order)
-    : [];
+  const { modules, loading: modulesLoading } = useModules(course?.id);
 
   async function handleEnroll() {
     if (!course) return;
@@ -137,48 +133,15 @@ export default function CourseDetailsPage() {
             </p>
 
             <div className="mt-8 grid gap-4 md:grid-cols-2">
-              <Info
-                icon={<GraduationCap size={20} />}
-                label="Tutor"
-                value={course.tutor}
-              />
-
-              <Info
-                icon={<Clock size={20} />}
-                label="Duration"
-                value={course.duration}
-              />
-
-              <Info
-                icon={<BookOpen size={20} />}
-                label="Modules"
-                value={`${course.modules} modules`}
-              />
-
-              <Info
-                icon={<BookOpen size={20} />}
-                label="Lessons"
-                value={`${course.lessons} lessons`}
-              />
-
-              <Info
-                icon={<Star size={20} />}
-                label="Rating"
-                value={`${course.rating.toFixed(1)} / 5.0`}
-              />
-
-              <Info
-                icon={<Users size={20} />}
-                label="Students"
-                value={course.students}
-              />
+              <Info icon={<GraduationCap size={20} />} label="Tutor" value={course.tutor} />
+              <Info icon={<Clock size={20} />} label="Duration" value={course.duration} />
+              <Info icon={<BookOpen size={20} />} label="Modules" value={`${course.modules} modules`} />
+              <Info icon={<BookOpen size={20} />} label="Lessons" value={`${course.lessons} lessons`} />
+              <Info icon={<Star size={20} />} label="Rating" value={`${course.rating.toFixed(1)} / 5.0`} />
+              <Info icon={<Users size={20} />} label="Students" value={course.students} />
 
               {course.certificate && (
-                <Info
-                  icon={<Award size={20} />}
-                  label="Certificate"
-                  value="Included"
-                />
+                <Info icon={<Award size={20} />} label="Certificate" value="Included" />
               )}
             </div>
           </Card>
@@ -211,16 +174,24 @@ export default function CourseDetailsPage() {
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            {modules.map((module) => (
-              <ModuleCard
-                key={module.id}
-                module={module}
-                isUnlocked={module.id === "module-1"}
-                onStart={() => handleStartModule(module.id)}
-              />
-            ))}
-          </div>
+          {modulesLoading ? (
+            <p className="text-slate-600">Loading modules...</p>
+          ) : modules.length === 0 ? (
+            <p className="text-slate-600">
+              No modules have been published yet.
+            </p>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2">
+              {modules.map((module) => (
+                <ModuleCard
+                  key={module.id}
+                  module={module}
+                  isUnlocked={module.id === "module-1"}
+                  onStart={() => handleStartModule(module.id)}
+                />
+              ))}
+            </div>
+          )}
         </section>
       </Container>
     </main>
