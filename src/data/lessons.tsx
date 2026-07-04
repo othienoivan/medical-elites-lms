@@ -3,15 +3,24 @@ import type { Lesson } from "../models/Lesson";
 export const lessons: Lesson[] = [
   {
     id: "lesson-1",
+    courseId: "1",
     moduleId: "module-1",
     title: "Introduction to Pathology",
     description:
       "This lesson introduces the meaning, scope, causes, mechanisms, and clinical importance of pathology.",
     order: 1,
     estimatedMinutes: 45,
-    isPublished: true,
     notesUrl: "",
     quizId: "quiz-module-1",
+    published: true,
+    version: 1,
+    createdBy: "system",
+
+    completionCriteria: {
+      watchVideos: false,
+      completeKnowledgeChecks: true,
+      passQuiz: true,
+    },
 
     learningObjectives: [
       "Explain the background and meaning of pathology.",
