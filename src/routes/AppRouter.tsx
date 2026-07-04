@@ -6,15 +6,22 @@ import RegisterPage from "../pages/RegisterPage";
 
 import DashboardPage from "../pages/DashboardPage";
 
-import CoursePage from "../pages/CoursePage";
-import CourseDetailsPage from "../pages/CourseDetailsPage";
+import CourseUnitPage from "../pages/CourseUnitPage";
+import CourseUnitDetailsPage from "../pages/CourseUnitDetailsPage";
 import LessonPage from "../pages/LessonPage";
 
 import TutorDashboardPage from "../pages/TutorDashboardPage";
+import CurriculumExplorerPage from "../pages/CurriculumExplorerPage";
+
 import ProgrammeManagerPage from "../pages/ProgrammeManagerPage";
 import CreateProgrammePage from "../pages/CreateProgrammePage";
+
 import CreateCourseUnitPage from "../pages/CreateCourseUnitPage";
+
 import ModuleManagerPage from "../pages/ModuleManagerPage";
+import CreateModulePage from "../pages/CreateModulePage";
+
+import CreateLessonPage from "../pages/CreateLessonPage";
 
 import ProtectedRoute from "../components/ProtectedRoute";
 
@@ -22,9 +29,9 @@ export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* ========================= */}
+        {/* ====================================== */}
         {/* Public Pages */}
-        {/* ========================= */}
+        {/* ====================================== */}
 
         <Route path="/" element={<HomePage />} />
 
@@ -32,16 +39,16 @@ export default function AppRouter() {
 
         <Route path="/register" element={<RegisterPage />} />
 
-        <Route path="/courses" element={<CoursePage />} />
+        <Route path="/courses" element={<CourseUnitPage />} />
 
         <Route
           path="/courses/:slug"
-          element={<CourseDetailsPage />}
+          element={<CourseUnitDetailsPage />}
         />
 
-        {/* ========================= */}
+        {/* ====================================== */}
         {/* Student Portal */}
-        {/* ========================= */}
+        {/* ====================================== */}
 
         <Route
           path="/dashboard"
@@ -61,9 +68,9 @@ export default function AppRouter() {
           }
         />
 
-        {/* ========================= */}
+        {/* ====================================== */}
         {/* Academic Management Portal */}
-        {/* ========================= */}
+        {/* ====================================== */}
 
         <Route
           path="/tutor"
@@ -74,7 +81,20 @@ export default function AppRouter() {
           }
         />
 
+        {/* Curriculum Explorer */}
+
+        <Route
+          path="/tutor/curriculum"
+          element={
+            <ProtectedRoute>
+              <CurriculumExplorerPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ====================================== */}
         {/* Programme Management */}
+        {/* ====================================== */}
 
         <Route
           path="/tutor/programmes"
@@ -94,7 +114,9 @@ export default function AppRouter() {
           }
         />
 
+        {/* ====================================== */}
         {/* Course Unit Management */}
+        {/* ====================================== */}
 
         <Route
           path="/tutor/course-units/new"
@@ -105,13 +127,37 @@ export default function AppRouter() {
           }
         />
 
+        {/* ====================================== */}
         {/* Module Management */}
+        {/* ====================================== */}
 
         <Route
           path="/tutor/modules"
           element={
             <ProtectedRoute>
               <ModuleManagerPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/tutor/modules/new"
+          element={
+            <ProtectedRoute>
+              <CreateModulePage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ====================================== */}
+        {/* Lesson Management */}
+        {/* ====================================== */}
+
+        <Route
+          path="/tutor/lessons/new"
+          element={
+            <ProtectedRoute>
+              <CreateLessonPage />
             </ProtectedRoute>
           }
         />

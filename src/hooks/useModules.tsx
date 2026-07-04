@@ -2,16 +2,14 @@ import { useEffect, useState } from "react";
 import { getModules } from "../firebase/modules";
 import type { Module } from "../models/Module";
 
-export default function useModules(courseId?: string) {
+export default function useModules() {
   const [modules, setModules] = useState<Module[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadModules() {
-      if (!courseId) return;
-
       try {
-        const data = await getModules(courseId);
+        const data = await getModules();
         setModules(data);
       } catch (error) {
         console.error("Failed to load modules:", error);
@@ -21,7 +19,7 @@ export default function useModules(courseId?: string) {
     }
 
     loadModules();
-  }, [courseId]);
+  }, []);
 
   return { modules, loading };
 }

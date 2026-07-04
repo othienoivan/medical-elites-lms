@@ -13,15 +13,15 @@ import { useNavigate } from "react-router-dom";
 import TutorLayout from "../components/layout/TutorLayout";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
-import useCourses from "../hooks/useCourses";
+import useCourseUnits from "../hooks/useCourseUnits";
 import useProgrammes from "../hooks/useProgrammes";
 
 export default function TutorDashboardPage() {
   const navigate = useNavigate();
-  const { courses, loading: coursesLoading } = useCourses();
+  const { courseUnits, loading: courseUnitsLoading } = useCourseUnits();
   const { programmes, loading: programmesLoading } = useProgrammes();
 
-  const loading = coursesLoading || programmesLoading;
+  const loading = courseUnitsLoading || programmesLoading;
 
   return (
     <TutorLayout
@@ -40,7 +40,7 @@ export default function TutorDashboardPage() {
         <Button
           variant="outline"
           className="gap-2"
-          onClick={() => navigate("/tutor/courses/new")}
+          onClick={() => navigate("/tutor/course-units/new")}
         >
           <Plus size={18} />
           New Course Unit
@@ -58,7 +58,7 @@ export default function TutorDashboardPage() {
         <StatCard
           icon={<BookOpen size={30} />}
           label="Course Units"
-          value={loading ? "..." : courses.length}
+          value={loading ? "..." : courseUnits.length}
           iconClass="text-green-700"
         />
 
@@ -86,8 +86,7 @@ export default function TutorDashboardPage() {
               </h2>
 
               <p className="mt-1 text-sm text-slate-600">
-                Build your platform from programmes down to lessons and
-                quizzes.
+                Build your platform from programmes down to lessons and quizzes.
               </p>
             </div>
 
@@ -111,14 +110,14 @@ export default function TutorDashboardPage() {
               title="Course Units"
               text="Create course units such as General Pathology, Pharmacology, or Nursing Practice."
               icon={<BookOpen size={26} />}
-              onClick={() => navigate("/tutor/courses/new")}
+              onClick={() => navigate("/tutor/course-units/new")}
             />
 
             <PortalActionCard
               title="Modules"
               text="Organize each course unit into structured modules with pass marks."
               icon={<Layers size={26} />}
-              onClick={() => alert("Module builder coming next.")}
+              onClick={() => navigate("/tutor/modules")}
             />
 
             <PortalActionCard
@@ -157,9 +156,7 @@ export default function TutorDashboardPage() {
           </p>
 
           <div className="mt-6 rounded-2xl bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-500">
-              Coming Soon
-            </p>
+            <p className="text-sm font-semibold text-slate-500">Coming Soon</p>
 
             <p className="mt-2 text-sm text-slate-600">
               This panel will help tutors identify struggling learners and
@@ -214,33 +211,33 @@ export default function TutorDashboardPage() {
             Recent Course Units
           </h2>
 
-          {coursesLoading ? (
+          {courseUnitsLoading ? (
             <p className="mt-5 text-slate-600">Loading course units...</p>
-          ) : courses.length === 0 ? (
+          ) : courseUnits.length === 0 ? (
             <EmptyState
               icon={<BookOpen size={36} />}
               title="No course units yet"
               text="Create your first course unit and attach it to a programme."
               buttonText="Create Course Unit"
-              onClick={() => navigate("/tutor/courses/new")}
+              onClick={() => navigate("/tutor/course-units/new")}
             />
           ) : (
             <div className="mt-5 space-y-4">
-              {courses.slice(0, 3).map((course) => (
+              {courseUnits.slice(0, 3).map((courseUnit) => (
                 <div
-                  key={course.id}
+                  key={courseUnit.id}
                   className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                 >
                   <p className="text-sm font-semibold text-blue-700">
-                    {course.category}
+                    {courseUnit.category}
                   </p>
 
                   <h3 className="mt-1 font-bold text-slate-950">
-                    {course.title}
+                    {courseUnit.title}
                   </h3>
 
                   <p className="mt-1 text-sm text-slate-600">
-                    {course.level} • {course.duration}
+                    {courseUnit.level} • {courseUnit.duration}
                   </p>
                 </div>
               ))}
@@ -266,7 +263,9 @@ function StatCard({
   return (
     <Card>
       <div className={iconClass}>{icon}</div>
+
       <p className="mt-4 text-sm font-semibold text-slate-500">{label}</p>
+
       <h3 className="mt-2 text-3xl font-bold">{value}</h3>
     </Card>
   );
@@ -294,6 +293,7 @@ function PortalActionCard({
       </div>
 
       <h3 className="mt-4 font-bold text-slate-950">{title}</h3>
+
       <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
     </button>
   );

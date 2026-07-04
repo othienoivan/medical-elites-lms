@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import TutorLayout from "../components/layout/TutorLayout";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
-import Container from "../components/ui/Container";
 import Input from "../components/ui/Input";
 import { createProgramme } from "../firebase/programmes";
 import useAuth from "../hooks/useAuth";
@@ -38,53 +38,64 @@ export default function CreateProgrammePage() {
       return;
     }
 
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    await createProgramme({
-      id: "",
-      title,
-      slug: createSlug(title),
-      level,
-      faculty,
-      department,
-      description,
-      duration,
-      image,
-      createdBy: currentUser.uid,
-      published: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+      await createProgramme({
+        id: "",
+        title,
+        slug: createSlug(title),
+        level,
+        faculty,
+        department,
+        description,
+        duration,
+        image,
+        createdBy: currentUser.uid,
+        published: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
 
-    setLoading(false);
-    navigate("/tutor");
+      navigate("/tutor");
+    } catch (error) {
+      console.error("Failed to create programme:", error);
+      alert("Failed to create programme. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <main className="min-h-screen bg-slate-100">
-      <header className="border-b bg-white">
-        <Container className="flex items-center justify-between py-5">
+    <TutorLayout
+      title="Create Programme"
+      subtitle="Add a formal academic programme."
+    >
+      <Card className="mx-auto max-w-3xl">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <h1 className="text-2xl font-bold text-blue-700">
-              Create Programme
-            </h1>
-            <p className="text-sm text-slate-500">
-              Add a formal academic programme.
-            </p>
+            <label className="mb-2 block font-semibold text-slate-700">
+              Programme Title
+            </label>
+            <Input
+              placeholder="Diploma in Clinical Medicine"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+            />
           </div>
 
-          <Button variant="outline" onClick={() => navigate("/tutor")}>
-            Back to Tutor Dashboard
-          </Button>
-        </Container>
-      </header>
-
-      <Container className="py-10">
-        <Card className="mx-auto max-w-3xl">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <Input placeholder="Programme Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+          <div>
+            <label
+              htmlFor="programme-level"
+              className="mb-2 block font-semibold text-slate-700"
+            >
+              Programme Level
+            </label>
 
             <select
+              id="programme-level"
+              aria-label="Programme Level"
               value={level}
               onChange={(e) => setLevel(e.target.value as ProgrammeLevel)}
               className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
@@ -98,11 +109,34 @@ export default function CreateProgrammePage() {
               <option>PhD</option>
               <option>CPD</option>
             </select>
+          </div>
 
-            <Input placeholder="Faculty / School" value={faculty} onChange={(e) => setFaculty(e.target.value)} />
+          <div>
+            <label className="mb-2 block font-semibold text-slate-700">
+              Faculty / School
+            </label>
+            <Input
+              placeholder="School of Health Sciences"
+              value={faculty}
+              onChange={(e) => setFaculty(e.target.value)}
+            />
+          </div>
 
-            <Input placeholder="Department" value={department} onChange={(e) => setDepartment(e.target.value)} />
+          <div>
+            <label className="mb-2 block font-semibold text-slate-700">
+              Department
+            </label>
+            <Input
+              placeholder="Department of Clinical Medicine"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+            />
+          </div>
 
+          <div>
+            <label className="mb-2 block font-semibold text-slate-700">
+              Description
+            </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -110,17 +144,46 @@ export default function CreateProgrammePage() {
               required
               className="min-h-32 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
             />
+          </div>
 
-            <Input placeholder="Duration e.g. 3 Years" value={duration} onChange={(e) => setDuration(e.target.value)} required />
+          <div>
+            <label className="mb-2 block font-semibold text-slate-700">
+              Duration
+            </label>
+            <Input
+              placeholder="3 Years"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              required
+            />
+          </div>
 
-            <Input placeholder="Image URL optional" value={image} onChange={(e) => setImage(e.target.value)} />
+          <div>
+            <label className="mb-2 block font-semibold text-slate-700">
+              Image URL
+            </label>
+            <Input
+              placeholder="Optional image URL"
+              value={image}
+              onChange={(e) => setImage(e.target.value)}
+            />
+          </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+          <div className="flex gap-3">
+            <Button type="submit" className="flex-1" disabled={loading}>
               {loading ? "Creating Programme..." : "Create Programme"}
             </Button>
-          </form>
-        </Card>
-      </Container>
-    </main>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate("/tutor")}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Card>
+    </TutorLayout>
   );
 }

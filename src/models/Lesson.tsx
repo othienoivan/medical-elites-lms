@@ -1,79 +1,68 @@
-export type LessonVideoType = "youtube" | "upload";
-
-export type LessonResourceType =
-  | "pdf"
-  | "ppt"
-  | "docx"
-  | "image"
-  | "zip"
-  | "external";
-
-export interface LessonVideo {
+export interface LessonObjective {
   id: string;
-  title: string;
-  type: LessonVideoType;
-  url: string;
-  durationMinutes?: number;
-  required?: boolean;
-}
-
-export interface LessonResource {
-  id: string;
-  title: string;
-  type: LessonResourceType;
-  url: string;
-}
-
-export interface LessonSlide {
-  id: string;
-  title: string;
-  content: string;
-  order: number;
-}
-
-export interface LessonKnowledgeCheck {
-  id: string;
-  question: string;
-  options: string[];
-  correctAnswer: string;
-  explanation: string;
+  objective: string;
 }
 
 export interface LessonSection {
   id: string;
   title: string;
-  order: number;
-  slides: LessonSlide[];
-  videos: LessonVideo[];
-  resources?: LessonResource[];
-  notes?: string;
-  clinicalPearl?: string;
-  caseScenario?: string;
-  knowledgeChecks?: LessonKnowledgeCheck[];
+  content: string;
 }
 
-export interface LessonCompletionCriteria {
-  watchVideos: boolean;
-  completeKnowledgeChecks: boolean;
-  passQuiz: boolean;
+export interface LessonResource {
+  id: string;
+  title: string;
+  type:
+    | "pdf"
+    | "ppt"
+    | "video"
+    | "youtube"
+    | "image"
+    | "audio"
+    | "link";
+
+  url: string;
 }
 
 export interface Lesson {
+  // Firestore ID
   id: string;
-  courseId: string;
+
+  // Parent Relationships
+  programmeId: string;
+  programmeTitle: string;
+
+  courseUnitId: string;
+  courseUnitTitle: string;
+
   moduleId: string;
+  moduleTitle: string;
+
+  // Lesson Information
   title: string;
   description: string;
+
   order: number;
+
   estimatedMinutes: number;
-  learningObjectives: string[];
+
+  // Learning Content
+  learningObjectives: LessonObjective[];
+
   sections: LessonSection[];
-  notesUrl?: string;
+
+  resources: LessonResource[];
+
+  // Assessment
   quizId?: string;
-  completionCriteria: LessonCompletionCriteria;
-  published: boolean;
-  version: number;
-  createdBy: string;
+
+  // Notes
+  notesUrl?: string;
+
+  // Status
+  isPublished: boolean;
+
+  // Audit
   createdAt?: Date;
   updatedAt?: Date;
 }

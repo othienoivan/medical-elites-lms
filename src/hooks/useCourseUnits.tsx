@@ -1,25 +1,25 @@
 import { useEffect, useState } from "react";
-import { getCourses } from "../firebase/courses";
-import type { Course } from "../models/Course";
+import { getCourseUnits } from "../firebase/courseUnits";
+import type { CourseUnit } from "../models/CourseUnit";
 
-export default function useCourses() {
-  const [courses, setCourses] = useState<Course[]>([]);
+export default function useCourseUnits() {
+  const [courseUnits, setCourseUnits] = useState<CourseUnit[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadCourses() {
+    async function loadCourseUnits() {
       try {
-        const data = await getCourses();
-        setCourses(data.filter((course) => course.published));
+        const data = await getCourseUnits();
+        setCourseUnits(data.filter((item) => item.published));
       } catch (error) {
-        console.error("Failed to load courses:", error);
+        console.error("Failed to load course units:", error);
       } finally {
         setLoading(false);
       }
     }
 
-    loadCourses();
+    loadCourseUnits();
   }, []);
 
-  return { courses, loading };
+  return { courseUnits, loading };
 }

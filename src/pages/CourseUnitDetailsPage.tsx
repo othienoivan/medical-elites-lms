@@ -15,22 +15,24 @@ import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Container from "../components/ui/Container";
 import ModuleCard from "../components/ui/ModuleCard";
-import { featuredCourses } from "../data/courses";
 import { enrollInCourse } from "../firebase/enrollments";
 import useAuth from "../hooks/useAuth";
+import useCourseUnits from "../hooks/useCourseUnits";
 import useModules from "../hooks/useModules";
 
-export default function CourseDetailsPage() {
+export default function CourseUnitDetailsPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
 
-  const course = featuredCourses.find((item) => item.slug === slug);
+  const { courseUnits, loading: courseUnitsLoading } = useCourseUnits();
 
-  const { modules, loading: modulesLoading } = useModules(course?.id);
+  const courseUnit = courseUnits.find((item) => item.slug === slug);
+
+  const { modules, loading: modulesLoading } = useModules(courseUnit?.id);
 
   async function handleEnroll() {
-    if (!course) return;
+    if (!courseUnit) return;
 
     if (!currentUser) {
       navigate("/login");
@@ -39,9 +41,9 @@ export default function CourseDetailsPage() {
 
     await enrollInCourse({
       userId: currentUser.uid,
-      courseId: course.id,
-      courseSlug: course.slug,
-      courseTitle: course.title,
+      courseId: courseUnit.id,
+      courseSlug: courseUnit.slug,
+      courseTitle: courseUnit.title,
     });
 
     navigate("/dashboard");
@@ -51,20 +53,28 @@ export default function CourseDetailsPage() {
     navigate(`/lesson/${moduleId}`);
   }
 
-  if (!course) {
+  if (courseUnitsLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
+        <p className="text-slate-600">Loading course unit...</p>
+      </main>
+    );
+  }
+
+  if (!courseUnit) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
         <Card className="max-w-lg text-center">
           <h1 className="text-3xl font-bold text-slate-900">
-            Course Not Found
+            Course Unit Not Found
           </h1>
 
           <p className="mt-3 text-slate-600">
-            The course you are looking for does not exist.
+            The course unit you are looking for does not exist.
           </p>
 
           <Button className="mt-6" onClick={() => navigate("/courses")}>
-            Back to Courses
+            Back to Course Units
           </Button>
         </Card>
       </main>
@@ -77,15 +87,15 @@ export default function CourseDetailsPage() {
         <Container className="grid gap-10 py-16 lg:grid-cols-2 lg:items-center">
           <div>
             <p className="font-semibold uppercase tracking-wide text-blue-100">
-              {course.category}
+              {courseUnit.programmeTitle}
             </p>
 
             <h1 className="mt-4 text-5xl font-extrabold leading-tight">
-              {course.title}
+              {courseUnit.title}
             </h1>
 
             <p className="mt-6 text-lg leading-8 text-blue-100">
-              {course.description}
+              {courseUnit.description}
             </p>
 
             <div className="mt-8 flex flex-wrap gap-4">
@@ -101,7 +111,7 @@ export default function CourseDetailsPage() {
                   variant="outline"
                   className="border-white text-white hover:border-white hover:text-white"
                 >
-                  Back to Courses
+                  Back to Course Units
                 </Button>
               </Link>
             </div>
@@ -109,8 +119,8 @@ export default function CourseDetailsPage() {
 
           <div className="overflow-hidden rounded-3xl bg-white/10 p-4">
             <img
-              src={course.image}
-              alt={course.title}
+              src={courseUnit.image}
+              alt={courseUnit.title}
               onError={(event) => {
                 event.currentTarget.src =
                   "https://placehold.co/900x600/1D4ED8/FFFFFF?text=Medical+Elites";
@@ -125,30 +135,63 @@ export default function CourseDetailsPage() {
         <div className="grid gap-8 lg:grid-cols-3">
           <Card className="lg:col-span-2">
             <h2 className="text-2xl font-bold text-slate-950">
-              About this course
+              About this course unit
             </h2>
 
             <p className="mt-4 leading-8 text-slate-600">
-              {course.description}
+              {courseUnit.description}
             </p>
 
             <div className="mt-8 grid gap-4 md:grid-cols-2">
-              <Info icon={<GraduationCap size={20} />} label="Tutor" value={course.tutor} />
-              <Info icon={<Clock size={20} />} label="Duration" value={course.duration} />
-              <Info icon={<BookOpen size={20} />} label="Modules" value={`${course.modules} modules`} />
-              <Info icon={<BookOpen size={20} />} label="Lessons" value={`${course.lessons} lessons`} />
-              <Info icon={<Star size={20} />} label="Rating" value={`${course.rating.toFixed(1)} / 5.0`} />
-              <Info icon={<Users size={20} />} label="Students" value={course.students} />
+              <Info
+                icon={<GraduationCap size={20} />}
+                label="Tutor"
+                value={courseUnit.tutor}
+              />
 
-              {course.certificate && (
-                <Info icon={<Award size={20} />} label="Certificate" value="Included" />
+              <Info
+                icon={<Clock size={20} />}
+                label="Duration"
+                value={courseUnit.duration}
+              />
+
+              <Info
+                icon={<BookOpen size={20} />}
+                label="Modules"
+                value={`${courseUnit.modules} modules`}
+              />
+
+              <Info
+                icon={<BookOpen size={20} />}
+                label="Lessons"
+                value={`${courseUnit.lessons} lessons`}
+              />
+
+              <Info
+                icon={<Star size={20} />}
+                label="Rating"
+                value={`${courseUnit.rating.toFixed(1)} / 5.0`}
+              />
+
+              <Info
+                icon={<Users size={20} />}
+                label="Students"
+                value={courseUnit.students}
+              />
+
+              {courseUnit.certificate && (
+                <Info
+                  icon={<Award size={20} />}
+                  label="Certificate"
+                  value="Included"
+                />
               )}
             </div>
           </Card>
 
           <Card>
             <h2 className="text-xl font-bold text-slate-950">
-              Course Progression
+              Course Unit Progression
             </h2>
 
             <p className="mt-4 leading-7 text-slate-600">
@@ -165,7 +208,7 @@ export default function CourseDetailsPage() {
         <section className="mt-12">
           <div className="mb-6">
             <h2 className="text-3xl font-bold text-slate-950">
-              Course Modules
+              Course Unit Modules
             </h2>
 
             <p className="mt-2 text-slate-600">

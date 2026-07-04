@@ -8,7 +8,6 @@ import Input from "../components/ui/Input";
 import { createCourseUnit } from "../firebase/courseUnits";
 import useAuth from "../hooks/useAuth";
 import useProgrammes from "../hooks/useProgrammes";
-import type { ProgrammeLevel } from "../models/CourseUnit";
 
 export default function CreateCourseUnitPage() {
   const navigate = useNavigate();
@@ -20,9 +19,12 @@ export default function CreateCourseUnitPage() {
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [duration, setDuration] = useState("");
-  const [level, setLevel] = useState<ProgrammeLevel>("Certificate");
   const [image, setImage] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const selectedProgramme = programmes.find(
+    (programme) => programme.id === programmeId
+  );
 
   function createSlug(value: string) {
     return value
@@ -40,44 +42,46 @@ export default function CreateCourseUnitPage() {
       return;
     }
 
-    const selectedProgramme = programmes.find(
-      (programme) => programme.id === programmeId
-    );
-
     if (!selectedProgramme) {
       alert("Please select a programme.");
       return;
     }
 
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    await createCourseUnit({
-      id: "",
-      programmeId: selectedProgramme.id,
-      programmeTitle: selectedProgramme.title,
-      slug: createSlug(title),
-      title,
-      category,
-      description,
-      image:
-        image ||
-        "https://placehold.co/900x600/1D4ED8/FFFFFF?text=Medical+Elites",
-      tutor: currentUser.email || "Medical Elites Tutor",
-      duration,
-      modules: 0,
-      lessons: 0,
-      level,
-      rating: 0,
-      students: "0",
-      certificate: true,
-      isFeatured: false,
-      published: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+      await createCourseUnit({
+        id: "",
+        programmeId: selectedProgramme.id,
+        programmeTitle: selectedProgramme.title,
+        slug: createSlug(title),
+        title,
+        category,
+        description,
+        image:
+          image ||
+          "https://placehold.co/900x600/1D4ED8/FFFFFF?text=Medical+Elites",
+        tutor: currentUser.email || "Medical Elites Tutor",
+        duration,
+        modules: 0,
+        lessons: 0,
+        level: selectedProgramme.level,
+        rating: 0,
+        students: "0",
+        certificate: true,
+        isFeatured: false,
+        published: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
 
-    setLoading(false);
-    navigate("/tutor");
+      navigate("/tutor");
+    } catch (error) {
+      console.error("Failed to create course unit:", error);
+      alert("Failed to create course unit. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -88,11 +92,16 @@ export default function CreateCourseUnitPage() {
       <Card className="mx-auto max-w-3xl">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="mb-2 block font-semibold text-slate-700">
+            <label
+              htmlFor="programme"
+              className="mb-2 block font-semibold text-slate-700"
+            >
               Parent Programme
             </label>
 
             <select
+              id="programme"
+              aria-label="Parent Programme"
               value={programmeId}
               onChange={(e) => setProgrammeId(e.target.value)}
               required
@@ -112,10 +121,26 @@ export default function CreateCourseUnitPage() {
             </select>
           </div>
 
+          {selectedProgramme && (
+            <div>
+              <label className="mb-2 block font-semibold text-slate-700">
+                Programme Level
+              </label>
+
+              <Input value={selectedProgramme.level} readOnly />
+
+              <p className="mt-2 text-sm text-slate-500">
+                The course unit automatically inherits the level of its parent
+                programme.
+              </p>
+            </div>
+          )}
+
           <div>
             <label className="mb-2 block font-semibold text-slate-700">
               Course Unit Title
             </label>
+
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -128,6 +153,7 @@ export default function CreateCourseUnitPage() {
             <label className="mb-2 block font-semibold text-slate-700">
               Category
             </label>
+
             <Input
               value={category}
               onChange={(e) => setCategory(e.target.value)}
@@ -140,6 +166,7 @@ export default function CreateCourseUnitPage() {
             <label className="mb-2 block font-semibold text-slate-700">
               Description
             </label>
+
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -153,6 +180,7 @@ export default function CreateCourseUnitPage() {
             <label className="mb-2 block font-semibold text-slate-700">
               Duration
             </label>
+
             <Input
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
@@ -163,27 +191,9 @@ export default function CreateCourseUnitPage() {
 
           <div>
             <label className="mb-2 block font-semibold text-slate-700">
-              Programme Level
-            </label>
-            <select
-              value={level}
-              onChange={(e) => setLevel(e.target.value as ProgrammeLevel)}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-            >
-              <option>Certificate</option>
-              <option>Diploma</option>
-              <option>Higher Diploma</option>
-              <option>Degree</option>
-              <option>Postgraduate Diploma</option>
-              <option>Master&apos;s</option>
-              <option>PhD</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-2 block font-semibold text-slate-700">
               Course Unit Image URL
             </label>
+
             <Input
               value={image}
               onChange={(e) => setImage(e.target.value)}
