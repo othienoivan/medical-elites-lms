@@ -5,10 +5,11 @@ import LoginPage from "../pages/LoginPage";
 import RegisterPage from "../pages/RegisterPage";
 import DashboardPage from "../pages/DashboardPage";
 import CoursePage from "../pages/CoursePage";
+import CourseDetailsPage from "../pages/CourseDetailsPage";
 import LessonPage from "../pages/LessonPage";
+import TutorDashboardPage from "../pages/TutorDashboardPage";
 
 import ProtectedRoute from "../components/ProtectedRoute";
-import CourseDetailsPage from "../pages/CourseDetailsPage";
 
 export default function AppRouter() {
   return (
@@ -20,6 +21,10 @@ export default function AppRouter() {
 
         <Route path="/register" element={<RegisterPage />} />
 
+        <Route path="/courses" element={<CoursePage />} />
+
+        <Route path="/courses/:slug" element={<CourseDetailsPage />} />
+
         <Route
           path="/dashboard"
           element={
@@ -29,17 +34,23 @@ export default function AppRouter() {
           }
         />
 
-        <Route path="/courses" element={<CoursePage />} />
-<Route path="/courses/:slug" element={<CourseDetailsPage />} />
+        <Route
+          path="/lesson/:moduleId"
+          element={
+            <ProtectedRoute>
+              <LessonPage />
+            </ProtectedRoute>
+          }
+        />
 
-       <Route
-  path="/lesson/:moduleId"
-  element={
-    <ProtectedRoute>
-      <LessonPage />
-    </ProtectedRoute>
-  }
-/>
+        <Route
+          path="/tutor"
+          element={
+            <ProtectedRoute>
+              <TutorDashboardPage />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );
