@@ -3,13 +3,17 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import HomePage from "../pages/HomePage";
 import LoginPage from "../pages/LoginPage";
 import RegisterPage from "../pages/RegisterPage";
+
 import DashboardPage from "../pages/DashboardPage";
+
 import CoursePage from "../pages/CoursePage";
 import CourseDetailsPage from "../pages/CourseDetailsPage";
 import LessonPage from "../pages/LessonPage";
+
 import TutorDashboardPage from "../pages/TutorDashboardPage";
-import CreateCoursePage from "../pages/CreateCoursePage";
+import ProgrammeManagerPage from "../pages/ProgrammeManagerPage";
 import CreateProgrammePage from "../pages/CreateProgrammePage";
+import CreateCoursePage from "../pages/CreateCoursePage";
 
 import ProtectedRoute from "../components/ProtectedRoute";
 
@@ -17,7 +21,10 @@ export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Routes */}
+        {/* ========================= */}
+        {/* Public Pages */}
+        {/* ========================= */}
+
         <Route path="/" element={<HomePage />} />
 
         <Route path="/login" element={<LoginPage />} />
@@ -26,9 +33,15 @@ export default function AppRouter() {
 
         <Route path="/courses" element={<CoursePage />} />
 
-        <Route path="/courses/:slug" element={<CourseDetailsPage />} />
+        <Route
+          path="/courses/:slug"
+          element={<CourseDetailsPage />}
+        />
 
-        {/* Student Dashboard */}
+        {/* ========================= */}
+        {/* Student Portal */}
+        {/* ========================= */}
+
         <Route
           path="/dashboard"
           element={
@@ -38,7 +51,6 @@ export default function AppRouter() {
           }
         />
 
-        {/* Lesson Player */}
         <Route
           path="/lesson/:moduleId"
           element={
@@ -48,7 +60,10 @@ export default function AppRouter() {
           }
         />
 
-        {/* Tutor Dashboard */}
+        {/* ========================= */}
+        {/* Tutor Portal */}
+        {/* ========================= */}
+
         <Route
           path="/tutor"
           element={
@@ -58,7 +73,17 @@ export default function AppRouter() {
           }
         />
 
-        {/* Create Programme */}
+        {/* Programme Management */}
+
+        <Route
+          path="/tutor/programmes"
+          element={
+            <ProtectedRoute>
+              <ProgrammeManagerPage />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/tutor/programmes/new"
           element={
@@ -68,7 +93,8 @@ export default function AppRouter() {
           }
         />
 
-        {/* Create Course */}
+        {/* Course Unit Management */}
+
         <Route
           path="/tutor/courses/new"
           element={
