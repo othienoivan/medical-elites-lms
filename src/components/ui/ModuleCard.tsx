@@ -1,10 +1,11 @@
-import { Lock, LockOpen, Trophy } from "lucide-react";
+import { Clock, Lock, LockOpen, Trophy } from "lucide-react";
+
+import type { Module } from "../../models/Module";
 import Button from "./Button";
 import Card from "./Card";
-import type { CourseModule } from "../../models/Module";
 
 type ModuleCardProps = {
-  module: CourseModule;
+  module: Module;
   isUnlocked: boolean;
   onStart: () => void;
 };
@@ -15,7 +16,13 @@ export default function ModuleCard({
   onStart,
 }: ModuleCardProps) {
   return (
-    <Card className={isUnlocked ? "border border-blue-100" : "border border-slate-200 opacity-70"}>
+    <Card
+      className={
+        isUnlocked
+          ? "border border-blue-100"
+          : "border border-slate-200 opacity-70"
+      }
+    >
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-bold text-blue-700">
@@ -30,10 +37,18 @@ export default function ModuleCard({
             {module.description}
           </p>
 
-          <p className="mt-4 flex items-center gap-2 text-sm font-semibold text-slate-600">
-            <Trophy size={16} className="text-amber-500" />
-            Pass mark: {module.passMark}%
-          </p>
+          <div className="mt-4 space-y-2 text-sm font-semibold text-slate-600">
+            <p className="flex items-center gap-2">
+              <Clock size={16} className="text-blue-700" />
+              {module.duration} • {module.lessons} lesson
+              {module.lessons > 1 ? "s" : ""}
+            </p>
+
+            <p className="flex items-center gap-2">
+              <Trophy size={16} className="text-amber-500" />
+              Pass mark: {module.passMark}%
+            </p>
+          </div>
         </div>
 
         <div className="rounded-full bg-slate-100 p-3 text-slate-600">
