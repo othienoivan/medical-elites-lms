@@ -30,9 +30,19 @@ const navigation = [
     path: "/tutor/programmes",
   },
   {
+    name: "New Programme",
+    icon: GraduationCap,
+    path: "/tutor/programmes/new",
+  },
+  {
     name: "Course Units",
     icon: BookOpen,
     path: "/tutor/course-units",
+  },
+  {
+    name: "New Course Unit",
+    icon: BookOpen,
+    path: "/tutor/course-units/new",
   },
   {
     name: "Modules",
@@ -40,9 +50,19 @@ const navigation = [
     path: "/tutor/modules",
   },
   {
-    name: "Lessons",
+    name: "New Module",
+    icon: Layers,
+    path: "/tutor/modules/new",
+  },
+  {
+    name: "Lesson Builder",
     icon: Presentation,
-    path: "/tutor/lessons",
+    path: "/tutor/lessons/builder",
+  },
+  {
+    name: "New Lesson",
+    icon: Presentation,
+    path: "/tutor/lessons/new",
   },
   {
     name: "Quizzes",
@@ -66,17 +86,11 @@ const navigation = [
   },
 ];
 
-export default function TutorLayout({
-  title,
-  subtitle,
-  children,
-}: Props) {
+export default function TutorLayout({ title, subtitle, children }: Props) {
   return (
     <div className="min-h-screen bg-slate-100">
       <div className="flex">
-        {/* Sidebar */}
-
-        <aside className="sticky top-0 h-screen w-72 bg-slate-950 text-white">
+        <aside className="sticky top-0 h-screen w-72 overflow-y-auto bg-slate-950 text-white">
           <div className="border-b border-slate-800 p-6">
             <h1 className="text-2xl font-bold text-blue-400">
               Medical Elites
@@ -95,6 +109,7 @@ export default function TutorLayout({
                 <NavLink
                   key={item.path}
                   to={item.path}
+                  end={item.path === "/tutor"}
                   className={({ isActive }) =>
                     `flex items-center gap-3 rounded-xl px-4 py-3 transition ${
                       isActive
@@ -104,7 +119,6 @@ export default function TutorLayout({
                   }
                 >
                   <Icon size={20} />
-
                   <span>{item.name}</span>
                 </NavLink>
               );
@@ -112,19 +126,11 @@ export default function TutorLayout({
           </nav>
         </aside>
 
-        {/* Main */}
-
         <main className="flex-1">
           <header className="border-b bg-white px-10 py-8">
-            <h1 className="text-3xl font-bold text-slate-950">
-              {title}
-            </h1>
+            <h1 className="text-3xl font-bold text-slate-950">{title}</h1>
 
-            {subtitle && (
-              <p className="mt-2 text-slate-600">
-                {subtitle}
-              </p>
-            )}
+            {subtitle && <p className="mt-2 text-slate-600">{subtitle}</p>}
           </header>
 
           <section className="p-10">{children}</section>
