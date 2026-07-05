@@ -1,9 +1,11 @@
 import {
   addDoc,
   collection,
+  doc,
   getDocs,
   orderBy,
   query,
+  updateDoc,
   where,
 } from "firebase/firestore";
 
@@ -12,8 +14,17 @@ import type { Lesson } from "../models/Lesson";
 
 const COLLECTION = "lessons";
 
-export async function createLesson(lesson: Lesson) {
-  await addDoc(collection(db, COLLECTION), lesson);
+export async function createLesson(lesson: Lesson): Promise<string> {
+  const docRef = await addDoc(collection(db, COLLECTION), {
+    ...lesson,
+    id: "",
+  });
+
+  await updateDoc(doc(db, COLLECTION, docRef.id), {
+    id: docRef.id,
+  });
+
+  return docRef.id;
 }
 
 export async function getLessons(moduleId: string): Promise<Lesson[]> {
@@ -25,8 +36,10 @@ export async function getLessons(moduleId: string): Promise<Lesson[]> {
 
   const snapshot = await getDocs(q);
 
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...(doc.data() as Omit<Lesson, "id">),
-  }));
+  return snapshot.docs
+    .map((docSnap) => ({
+      ...(docSnap.data() as Omit<Lesson, "id">),
+      id: docSnap.id,
+    }))
+    .filter((lesson) => lesson.isPublished === true);
 }

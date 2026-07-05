@@ -120,8 +120,8 @@ export default function CreateLessonPage() {
             >
               <option value="">Select Programme</option>
 
-              {programmes.map((programme) => (
-                <option key={programme.id} value={programme.id}>
+              {programmes.map((programme, index) => (
+                <option key={`${programme.id}-${index}`} value={programme.id}>
                   {programme.title} — {programme.level}
                 </option>
               ))}
@@ -148,8 +148,8 @@ export default function CreateLessonPage() {
                 {programmeId ? "Select Course Unit" : "Select Programme first"}
               </option>
 
-              {filteredCourseUnits.map((courseUnit) => (
-                <option key={courseUnit.id} value={courseUnit.id}>
+              {filteredCourseUnits.map((courseUnit, index) => (
+                <option key={`${courseUnit.id}-${index}`} value={courseUnit.id}>
                   {courseUnit.title}
                 </option>
               ))}
@@ -173,8 +173,8 @@ export default function CreateLessonPage() {
                 {courseUnitId ? "Select Module" : "Select Course Unit first"}
               </option>
 
-              {filteredModules.map((module) => (
-                <option key={module.id} value={module.id}>
+              {filteredModules.map((module, index) => (
+                <option key={`${module.id}-${index}`} value={module.id}>
                   Module {module.order}: {module.title}
                 </option>
               ))}

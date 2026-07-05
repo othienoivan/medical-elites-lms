@@ -1,27 +1,42 @@
 import {
   addDoc,
   collection,
+  doc,
   getDocs,
   orderBy,
   query,
+  updateDoc,
 } from "firebase/firestore";
 
 import { db } from "../config/firebase";
 import type { CourseUnit } from "../models/CourseUnit";
 
-const COLLECTION = "courseUnits";
+const COLLECTION = "courses";
 
-export async function createCourseUnit(courseUnit: CourseUnit) {
-  await addDoc(collection(db, COLLECTION), courseUnit);
+export async function createCourseUnit(
+  courseUnit: CourseUnit
+): Promise<string> {
+  const docRef = await addDoc(collection(db, COLLECTION), {
+    ...courseUnit,
+    id: "",
+  });
+
+  await updateDoc(doc(db, COLLECTION, docRef.id), {
+    id: docRef.id,
+  });
+
+  return docRef.id;
 }
 
 export async function getCourseUnits(): Promise<CourseUnit[]> {
-  const snapshot = await getDocs(
-    query(collection(db, COLLECTION), orderBy("title"))
-  );
+  const q = query(collection(db, COLLECTION), orderBy("title"));
 
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...(doc.data() as Omit<CourseUnit, "id">),
-  }));
+  const snapshot = await getDocs(q);
+
+  return snapshot.docs
+    .map((docSnap) => ({
+      ...(docSnap.data() as Omit<CourseUnit, "id">),
+      id: docSnap.id,
+    }))
+    .filter((courseUnit) => courseUnit.published === true);
 }

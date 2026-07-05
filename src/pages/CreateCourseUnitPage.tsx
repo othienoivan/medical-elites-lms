@@ -113,8 +113,11 @@ export default function CreateCourseUnitPage() {
                   : "Select Programme"}
               </option>
 
-              {programmes.map((programme) => (
-                <option key={programme.id} value={programme.id}>
+              {programmes.map((programme, index) => (
+                <option
+                  key={`${programme.id}-${index}`}
+                  value={programme.id}
+                >
                   {programme.title} — {programme.level}
                 </option>
               ))}

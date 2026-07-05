@@ -27,6 +27,10 @@ export default function CreateModulePage() {
   const [passMark, setPassMark] = useState(80);
   const [loading, setLoading] = useState(false);
 
+  const selectedProgramme = programmes.find(
+    (programme) => programme.id === programmeId
+  );
+
   const filteredCourseUnits = courseUnits.filter(
     (courseUnit) => courseUnit.programmeId === programmeId
   );
@@ -38,10 +42,6 @@ export default function CreateModulePage() {
       navigate("/login");
       return;
     }
-
-    const selectedProgramme = programmes.find(
-      (programme) => programme.id === programmeId
-    );
 
     const selectedCourseUnit = courseUnits.find(
       (courseUnit) => courseUnit.id === courseUnitId
@@ -110,7 +110,9 @@ export default function CreateModulePage() {
               className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
             >
               <option value="">
-                {programmesLoading ? "Loading programmes..." : "Select Programme"}
+                {programmesLoading
+                  ? "Loading programmes..."
+                  : "Select Programme"}
               </option>
 
               {programmes.map((programme) => (
@@ -119,6 +121,12 @@ export default function CreateModulePage() {
                 </option>
               ))}
             </select>
+
+            {selectedProgramme && (
+              <p className="mt-2 text-sm text-green-700">
+                Selected: {selectedProgramme.title}
+              </p>
+            )}
           </div>
 
           <div>
@@ -142,8 +150,10 @@ export default function CreateModulePage() {
                 {courseUnitsLoading
                   ? "Loading course units..."
                   : programmeId
+                  ? filteredCourseUnits.length > 0
                     ? "Select Course Unit"
-                    : "Select Programme first"}
+                    : "No course units found for this programme"
+                  : "Select Programme first"}
               </option>
 
               {filteredCourseUnits.map((courseUnit) => (
@@ -152,6 +162,21 @@ export default function CreateModulePage() {
                 </option>
               ))}
             </select>
+
+            {programmeId && (
+              <div className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+                <p>
+                  Total course units loaded:{" "}
+                  <span className="font-bold">{courseUnits.length}</span>
+                </p>
+                <p>
+                  Course units under selected programme:{" "}
+                  <span className="font-bold">
+                    {filteredCourseUnits.length}
+                  </span>
+                </p>
+              </div>
+            )}
           </div>
 
           <div>

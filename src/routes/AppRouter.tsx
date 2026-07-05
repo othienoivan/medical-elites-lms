@@ -30,6 +30,7 @@ export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
+
         {/* ====================================== */}
         {/* Public Pages */}
         {/* ====================================== */}
@@ -82,8 +83,6 @@ export default function AppRouter() {
           }
         />
 
-        {/* Curriculum Explorer */}
-
         <Route
           path="/tutor/curriculum"
           element={
@@ -118,6 +117,16 @@ export default function AppRouter() {
         {/* ====================================== */}
         {/* Course Unit Management */}
         {/* ====================================== */}
+
+        {/* NEW ROUTE */}
+        <Route
+          path="/tutor/course-units"
+          element={
+            <ProtectedRoute>
+              <CreateCourseUnitPage />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/tutor/course-units/new"
@@ -171,6 +180,7 @@ export default function AppRouter() {
             </ProtectedRoute>
           }
         />
+
       </Routes>
     </BrowserRouter>
   );

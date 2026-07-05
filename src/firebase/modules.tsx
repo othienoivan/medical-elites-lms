@@ -4,8 +4,6 @@ import {
   deleteDoc,
   doc,
   getDocs,
-  orderBy,
-  query,
   updateDoc,
 } from "firebase/firestore";
 
@@ -17,28 +15,42 @@ const COLLECTION = "modules";
 /**
  * Create Module
  */
-export async function createModule(module: Module) {
-  await addDoc(collection(db, COLLECTION), module);
+export async function createModule(module: Module): Promise<string> {
+  // Create the document
+  const docRef = await addDoc(collection(db, COLLECTION), {
+    ...module,
+    id: "",
+  });
+
+  // Save the Firestore document ID into the document
+  await updateDoc(doc(db, COLLECTION, docRef.id), {
+    id: docRef.id,
+  });
+
+  return docRef.id;
 }
 
 /**
  * Get all published modules
  */
 export async function getModules(): Promise<Module[]> {
-  const q = query(
-    collection(db, COLLECTION),
-    orderBy("order"),
-    orderBy("title")
-  );
-
-  const snapshot = await getDocs(q);
+  const snapshot = await getDocs(collection(db, COLLECTION));
 
   return snapshot.docs
-    .map((doc) => ({
-      id: doc.id,
-      ...(doc.data() as Omit<Module, "id">),
+    .map((docSnap) => ({
+      ...(docSnap.data() as Omit<Module, "id">),
+
+      // Always use the Firestore document ID
+      id: docSnap.id,
     }))
-    .filter((module) => module.published);
+    .filter((module) => module.published === true)
+    .sort((a, b) => {
+      if (a.order !== b.order) {
+        return a.order - b.order;
+      }
+
+      return a.title.localeCompare(b.title);
+    });
 }
 
 /**
@@ -47,13 +59,13 @@ export async function getModules(): Promise<Module[]> {
 export async function updateModule(
   id: string,
   data: Partial<Module>
-) {
+): Promise<void> {
   await updateDoc(doc(db, COLLECTION, id), data);
 }
 
 /**
  * Delete Module
  */
-export async function deleteModule(id: string) {
+export async function deleteModule(id: string): Promise<void> {
   await deleteDoc(doc(db, COLLECTION, id));
 }
