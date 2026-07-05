@@ -21,8 +21,10 @@ import CreateCourseUnitPage from "../pages/CreateCourseUnitPage";
 import ModuleManagerPage from "../pages/ModuleManagerPage";
 import CreateModulePage from "../pages/CreateModulePage";
 
+import LessonManagerPage from "../pages/LessonManagerPage";
 import CreateLessonPage from "../pages/CreateLessonPage";
 import LessonBuilderPage from "../pages/LessonBuilderPage";
+import LessonPreviewPage from "../pages/LessonPreviewPage";
 
 import ProtectedRoute from "../components/ProtectedRoute";
 
@@ -30,27 +32,11 @@ export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
-
-        {/* ====================================== */}
-        {/* Public Pages */}
-        {/* ====================================== */}
-
         <Route path="/" element={<HomePage />} />
-
         <Route path="/login" element={<LoginPage />} />
-
         <Route path="/register" element={<RegisterPage />} />
-
         <Route path="/courses" element={<CourseUnitPage />} />
-
-        <Route
-          path="/courses/:slug"
-          element={<CourseUnitDetailsPage />}
-        />
-
-        {/* ====================================== */}
-        {/* Student Portal */}
-        {/* ====================================== */}
+        <Route path="/courses/:slug" element={<CourseUnitDetailsPage />} />
 
         <Route
           path="/dashboard"
@@ -70,10 +56,6 @@ export default function AppRouter() {
           }
         />
 
-        {/* ====================================== */}
-        {/* Academic Management Portal */}
-        {/* ====================================== */}
-
         <Route
           path="/tutor"
           element={
@@ -91,10 +73,6 @@ export default function AppRouter() {
             </ProtectedRoute>
           }
         />
-
-        {/* ====================================== */}
-        {/* Programme Management */}
-        {/* ====================================== */}
 
         <Route
           path="/tutor/programmes"
@@ -114,11 +92,6 @@ export default function AppRouter() {
           }
         />
 
-        {/* ====================================== */}
-        {/* Course Unit Management */}
-        {/* ====================================== */}
-
-        {/* NEW ROUTE */}
         <Route
           path="/tutor/course-units"
           element={
@@ -136,10 +109,6 @@ export default function AppRouter() {
             </ProtectedRoute>
           }
         />
-
-        {/* ====================================== */}
-        {/* Module Management */}
-        {/* ====================================== */}
 
         <Route
           path="/tutor/modules"
@@ -159,9 +128,14 @@ export default function AppRouter() {
           }
         />
 
-        {/* ====================================== */}
-        {/* Lesson Management */}
-        {/* ====================================== */}
+        <Route
+          path="/tutor/lessons"
+          element={
+            <ProtectedRoute>
+              <LessonManagerPage />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/tutor/lessons/new"
@@ -181,6 +155,23 @@ export default function AppRouter() {
           }
         />
 
+        <Route
+          path="/tutor/lessons/:lessonId/builder"
+          element={
+            <ProtectedRoute>
+              <LessonBuilderPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/tutor/lessons/:lessonId/preview"
+          element={
+            <ProtectedRoute>
+              <LessonPreviewPage />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

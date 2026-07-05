@@ -1,3 +1,5 @@
+import type { LessonBlock } from "./LessonBlock";
+
 export interface LessonObjective {
   id: string;
   objective: string;
@@ -46,12 +48,19 @@ export interface Lesson {
 
   estimatedMinutes: number;
 
-  // Learning Content
-  learningObjectives: LessonObjective[];
+  /**
+   * Legacy fields
+   * Keep these temporarily for backward compatibility.
+   * They will be removed after all lessons use the new block system.
+   */
+  learningObjectives?: LessonObjective[];
+  sections?: LessonSection[];
+  resources?: LessonResource[];
 
-  sections: LessonSection[];
-
-  resources: LessonResource[];
+  /**
+   * New Lesson Builder architecture
+   */
+  blocks: LessonBlock[];
 
   // Assessment
   quizId?: string;

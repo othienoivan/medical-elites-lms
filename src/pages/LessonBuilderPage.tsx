@@ -1,116 +1,301 @@
+import { useEffect, useState } from "react";
+import { Eye, Plus, Save } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
-  BookOpen,
-  FileText,
-  HelpCircle,
-  Image,
-  Lightbulb,
-  ListChecks,
-  Plus,
-  Video,
-} from "lucide-react";
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
+import LessonBlockRenderer from "../components/editor/LessonBlockRenderer";
 import TutorLayout from "../components/layout/TutorLayout";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
+import { getLessonById, updateLesson } from "../firebase/lessons";
+import type {
+  LessonBlock,
+  LessonBlockType,
+} from "../models/LessonBlock";
+
+const blockTypes: { label: string; type: LessonBlockType }[] = [
+  { label: "Heading", type: "heading" },
+  { label: "Objective", type: "objective" },
+  { label: "Rich Text", type: "richtext" },
+  { label: "Image", type: "image" },
+  { label: "YouTube Video", type: "youtube" },
+  { label: "PDF Resource", type: "pdf" },
+  { label: "PowerPoint", type: "powerpoint" },
+  { label: "Clinical Case", type: "clinical-case" },
+  { label: "Drug Table", type: "drug-table" },
+  { label: "OSCE Station", type: "osce-station" },
+  { label: "Question", type: "question" },
+  { label: "Knowledge Check", type: "knowledge-check" },
+  { label: "Quiz", type: "quiz" },
+  { label: "Assignment", type: "assignment" },
+];
 
 export default function LessonBuilderPage() {
+  const navigate = useNavigate();
+  const { lessonId } = useParams();
+
+  const [lessonTitle, setLessonTitle] = useState("Visual Lesson Builder");
+  const [blocks, setBlocks] = useState<LessonBlock[]>([]);
+  const [loadingLesson, setLoadingLesson] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    })
+  );
+
+  useEffect(() => {
+    async function loadLesson() {
+      if (!lessonId) return;
+
+      try {
+        setLoadingLesson(true);
+
+        const lesson = await getLessonById(lessonId);
+
+        if (!lesson) {
+          alert("Lesson not found.");
+          return;
+        }
+
+        setLessonTitle(lesson.title);
+        setBlocks(lesson.blocks || []);
+      } catch (error) {
+        console.error("Failed to load lesson:", error);
+        alert("Failed to load lesson.");
+      } finally {
+        setLoadingLesson(false);
+      }
+    }
+
+    loadLesson();
+  }, [lessonId]);
+
+  function addBlock(type: LessonBlockType) {
+    setBlocks((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        type,
+        title: "",
+        content: "",
+        url: "",
+        metadata: {},
+      },
+    ]);
+  }
+
+  function updateBlock(updatedBlock: LessonBlock) {
+    setBlocks((current) =>
+      current.map((block) =>
+        block.id === updatedBlock.id ? updatedBlock : block
+      )
+    );
+  }
+
+  function deleteBlock(blockId: string) {
+    setBlocks((current) => current.filter((block) => block.id !== blockId));
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) return;
+
+    setBlocks((current) => {
+      const oldIndex = current.findIndex((block) => block.id === active.id);
+      const newIndex = current.findIndex((block) => block.id === over.id);
+
+      return arrayMove(current, oldIndex, newIndex);
+    });
+  }
+
+  async function handleSave() {
+    if (!lessonId) {
+      alert("Open this builder from a saved lesson before saving blocks.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await updateLesson(lessonId, { blocks });
+      alert("Lesson saved successfully.");
+    } catch (error) {
+      console.error("Failed to save lesson:", error);
+      alert("Failed to save lesson.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handlePreview() {
+    if (!lessonId) {
+      alert("Open this builder from a saved lesson before previewing.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await updateLesson(lessonId, { blocks });
+      navigate(`/tutor/lessons/${lessonId}/preview`);
+    } catch (error) {
+      console.error("Failed to save before preview:", error);
+      alert("Failed to save lesson before preview.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <TutorLayout
-      title="Visual Lesson Builder"
-      subtitle="Build rich medical lessons using reusable learning blocks."
+      title={lessonTitle}
+      subtitle={
+        lessonId
+          ? "Build and save rich lesson content."
+          : "Open a saved lesson from Lesson Manager to save content."
+      }
     >
-      <div className="mb-6 flex flex-wrap gap-3">
-        <Button className="gap-2">
-          <Plus size={18} />
-          Add Objective
-        </Button>
+      <div className="sticky top-0 z-20 mb-6 rounded-2xl border-2 border-blue-700 bg-blue-50 p-5 shadow-lg">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-blue-900">
+              Lesson Saving Panel
+            </h2>
+            <p className="mt-1 text-sm font-medium text-blue-800">
+              {lessonId
+                ? "Add blocks, arrange them, then save or preview the lesson."
+                : "Open this builder from Lesson Manager to enable saving."}
+            </p>
+          </div>
 
-        <Button variant="outline" className="gap-2">
-          <Plus size={18} />
-          Add Section
-        </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              variant="outline"
+              onClick={() => navigate("/tutor/lessons")}
+            >
+              Back to Lessons
+            </Button>
 
-        <Button variant="outline" className="gap-2">
-          <Plus size={18} />
-          Add Resource
-        </Button>
+            <Button
+              variant="outline"
+              onClick={() => console.log("Lesson blocks:", blocks)}
+            >
+              Preview Data
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={handlePreview}
+              disabled={saving || loadingLesson}
+            >
+              <Eye size={18} />
+              Preview Lesson
+            </Button>
+
+            <Button
+              onClick={handleSave}
+              disabled={saving || loadingLesson}
+              className="bg-blue-700 text-white hover:bg-blue-800"
+            >
+              <Save size={18} />
+              {saving ? "Saving..." : "SAVE LESSON"}
+            </Button>
+          </div>
+        </div>
       </div>
 
       <section className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <h2 className="text-xl font-bold text-slate-950">
-            Lesson Workspace
-          </h2>
+          <div>
+            <h2 className="text-xl font-bold text-slate-950">
+              Lesson Workspace
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Drag blocks to reorder them.
+            </p>
+          </div>
 
-          <p className="mt-2 text-slate-600">
-            This area will become the interactive editor where tutors arrange
-            lesson content blocks.
-          </p>
-
-          <div className="mt-6 space-y-4">
-            <BuilderBlock
-              icon={<ListChecks size={22} />}
-              title="Learning Objectives"
-              text="Define what the learner should be able to achieve by the end of the lesson."
-            />
-
-            <BuilderBlock
-              icon={<BookOpen size={22} />}
-              title="Lesson Sections"
-              text="Organize the lesson into structured teaching sections."
-            />
-
-            <BuilderBlock
-              icon={<Video size={22} />}
-              title="Videos"
-              text="Add YouTube links or uploaded video resources."
-            />
-
-            <BuilderBlock
-              icon={<FileText size={22} />}
-              title="PDF / Notes"
-              text="Attach lecture notes, guidelines, handouts, or reading material."
-            />
-
-            <BuilderBlock
-              icon={<Image size={22} />}
-              title="Images and Diagrams"
-              text="Add medical diagrams, charts, tables, and clinical images."
-            />
-
-            <BuilderBlock
-              icon={<Lightbulb size={22} />}
-              title="Clinical Pearls"
-              text="Highlight important clinical teaching points."
-            />
-
-            <BuilderBlock
-              icon={<HelpCircle size={22} />}
-              title="Knowledge Checks"
-              text="Add short formative questions within the lesson."
-            />
+          <div className="mt-6">
+            {loadingLesson ? (
+              <p className="text-slate-600">Loading lesson...</p>
+            ) : blocks.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 p-10 text-center">
+                <p className="font-semibold text-slate-700">
+                  No lesson blocks added yet
+                </p>
+                <p className="mt-2 text-sm text-slate-500">
+                  Use the tools panel to add lesson, resource, medical, and
+                  assessment blocks.
+                </p>
+              </div>
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={blocks.map((block) => block.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-4">
+                    {blocks.map((block) => (
+                      <SortableLessonBlock
+                        key={block.id}
+                        block={block}
+                        onChange={updateBlock}
+                        onDelete={() => deleteBlock(block.id)}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            )}
           </div>
         </Card>
 
         <Card>
-          <h2 className="text-xl font-bold text-slate-950">
-            Builder Tools
-          </h2>
-
-          <p className="mt-2 text-slate-600">
-            These tools will allow tutors to assemble full lessons without
-            writing code.
+          <h2 className="text-xl font-bold text-slate-950">Add Block</h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Select a block type to add it to the lesson.
           </p>
 
-          <div className="mt-6 space-y-3">
-            <ToolButton label="Add Objective" />
-            <ToolButton label="Add Section" />
-            <ToolButton label="Add Slide" />
-            <ToolButton label="Add YouTube Video" />
-            <ToolButton label="Upload PDF" />
-            <ToolButton label="Add Clinical Case" />
-            <ToolButton label="Add Knowledge Check" />
-            <ToolButton label="Generate with AI" />
+          <div className="mt-6 grid gap-3">
+            {blockTypes.map((blockType) => (
+              <button
+                key={blockType.type}
+                type="button"
+                onClick={() => addBlock(blockType.type)}
+                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-white"
+              >
+                <Plus size={16} />
+                {blockType.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-6 rounded-2xl bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-500">
+              Lesson Blocks
+            </p>
+            <p className="mt-2 text-sm text-slate-600">
+              Total blocks: {blocks.length}
+            </p>
           </div>
         </Card>
       </section>
@@ -118,38 +303,51 @@ export default function LessonBuilderPage() {
   );
 }
 
-function BuilderBlock({
-  icon,
-  title,
-  text,
+function SortableLessonBlock({
+  block,
+  onChange,
+  onDelete,
 }: {
-  icon: React.ReactNode;
-  title: string;
-  text: string;
+  block: LessonBlock;
+  onChange: (updatedBlock: LessonBlock) => void;
+  onDelete: () => void;
 }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-      <div className="flex gap-4">
-        <div className="rounded-xl bg-blue-100 p-3 text-blue-700">
-          {icon}
-        </div>
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: block.id });
 
-        <div>
-          <h3 className="font-bold text-slate-950">{title}</h3>
-          <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
-function ToolButton({ label }: { label: string }) {
   return (
-    <button
-      type="button"
-      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-white"
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={isDragging ? "opacity-60" : ""}
     >
-      {label}
-    </button>
+      <div className="mb-2 flex justify-end">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="cursor-grab rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 active:cursor-grabbing"
+        >
+          Drag
+        </button>
+      </div>
+
+      <LessonBlockRenderer
+        block={block}
+        onChange={onChange}
+        onDelete={onDelete}
+      />
+    </div>
   );
 }

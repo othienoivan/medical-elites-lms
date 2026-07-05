@@ -64,7 +64,7 @@ export default function CreateLessonPage() {
     try {
       setLoading(true);
 
-      await createLesson({
+      const lessonId = await createLesson({
         id: "",
         programmeId: selectedProgramme.id,
         programmeTitle: selectedProgramme.title,
@@ -79,6 +79,7 @@ export default function CreateLessonPage() {
         learningObjectives: [],
         sections: [],
         resources: [],
+        blocks: [],
         quizId: "",
         notesUrl: "",
         isPublished: true,
@@ -86,7 +87,7 @@ export default function CreateLessonPage() {
         updatedAt: new Date(),
       });
 
-      navigate("/tutor/modules");
+      navigate(`/tutor/lessons/${lessonId}/builder`);
     } catch (error) {
       console.error("Failed to create lesson:", error);
       alert("Failed to create lesson. Please try again.");
@@ -248,7 +249,7 @@ export default function CreateLessonPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigate("/tutor/modules")}
+              onClick={() => navigate("/tutor/lessons")}
             >
               Cancel
             </Button>
