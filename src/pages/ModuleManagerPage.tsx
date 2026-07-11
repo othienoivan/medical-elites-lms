@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import {
   BookOpen,
   Clock,
@@ -7,6 +8,9 @@ import {
   Target,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+=======
+import { BookOpen, Clock, Layers, Plus } from "lucide-react";
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 import { useNavigate } from "react-router-dom";
 
 import TutorLayout from "../components/layout/TutorLayout";
@@ -18,6 +22,7 @@ export default function ModuleManagerPage() {
   const navigate = useNavigate();
   const { modules, loading } = useModules();
 
+<<<<<<< HEAD
   const [search, setSearch] = useState("");
 
   const filteredModules = useMemo(() => {
@@ -114,6 +119,31 @@ export default function ModuleManagerPage() {
 
           <h2 className="mt-4 text-xl font-bold text-slate-900">
             No modules found
+=======
+  return (
+    <TutorLayout
+      title="Module Manager"
+      subtitle="Manage modules under each course unit."
+    >
+      <div className="mb-6 flex justify-end">
+        <Button
+          className="gap-2"
+          onClick={() => navigate("/tutor/modules/new")}
+        >
+          <Plus size={18} />
+          New Module
+        </Button>
+      </div>
+
+      {loading ? (
+        <p className="text-slate-600">Loading modules...</p>
+      ) : modules.length === 0 ? (
+        <Card className="text-center">
+          <Layers className="mx-auto text-slate-400" size={48} />
+
+          <h2 className="mt-4 text-xl font-bold text-slate-900">
+            No modules created yet
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
           </h2>
 
           <p className="mt-2 text-slate-600">
@@ -129,6 +159,7 @@ export default function ModuleManagerPage() {
         </Card>
       ) : (
         <div className="grid gap-6 md:grid-cols-2">
+<<<<<<< HEAD
           {filteredModules.map((module) => (
             <Card key={module.id}>
               <div className="flex flex-wrap gap-2">
@@ -140,17 +171,53 @@ export default function ModuleManagerPage() {
                 Module {module.order}: {module.title}
               </h2>
 
+=======
+          {modules.map((module) => (
+            <Card key={module.id}>
+              <p className="text-sm font-semibold text-blue-700">
+                {module.programmeTitle}
+              </p>
+
+              <h2 className="mt-2 text-xl font-bold text-slate-950">
+                Module {module.order}: {module.title}
+              </h2>
+
+              <p className="mt-2 text-sm font-semibold text-slate-500">
+                {module.courseUnitTitle}
+              </p>
+
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
               <p className="mt-4 leading-7 text-slate-600">
                 {module.description}
               </p>
 
               <div className="mt-5 grid gap-3 text-sm text-slate-600">
+<<<<<<< HEAD
                 <InfoRow icon={Clock} text={module.duration} />
                 <InfoRow icon={BookOpen} text={`${module.lessons} lessons`} />
                 <InfoRow icon={Target} text={`Pass mark: ${module.passMark}%`} />
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
+=======
+                <p className="flex items-center gap-2">
+                  <Clock size={16} />
+                  {module.duration}
+                </p>
+
+                <p className="flex items-center gap-2">
+                  <BookOpen size={16} />
+                  {module.lessons} lessons
+                </p>
+
+                <p className="flex items-center gap-2">
+                  <Layers size={16} />
+                  Pass mark: {module.passMark}%
+                </p>
+              </div>
+
+              <div className="mt-6 flex gap-3">
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
                 <Button
                   variant="outline"
                   onClick={() => navigate("/tutor/lessons/new")}
@@ -158,6 +225,7 @@ export default function ModuleManagerPage() {
                   Add Lesson
                 </Button>
 
+<<<<<<< HEAD
                 <Button
                   variant="outline"
                   onClick={() => navigate("/tutor/quizzes/builder")}
@@ -167,6 +235,10 @@ export default function ModuleManagerPage() {
 
                 <Button onClick={() => navigate("/tutor/lessons/builder")}>
                   Open Lesson Builder
+=======
+                <Button onClick={() => navigate("/tutor/lessons/builder")}>
+                  Open Builder
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
                 </Button>
               </div>
             </Card>
@@ -175,6 +247,7 @@ export default function ModuleManagerPage() {
       )}
     </TutorLayout>
   );
+<<<<<<< HEAD
 }
 
 function StatCard({
@@ -221,4 +294,6 @@ function Badge({ children }: { children: React.ReactNode }) {
       {children}
     </span>
   );
+=======
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 }

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import type {
   ButtonHTMLAttributes,
   ReactNode,
@@ -14,10 +15,16 @@ export type ButtonVariant =
   | "danger";
 
 export type ButtonSize = "sm" | "md" | "lg";
+=======
+import type { ButtonHTMLAttributes, ReactNode } from "react";
+
+type ButtonVariant = "primary" | "secondary" | "outline" | "ghost";
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;
   variant?: ButtonVariant;
+<<<<<<< HEAD
   size?: ButtonSize;
   fullWidth?: boolean;
   loading?: boolean;
@@ -50,11 +57,21 @@ const sizeClasses: Record<ButtonSize, string> = {
   sm: "min-h-9 px-3 py-2 text-sm",
   md: "min-h-11 px-5 py-2.5 text-sm",
   lg: "min-h-12 px-6 py-3 text-base",
+=======
+};
+
+const variants: Record<ButtonVariant, string> = {
+  primary: "bg-blue-700 text-white hover:bg-blue-800",
+  secondary: "bg-slate-900 text-white hover:bg-slate-800",
+  outline: "border border-slate-300 text-slate-700 hover:border-blue-700 hover:text-blue-700",
+  ghost: "text-slate-700 hover:text-blue-700",
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 };
 
 export default function Button({
   children,
   variant = "primary",
+<<<<<<< HEAD
   size = "md",
   fullWidth = false,
   loading = false,
@@ -95,6 +112,17 @@ export default function Button({
       )}
 
       <span>{loading ? "Please wait..." : children}</span>
+=======
+  className = "",
+  ...props
+}: ButtonProps) {
+  return (
+    <button
+      className={`inline-flex items-center justify-center rounded-xl px-5 py-2.5 font-semibold transition ${variants[variant]} ${className}`}
+      {...props}
+    >
+      {children}
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
     </button>
   );
 }

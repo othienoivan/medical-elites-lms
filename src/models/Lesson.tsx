@@ -1,6 +1,7 @@
 import type { LessonBlock } from "./LessonBlock";
 
 export interface LessonObjective {
+<<<<<<< HEAD
   id?: string;
   objective: string;
 }
@@ -39,16 +40,39 @@ export interface LessonSection {
   clinicalPearl?: string;
   caseScenario?: string;
   knowledgeChecks?: KnowledgeCheck[];
+=======
+  id: string;
+  objective: string;
+}
+
+export interface LessonSection {
+  id: string;
+  title: string;
+  content: string;
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 }
 
 export interface LessonResource {
   id: string;
   title: string;
+<<<<<<< HEAD
   type: "pdf" | "ppt" | "video" | "youtube" | "image" | "audio" | "link";
+=======
+  type:
+    | "pdf"
+    | "ppt"
+    | "video"
+    | "youtube"
+    | "image"
+    | "audio"
+    | "link";
+
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
   url: string;
 }
 
 export interface Lesson {
+<<<<<<< HEAD
   id: string;
   programmeId?: string;
   programmeTitle?: string;
@@ -81,3 +105,53 @@ export interface Lesson {
   createdAt?: Date;
   updatedAt?: Date;
 }
+=======
+  // Firestore ID
+  id: string;
+
+  // Parent Relationships
+  programmeId: string;
+  programmeTitle: string;
+
+  courseUnitId: string;
+  courseUnitTitle: string;
+
+  moduleId: string;
+  moduleTitle: string;
+
+  // Lesson Information
+  title: string;
+  description: string;
+
+  order: number;
+
+  estimatedMinutes: number;
+
+  /**
+   * Legacy fields
+   * Keep these temporarily for backward compatibility.
+   * They will be removed after all lessons use the new block system.
+   */
+  learningObjectives?: LessonObjective[];
+  sections?: LessonSection[];
+  resources?: LessonResource[];
+
+  /**
+   * New Lesson Builder architecture
+   */
+  blocks: LessonBlock[];
+
+  // Assessment
+  quizId?: string;
+
+  // Notes
+  notesUrl?: string;
+
+  // Status
+  isPublished: boolean;
+
+  // Audit
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d

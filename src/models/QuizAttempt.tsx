@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 export interface QuizAnswer {
   questionId: string;
 
@@ -63,4 +64,16 @@ export interface QuizAttempt {
 
   createdAt?: Date;
   updatedAt?: Date;
+=======
+export interface QuizAttempt {
+  id: string;
+  userId: string;
+  courseId: string;
+  moduleId: string;
+  quizId: string;
+  score: number;
+  passed: boolean;
+  passMark: number;
+  createdAt?: Date;
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 }

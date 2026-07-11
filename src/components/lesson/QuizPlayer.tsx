@@ -21,7 +21,11 @@ export default function QuizPlayer({
     let correct = 0;
 
     quiz.questions.forEach((question) => {
+<<<<<<< HEAD
       if (question.correctAnswer && answers[question.id] === question.correctAnswer) {
+=======
+      if (answers[question.id] === question.correctAnswer) {
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
         correct++;
       }
     });
@@ -54,11 +58,19 @@ export default function QuizPlayer({
         {quiz.questions.map((question, index) => (
           <div key={question.id}>
             <h3 className="font-bold text-slate-900">
+<<<<<<< HEAD
               {index + 1}. {question.question ?? "Question"}
             </h3>
 
             <div className="mt-4 space-y-3">
               {(question.options ?? []).map((option) => {
+=======
+              {index + 1}. {question.question}
+            </h3>
+
+            <div className="mt-4 space-y-3">
+              {question.options.map((option) => {
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
                 const selected = answers[question.id] === option;
 
                 return (

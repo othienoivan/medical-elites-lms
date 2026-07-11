@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
@@ -80,10 +81,42 @@ const NotFoundPage = lazy(() => import("../pages/NotFoundPage"));
 
 const TUTOR_ROLES: readonly UserRole[] = ["tutor", "admin"];
 const LEARNER_ROLES: readonly UserRole[] = ["student", "tutor", "admin"];
+=======
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+
+import HomePage from "../pages/HomePage";
+import LoginPage from "../pages/LoginPage";
+import RegisterPage from "../pages/RegisterPage";
+
+import DashboardPage from "../pages/DashboardPage";
+
+import CourseUnitPage from "../pages/CourseUnitPage";
+import CourseUnitDetailsPage from "../pages/CourseUnitDetailsPage";
+import LessonPage from "../pages/LessonPage";
+
+import TutorDashboardPage from "../pages/TutorDashboardPage";
+import CurriculumExplorerPage from "../pages/CurriculumExplorerPage";
+
+import ProgrammeManagerPage from "../pages/ProgrammeManagerPage";
+import CreateProgrammePage from "../pages/CreateProgrammePage";
+
+import CreateCourseUnitPage from "../pages/CreateCourseUnitPage";
+
+import ModuleManagerPage from "../pages/ModuleManagerPage";
+import CreateModulePage from "../pages/CreateModulePage";
+
+import LessonManagerPage from "../pages/LessonManagerPage";
+import CreateLessonPage from "../pages/CreateLessonPage";
+import LessonBuilderPage from "../pages/LessonBuilderPage";
+import LessonPreviewPage from "../pages/LessonPreviewPage";
+
+import ProtectedRoute from "../components/ProtectedRoute";
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 
 export default function AppRouter() {
   return (
     <BrowserRouter>
+<<<<<<< HEAD
       <Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
         {/* Public */}
@@ -96,6 +129,15 @@ export default function AppRouter() {
         <Route path="/courses/:slug" element={<CourseUnitDetailsPage />} />
 
         {/* Student */}
+=======
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/courses" element={<CourseUnitPage />} />
+        <Route path="/courses/:slug" element={<CourseUnitDetailsPage />} />
+
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
         <Route
           path="/dashboard"
           element={
@@ -104,6 +146,7 @@ export default function AppRouter() {
             </ProtectedRoute>
           }
         />
+<<<<<<< HEAD
         <Route
           path="/my-courses"
           element={
@@ -274,27 +317,41 @@ export default function AppRouter() {
             </ProtectedRoute>
           }
         />
+=======
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 
         <Route
           path="/lesson/:moduleId"
           element={
+<<<<<<< HEAD
             <ProtectedRoute allowedRoles={LEARNER_ROLES}>
+=======
+            <ProtectedRoute>
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
               <LessonPage />
             </ProtectedRoute>
           }
         />
 
+<<<<<<< HEAD
         {/* Tutor */}
         <Route
           path="/tutor"
           element={
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+=======
+        <Route
+          path="/tutor"
+          element={
+            <ProtectedRoute>
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
               <TutorDashboardPage />
             </ProtectedRoute>
           }
         />
 
         <Route
+<<<<<<< HEAD
           path="/tutor/finance"
           element={
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
@@ -324,6 +381,11 @@ export default function AppRouter() {
           path="/tutor/curriculum"
           element={
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+=======
+          path="/tutor/curriculum"
+          element={
+            <ProtectedRoute>
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
               <CurriculumExplorerPage />
             </ProtectedRoute>
           }
@@ -332,7 +394,11 @@ export default function AppRouter() {
         <Route
           path="/tutor/programmes"
           element={
+<<<<<<< HEAD
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+=======
+            <ProtectedRoute>
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
               <ProgrammeManagerPage />
             </ProtectedRoute>
           }
@@ -341,7 +407,11 @@ export default function AppRouter() {
         <Route
           path="/tutor/programmes/new"
           element={
+<<<<<<< HEAD
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+=======
+            <ProtectedRoute>
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
               <CreateProgrammePage />
             </ProtectedRoute>
           }
@@ -350,7 +420,11 @@ export default function AppRouter() {
         <Route
           path="/tutor/course-units"
           element={
+<<<<<<< HEAD
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+=======
+            <ProtectedRoute>
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
               <CreateCourseUnitPage />
             </ProtectedRoute>
           }
@@ -359,7 +433,11 @@ export default function AppRouter() {
         <Route
           path="/tutor/course-units/new"
           element={
+<<<<<<< HEAD
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+=======
+            <ProtectedRoute>
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
               <CreateCourseUnitPage />
             </ProtectedRoute>
           }
@@ -368,7 +446,11 @@ export default function AppRouter() {
         <Route
           path="/tutor/modules"
           element={
+<<<<<<< HEAD
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+=======
+            <ProtectedRoute>
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
               <ModuleManagerPage />
             </ProtectedRoute>
           }
@@ -377,7 +459,11 @@ export default function AppRouter() {
         <Route
           path="/tutor/modules/new"
           element={
+<<<<<<< HEAD
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+=======
+            <ProtectedRoute>
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
               <CreateModulePage />
             </ProtectedRoute>
           }
@@ -386,7 +472,11 @@ export default function AppRouter() {
         <Route
           path="/tutor/lessons"
           element={
+<<<<<<< HEAD
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+=======
+            <ProtectedRoute>
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
               <LessonManagerPage />
             </ProtectedRoute>
           }
@@ -395,7 +485,11 @@ export default function AppRouter() {
         <Route
           path="/tutor/lessons/new"
           element={
+<<<<<<< HEAD
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+=======
+            <ProtectedRoute>
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
               <CreateLessonPage />
             </ProtectedRoute>
           }
@@ -404,7 +498,11 @@ export default function AppRouter() {
         <Route
           path="/tutor/lessons/builder"
           element={
+<<<<<<< HEAD
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+=======
+            <ProtectedRoute>
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
               <LessonBuilderPage />
             </ProtectedRoute>
           }
@@ -413,7 +511,11 @@ export default function AppRouter() {
         <Route
           path="/tutor/lessons/:lessonId/builder"
           element={
+<<<<<<< HEAD
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+=======
+            <ProtectedRoute>
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
               <LessonBuilderPage />
             </ProtectedRoute>
           }
@@ -422,11 +524,16 @@ export default function AppRouter() {
         <Route
           path="/tutor/lessons/:lessonId/preview"
           element={
+<<<<<<< HEAD
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+=======
+            <ProtectedRoute>
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
               <LessonPreviewPage />
             </ProtectedRoute>
           }
         />
+<<<<<<< HEAD
 
         <Route
           path="/tutor/assessments"
@@ -674,3 +781,9 @@ function RouteLoadingFallback() {
     </main>
   );
 }
+=======
+      </Routes>
+    </BrowserRouter>
+  );
+}
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d

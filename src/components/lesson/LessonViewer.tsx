@@ -1,6 +1,9 @@
 import type { LessonBlock } from "../../models/LessonBlock";
+<<<<<<< HEAD
 import InteractiveQuestion from "./InteractiveQuestion";
 import PowerPointViewer from "./PowerPointViewer";
+=======
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 
 type Props = {
   blocks: LessonBlock[];
@@ -67,11 +70,17 @@ export default function LessonViewer({ blocks }: Props) {
 
               <div className="aspect-video overflow-hidden rounded-2xl border border-slate-200 bg-black">
                 <iframe
+<<<<<<< HEAD
                   src={toYouTubeEmbedUrl(block.url)}
                   title={block.title || "YouTube video"}
                   className="h-full w-full"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   referrerPolicy="strict-origin-when-cross-origin"
+=======
+                  src={block.url}
+                  title={block.title || "YouTube video"}
+                  className="h-full w-full"
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
                   allowFullScreen
                 />
               </div>
@@ -90,7 +99,18 @@ export default function LessonViewer({ blocks }: Props) {
           )}
 
           {block.type === "powerpoint" && block.url && (
+<<<<<<< HEAD
             <PowerPointViewer url={block.url} title={block.title} />
+=======
+            <a
+              href={block.url}
+              target="_blank"
+              rel="noreferrer"
+              className="block rounded-2xl border border-slate-200 bg-white p-5 font-semibold text-blue-700 underline"
+            >
+              Download PowerPoint: {block.title || "PowerPoint resource"}
+            </a>
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
           )}
 
           {block.type === "clinical-case" && (
@@ -243,22 +263,42 @@ export default function LessonViewer({ blocks }: Props) {
                   label="Station Name"
                   value={block.metadata?.osceStation as string}
                 />
+<<<<<<< HEAD
+=======
+
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
                 <OsceField
                   label="Candidate Instructions"
                   value={block.metadata?.stationInstructions as string}
                 />
+<<<<<<< HEAD
+=======
+
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
                 <OsceField
                   label="Equipment Required"
                   value={block.metadata?.equipment as string}
                 />
+<<<<<<< HEAD
+=======
+
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
                 <OsceField
                   label="Examiner Checklist"
                   value={block.metadata?.examinerChecklist as string}
                 />
+<<<<<<< HEAD
+=======
+
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
                 <OsceField
                   label="Marking Guide"
                   value={block.metadata?.markingGuide as string}
                 />
+<<<<<<< HEAD
+=======
+
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
                 <OsceField
                   label="Model Answer"
                   value={block.metadata?.modelAnswer as string}
@@ -272,7 +312,79 @@ export default function LessonViewer({ blocks }: Props) {
           )}
 
           {block.type === "question" && (
+<<<<<<< HEAD
             <InteractiveQuestion block={block} />
+=======
+            <div className="overflow-hidden rounded-2xl border border-rose-200 bg-white">
+              <div className="bg-rose-50 p-6">
+                <p className="text-sm font-semibold uppercase tracking-wide text-rose-700">
+                  Question
+                </p>
+
+                <h3 className="mt-1 text-2xl font-bold text-rose-950">
+                  {block.title || "Assessment Question"}
+                </h3>
+
+                {block.metadata?.questionType && (
+                  <p className="mt-2 text-sm font-semibold capitalize text-rose-700">
+                    Type:{" "}
+                    {String(block.metadata.questionType).replace("-", " ")}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-4 p-6">
+                <QuestionField
+                  label="Question Text"
+                  value={block.metadata?.questionText as string}
+                />
+
+                {["mcq", "emq"].includes(
+                  String(block.metadata?.questionType || "mcq")
+                ) && (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <QuestionOption
+                      label="A"
+                      value={block.metadata?.optionA as string}
+                    />
+                    <QuestionOption
+                      label="B"
+                      value={block.metadata?.optionB as string}
+                    />
+                    <QuestionOption
+                      label="C"
+                      value={block.metadata?.optionC as string}
+                    />
+                    <QuestionOption
+                      label="D"
+                      value={block.metadata?.optionD as string}
+                    />
+                    <QuestionOption
+                      label="E"
+                      value={block.metadata?.optionE as string}
+                    />
+                  </div>
+                )}
+
+                <QuestionField
+                  label="Correct Answer"
+                  value={block.metadata?.correctAnswer as string}
+                />
+
+                {block.metadata?.marks !== undefined && (
+                  <QuestionField
+                    label="Marks"
+                    value={String(block.metadata.marks)}
+                  />
+                )}
+
+                <QuestionField
+                  label="Explanation / Feedback"
+                  value={block.metadata?.explanation as string}
+                />
+              </div>
+            </div>
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
           )}
 
           {block.type === "knowledge-check" && (
@@ -351,6 +463,7 @@ function OsceField({ label, value }: { label: string; value?: string }) {
   );
 }
 
+<<<<<<< HEAD
 function toYouTubeEmbedUrl(value: string) {
   try {
     const url = new URL(value);
@@ -378,3 +491,30 @@ function toYouTubeEmbedUrl(value: string) {
 
   return value;
 }
+=======
+function QuestionField({ label, value }: { label: string; value?: string }) {
+  if (!value) return null;
+
+  return (
+    <div className="rounded-xl border border-rose-100 bg-rose-50 p-4">
+      <p className="text-sm font-bold uppercase tracking-wide text-rose-800">
+        {label}
+      </p>
+      <p className="mt-2 whitespace-pre-line leading-7 text-slate-700">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function QuestionOption({ label, value }: { label: string; value?: string }) {
+  if (!value) return null;
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <p className="font-bold text-slate-900">Option {label}</p>
+      <p className="mt-2 whitespace-pre-line text-slate-700">{value}</p>
+    </div>
+  );
+}
+>>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
