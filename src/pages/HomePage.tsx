@@ -8,6 +8,7 @@ import Statistics from "../components/home/Statistics";
 import LearningJourney from "../components/home/LearningJourney";
 import CallToAction from "../components/home/CallToAction";
 import Footer from "../components/layout/Footer";
+import Partners from "../components/home/Partners";
 
 export default function HomePage() {
   return (
@@ -19,6 +20,7 @@ export default function HomePage() {
          <Statistics />
              <LearningJourney />
             <WhyChooseUS />
+      <Partners />
       <Testimonials />
       <CallToAction />
       <Footer />

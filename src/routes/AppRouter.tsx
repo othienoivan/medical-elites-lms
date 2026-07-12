@@ -77,6 +77,11 @@ const ClinicalReviewPage = lazy(() => import("../pages/ClinicalReviewPage"));
 const FinanceManagerPage = lazy(() => import("../pages/FinanceManagerPage"));
 const StudentFinancePage = lazy(() => import("../pages/StudentFinancePage"));
 const AiAssistantPage = lazy(() => import("../pages/AiAssistantPage"));
+const AboutPage = lazy(() => import("../pages/AboutPage"));
+const PrivacyPolicyPage = lazy(() => import("../pages/PrivacyPolicyPage"));
+const TermsPage = lazy(() => import("../pages/TermsPage"));
+const TestimonialsPage = lazy(() => import("../pages/TestimonialsPage"));
+const ContactPage = lazy(() => import("../pages/ContactPage"));
 const NotFoundPage = lazy(() => import("../pages/NotFoundPage"));
 
 const TUTOR_ROLES: readonly UserRole[] = ["tutor", "admin"];
@@ -91,6 +96,11 @@ export default function AppRouter() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/testimonials" element={<TestimonialsPage />} />
+        <Route path="/contact" element={<ContactPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
         <Route path="/courses" element={<CourseUnitPage />} />

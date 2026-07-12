@@ -269,7 +269,7 @@ export default function QuizBuilderPage() {
       navigate("/tutor/quizzes");
     } catch (error) {
       console.error("Failed to save assessment:", error);
-      alert("Failed to save assessment.");
+      alert(error instanceof Error ? error.message : "Failed to save assessment.");
     } finally {
       setSaving(false);
     }

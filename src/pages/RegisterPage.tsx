@@ -1,23 +1,39 @@
 import { FirebaseError } from "firebase/app";
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { ShieldCheck, Stethoscope, UserCog } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
+import PublicLayout from "../components/layout/PublicLayout";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import Logo from "../components/ui/Logo";
-
-import { registerUser } from "../firebase/auth";
+import { logoutUser, registerUser } from "../firebase/auth";
 import { createUserProfile } from "../firebase/firestore";
+
+type RegistrationRole = "student" | "tutor" | "admin";
+
+const roles: { role: RegistrationRole; title: string; description: string; icon: React.ElementType }[] = [
+  { role: "student", title: "Student", description: "Create an active learner account and link it to your institutional student record.", icon: Stethoscope },
+  { role: "tutor", title: "Tutor", description: "Create an active tutor account for the current testing phase.", icon: ShieldCheck },
+  { role: "admin", title: "Administrator", description: "Administrator accounts are invitation-only for institutional security.", icon: UserCog },
+];
+
+function isRegistrationRole(value: string | null): value is RegistrationRole {
+  return value === "student" || value === "tutor" || value === "admin";
+}
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const initialRole = isRegistrationRole(query.get("role")) ? query.get("role") as RegistrationRole : "student";
 
+  const [selectedRole, setSelectedRole] = useState<RegistrationRole>(initialRole);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -25,59 +41,56 @@ export default function RegisterPage() {
     event.preventDefault();
     setError("");
 
-    if (!fullName.trim()) {
-      setError("Full name is required.");
+    if (selectedRole === "admin") {
+      navigate("/contact?subject=admin-access");
       return;
     }
-
-    if (!email.trim()) {
-      setError("Email address is required.");
-      return;
-    }
-
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
+    if (!fullName.trim()) return setError("Full name is required.");
+    if (!email.trim()) return setError("Email address is required.");
+    if (password.length < 6) return setError("Password must be at least 6 characters.");
+    if (password !== confirmPassword) return setError("Passwords do not match.");
 
     try {
       setLoading(true);
-
-      const firebaseUser = await registerUser(email, password);
+      const firebaseUser = await registerUser(email.trim(), password);
+      const publicTutorRegistration =
+        import.meta.env.VITE_ALLOW_PUBLIC_TUTOR_REGISTRATION !== "false";
+      const registeringTutor = selectedRole === "tutor";
+      const tutorNeedsApproval = registeringTutor && !publicTutorRegistration;
 
       await createUserProfile({
         uid: firebaseUser.uid,
-        fullName,
-        email,
-        role: "student",
+        fullName: fullName.trim(),
+        email: email.trim(),
+        role: registeringTutor && publicTutorRegistration ? "tutor" : "student",
+        requestedRole: selectedRole,
+        isActive: !tutorNeedsApproval,
       });
 
-      alert(
-        "Registration successful! Please verify your email before logging in."
-      );
-
-      navigate("/login");
-    } catch (error: unknown) {
-      console.error(error);
-
-      if (!(error instanceof FirebaseError)) {
-        setError("Registration failed. Please try again.");
-        return;
+      if (tutorNeedsApproval) {
+        await logoutUser();
+        alert("Tutor registration request submitted. An administrator must approve and activate the account before tutor access is granted.");
+        navigate("/login?role=tutor&status=pending");
+      } else {
+        alert(
+          registeringTutor
+            ? "Tutor account created successfully for the testing phase. Please verify your email, then log in through the Tutor portal."
+            : "Registration successful. Please verify your email before logging in."
+        );
+        navigate(`/login?role=${selectedRole}`);
       }
-
-      if (error.code === "auth/email-already-in-use") {
+    } catch (caughtError: unknown) {
+      console.error(caughtError);
+      if (!(caughtError instanceof FirebaseError)) {
+        setError("Registration failed. Please try again.");
+      } else if (caughtError.code === "auth/email-already-in-use") {
         setError("This email address is already registered.");
-      } else if (error.code === "auth/invalid-email") {
+      } else if (caughtError.code === "auth/invalid-email") {
         setError("Please enter a valid email address.");
-      } else if (error.code === "auth/weak-password") {
+      } else if (caughtError.code === "auth/weak-password") {
         setError("Password is too weak.");
       } else {
-        setError(error.message || "Registration failed.");
+        setError(caughtError.message || "Registration failed.");
       }
     } finally {
       setLoading(false);
@@ -85,98 +98,48 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6 py-12">
-      <Card className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <div className="flex justify-center">
-            <Logo />
+    <PublicLayout>
+      <div className="bg-slate-100 px-6 py-12">
+        <div className="mx-auto max-w-5xl">
+          <div className="text-center">
+            <div className="flex justify-center"><Logo /></div>
+            <h1 className="mt-6 text-4xl font-extrabold text-slate-950">Register with Medical Elites</h1>
+            <p className="mt-3 text-slate-600">Choose the account type you need.</p>
           </div>
 
-          <h1 className="mt-8 text-3xl font-bold text-slate-900">
-            Create Your Account
-          </h1>
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {roles.map(({ role, title, description, icon: Icon }) => (
+              <button key={role} type="button" onClick={() => { setSelectedRole(role); setError(""); }} className={`rounded-2xl border p-5 text-left transition ${selectedRole === role ? "border-blue-700 bg-blue-50 ring-2 ring-blue-100" : "border-slate-200 bg-white hover:border-blue-300 hover:shadow-md"}`}>
+                <Icon className="text-blue-700" size={28} />
+                <p className="mt-4 text-lg font-bold text-slate-950">{title}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+              </button>
+            ))}
+          </div>
 
-          <p className="mt-2 text-slate-600">
-            Join Medical Elites and begin your learning journey.
-          </p>
+          {selectedRole === "admin" ? (
+            <Card className="mx-auto mt-8 max-w-xl text-center">
+              <UserCog className="mx-auto text-blue-700" size={42} />
+              <h2 className="mt-4 text-2xl font-bold text-slate-950">Administrator access is invitation-only</h2>
+              <p className="mt-3 leading-7 text-slate-600">This protects institutional data and prevents unauthorized privilege creation. Contact Medical Elites or an existing administrator to request access.</p>
+              <div className="mt-6"><Link to="/contact?subject=admin-access"><Button>Request Administrator Access</Button></Link></div>
+            </Card>
+          ) : (
+            <Card className="mx-auto mt-8 w-full max-w-md">
+              <h2 className="text-center text-2xl font-bold text-slate-950">{selectedRole === "student" ? "Student Registration" : "Tutor Registration"}</h2>
+              {error && <div className="mt-5 rounded-lg bg-red-50 p-3 text-red-700">{error}</div>}
+              <form onSubmit={handleRegister} className="mt-6 space-y-5">
+                <label className="block"><span className="mb-2 block font-medium">Full Name</span><Input value={fullName} onChange={(e) => setFullName(e.target.value)} required /></label>
+                <label className="block"><span className="mb-2 block font-medium">Email Address</span><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
+                <label className="block"><span className="mb-2 block font-medium">Password</span><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
+                <label className="block"><span className="mb-2 block font-medium">Confirm Password</span><Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required /></label>
+                <Button type="submit" className="w-full" disabled={loading}>{loading ? "Submitting..." : selectedRole === "student" ? "Create Student Account" : "Create Tutor Account"}</Button>
+              </form>
+              <p className="mt-6 text-center text-sm text-slate-600">Already have an account? <Link to={`/login?role=${selectedRole}`} className="font-semibold text-blue-700 hover:underline">Login</Link></p>
+            </Card>
+          )}
         </div>
-
-        {error && (
-          <div className="mb-5 rounded-lg bg-red-50 p-3 text-red-700">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleRegister} className="space-y-5">
-          <div>
-            <label className="mb-2 block font-medium">Full Name</label>
-
-            <Input
-              type="text"
-              placeholder="Othieno Ivan"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block font-medium">Email Address</label>
-
-            <Input
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block font-medium">Password</label>
-
-            <Input
-              type="password"
-              placeholder="Minimum 6 characters"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block font-medium">
-              Confirm Password
-            </label>
-
-            <Input
-              type="password"
-              placeholder="Repeat password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-            />
-          </div>
-
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={loading}
-          >
-            {loading ? "Creating Account..." : "Create Account"}
-          </Button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-slate-600">
-          Already have an account?{" "}
-          <Link
-            to="/login"
-            className="font-semibold text-blue-700 hover:underline"
-          >
-            Login
-          </Link>
-        </p>
-      </Card>
-    </main>
+      </div>
+    </PublicLayout>
   );
 }

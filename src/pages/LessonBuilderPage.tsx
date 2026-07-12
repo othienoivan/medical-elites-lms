@@ -35,6 +35,7 @@ const blockTypes: { label: string; type: LessonBlockType }[] = [
   { label: "YouTube Video", type: "youtube" },
   { label: "PDF Resource", type: "pdf" },
   { label: "PowerPoint", type: "powerpoint" },
+  { label: "Word Document", type: "document" },
   { label: "Clinical Case", type: "clinical-case" },
   { label: "Drug Table", type: "drug-table" },
   { label: "OSCE Station", type: "osce-station" },
@@ -125,11 +126,37 @@ export default function LessonBuilderPage() {
     });
   }
 
+
+  function validateDocumentPreviews() {
+    const incompleteOfficeBlock = blocks.find(
+      (block) =>
+        (block.type === "powerpoint" || block.type === "document") &&
+        block.url &&
+        !block.metadata?.previewPdfUrl
+    );
+
+    if (incompleteOfficeBlock) {
+      alert(
+        `Please upload a PDF preview for ${
+          incompleteOfficeBlock.title ||
+          (incompleteOfficeBlock.type === "powerpoint"
+            ? "the PowerPoint presentation"
+            : "the Word document")
+        }. This guarantees that students can read it inside the browser.`
+      );
+      return false;
+    }
+
+    return true;
+  }
+
   async function handleSave() {
     if (!lessonId) {
       alert("Open this builder from a saved lesson before saving blocks.");
       return;
     }
+
+    if (!validateDocumentPreviews()) return;
 
     try {
       setSaving(true);
@@ -148,6 +175,8 @@ export default function LessonBuilderPage() {
       alert("Open this builder from a saved lesson before previewing.");
       return;
     }
+
+    if (!validateDocumentPreviews()) return;
 
     try {
       setSaving(true);

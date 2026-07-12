@@ -6,6 +6,7 @@ export type LessonBlockType =
   | "youtube"
   | "pdf"
   | "powerpoint"
+  | "document"
   | "clinical-case"
   | "drug-table"
   | "osce-station"
@@ -93,6 +94,9 @@ export interface LessonBlockMetadata {
   filePath?: string;
   contentType?: string;
   size?: number;
+  previewPdfUrl?: string;
+  previewPdfFileName?: string;
+  previewPdfFilePath?: string;
 
   // ==========================================
   // Future Extensions

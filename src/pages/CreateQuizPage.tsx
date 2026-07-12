@@ -170,7 +170,7 @@ assessmentType: "lesson-quiz",
       navigate("/tutor/quizzes");
     } catch (error) {
       console.error("Failed to create quiz:", error);
-      alert("Failed to create quiz.");
+      alert(error instanceof Error ? error.message : "Failed to create quiz.");
     } finally {
       setSaving(false);
     }

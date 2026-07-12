@@ -1,322 +1,243 @@
 import {
   BarChart3,
+  Bell,
+  BookOpen,
   CalendarCheck,
   CalendarDays,
-  Stethoscope,
-  WalletCards,
-  Megaphone,
-  Bell,
-  MessageCircle,
-  BookOpen,
-  Brain,
   ClipboardCheck,
   FileText,
   GraduationCap,
   HelpCircle,
   Layers,
   LibraryBig,
-  PenTool,
+  Megaphone,
+  MessageCircle,
   PlusCircle,
   Sparkles,
+  Stethoscope,
   Users,
+  WalletCards,
 } from "lucide-react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
+import ActivityFeed from "../components/dashboard/ActivityFeed";
+import DailyBrief from "../components/dashboard/DailyBrief";
+import DashboardWidget from "../components/dashboard/DashboardWidget";
+import MediInsight from "../components/dashboard/MediInsight";
+import MyDay from "../components/dashboard/MyDay";
+import QuickActions from "../components/dashboard/QuickActions";
+import StatWidget from "../components/dashboard/StatWidget";
+import WidgetGrid from "../components/dashboard/WidgetGrid";
 import TutorLayout from "../components/layout/TutorLayout";
-import Card from "../components/ui/Card";
+import Button from "../components/ui/Button";
+import useAttendance from "../hooks/useAttendance";
+import useAuth from "../hooks/useAuth";
+import { useTutorClinicalLogbook } from "../hooks/useClinicalLogbook";
+import useMessages from "../hooks/useMessages";
+import useNotifications from "../hooks/useNotifications";
+import useTimetable from "../hooks/useTimetable";
+import useTutorQuizAttempts from "../hooks/useTutorQuizAttempts";
+
+function currentDayName() {
+  return new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(new Date());
+}
 
 export default function TutorDashboardPage() {
   const navigate = useNavigate();
+  const { currentUser, userProfile } = useAuth();
+  const { attempts, loading: attemptsLoading } = useTutorQuizAttempts();
+  const { entries: clinicalEntries, loading: clinicalLoading } = useTutorClinicalLogbook();
+  const { sessions, loading: attendanceLoading } = useAttendance();
+  const { entries: timetableEntries, loading: timetableLoading } = useTimetable();
+  const { conversations, loading: messagesLoading } = useMessages();
+  const { notifications, unreadCount, loading: notificationsLoading } = useNotifications();
+
+  const pendingMarking = attempts.filter((attempt) => !attempt.released).length;
+  const pendingClinical = clinicalEntries.filter((entry) => entry.status === "submitted").length;
+
+  const todaySchedule = useMemo(() => {
+    const day = currentDayName().toLowerCase();
+    return timetableEntries
+      .filter(
+        (entry) =>
+          entry.status === "scheduled" &&
+          entry.dayOfWeek.toLowerCase() === day &&
+          (!entry.tutorUid || entry.tutorUid === currentUser?.uid)
+      )
+      .sort((a, b) => a.startTime.localeCompare(b.startTime))
+      .slice(0, 6)
+      .map((entry) => ({
+        id: entry.id,
+        time: entry.startTime,
+        title: entry.courseUnitTitle,
+        meta: `${entry.venue || "Venue TBC"}${entry.classGroup ? ` · ${entry.classGroup}` : ""}`,
+      }));
+  }, [currentUser?.uid, timetableEntries]);
+
+  const recentActivity = useMemo(() => {
+    const reviewItems = clinicalEntries
+      .filter((entry) => entry.status === "submitted")
+      .slice(0, 2)
+      .map((entry) => ({
+        id: `clinical-${entry.id}`,
+        title: `${entry.studentName} submitted a clinical entry`,
+        detail: entry.procedureName,
+      }));
+    const submissionItems = attempts
+      .slice(0, 3)
+      .map((attempt) => ({
+        id: `attempt-${attempt.id}`,
+        title: `${attempt.studentName || "Student"} submitted an assessment`,
+        detail: attempt.quizTitle || "Assessment submission",
+      }));
+    return [...reviewItems, ...submissionItems].slice(0, 5);
+  }, [attempts, clinicalEntries]);
+
+  const loading =
+    attemptsLoading ||
+    clinicalLoading ||
+    attendanceLoading ||
+    timetableLoading ||
+    messagesLoading ||
+    notificationsLoading;
+
+  const displayName = userProfile?.fullName || currentUser?.email?.split("@")[0] || "Tutor";
+  const today = new Date().toISOString().slice(0, 10);
+  const attendanceToday = sessions.filter(
+    (session) => session.sessionDate === today && session.markedByUid === currentUser?.uid
+  ).length;
 
   return (
-    <TutorLayout
-      title="Tutor Portal"
-      subtitle="Manage curriculum, lessons, assessments and learner progress."
-    >
-      <div className="mb-8 rounded-3xl bg-gradient-to-r from-blue-700 to-indigo-700 p-8 text-white">
-        <h2 className="text-3xl font-bold">Medical Elites Tutor Workspace</h2>
-
-        <p className="mt-2 max-w-3xl text-blue-100">
-          Build lessons, manage academic programmes, create CATs, module tests,
-          practice assessments, examinations and medical education analytics
-          from one place.
-        </p>
+    <TutorLayout title="Tutor Dashboard" subtitle="Your teaching priorities, learner activity and academic tools in one workspace.">
+      <div className="overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-700 via-teal-700 to-cyan-700 p-7 shadow-lg md:p-9">
+        <DailyBrief name={displayName} subtitle="Focus on what needs your attention today and let Medi help with the repetitive work.">
+          <div className="flex flex-wrap gap-3">
+            <Button className="bg-white text-emerald-700 hover:bg-emerald-50" onClick={() => navigate("/tutor/lessons/new")}>
+              <PlusCircle size={18} /> Create Lesson
+            </Button>
+            <Button className="border-white/40 bg-white/10 text-white hover:bg-white/20" onClick={() => navigate("/tutor/ai-assistant")}>
+              <Sparkles size={18} /> Ask Medi
+            </Button>
+          </div>
+        </DailyBrief>
       </div>
 
-      <DashboardSection title="Academic Management">
-        <DashboardCard
-          title="Programmes"
-          description="Create and manage academic programmes."
-          icon={GraduationCap}
-          onClick={() => navigate("/tutor/programmes")}
-        />
+      <WidgetGrid className="mt-6">
+        <StatWidget title="Pending Marking" value={loading ? "…" : pendingMarking} helper="Submissions awaiting release" icon={ClipboardCheck} tone="amber" />
+        <StatWidget title="Clinical Reviews" value={loading ? "…" : pendingClinical} helper="Submitted logbook entries" icon={Stethoscope} tone="teal" />
+        <StatWidget title="Today's Registers" value={loading ? "…" : attendanceToday} helper="Attendance sessions recorded" icon={CalendarCheck} tone="green" />
+        <StatWidget title="Unread Updates" value={loading ? "…" : unreadCount} helper={`${conversations.length} active conversations`} icon={Bell} tone="purple" />
+      </WidgetGrid>
 
-        <DashboardCard
-          title="Course Units"
-          description="Create and organise course units."
-          icon={BookOpen}
-          onClick={() => navigate("/tutor/course-units")}
-        />
+      <div className="mt-6 grid gap-6 xl:grid-cols-3">
+        <DashboardWidget title="Quick Actions" description="Start common tutor tasks immediately" className="xl:col-span-2">
+          <QuickActions
+            actions={[
+              { label: "Create Lesson", description: "Build learning content", icon: BookOpen, onClick: () => navigate("/tutor/lessons/new") },
+              { label: "Create Assessment", description: "Build a quiz or CAT", icon: ClipboardCheck, onClick: () => navigate("/tutor/quizzes/builder") },
+              { label: "Take Attendance", description: "Load the class register", icon: CalendarCheck, onClick: () => navigate("/tutor/attendance") },
+              { label: "Question Bank", description: "Create reusable questions", icon: HelpCircle, onClick: () => navigate("/tutor/questions") },
+              { label: "Announcements", description: "Publish an academic notice", icon: Megaphone, onClick: () => navigate("/tutor/announcements") },
+              { label: "Ask Medi", description: "Generate teaching materials", icon: Sparkles, onClick: () => navigate("/tutor/ai-assistant") },
+            ]}
+          />
+        </DashboardWidget>
 
-        <DashboardCard
-          title="Modules"
-          description="Build modules under course units."
-          icon={Layers}
-          onClick={() => navigate("/tutor/modules")}
+        <MediInsight
+          title="Teaching recommendation"
+          message={
+            pendingMarking > 0
+              ? `You have ${pendingMarking} submission${pendingMarking === 1 ? "" : "s"} awaiting marking or release. Clear the oldest attempts first, then use Medi to prepare targeted remediation.`
+              : pendingClinical > 0
+                ? `Your marking queue is clear. ${pendingClinical} clinical entr${pendingClinical === 1 ? "y is" : "ies are"} awaiting review.`
+                : "Your immediate review queues are clear. This is a good time to prepare a revision activity or strengthen an upcoming lesson."
+          }
+          actionLabel={pendingMarking > 0 ? "Open submissions" : pendingClinical > 0 ? "Review logbooks" : "Open Medi"}
+          onAction={() => navigate(pendingMarking > 0 ? "/tutor/submissions" : pendingClinical > 0 ? "/tutor/clinical-logbook" : "/tutor/ai-assistant")}
         />
+      </div>
 
-        <DashboardCard
-          title="Lessons"
-          description="Create and edit lesson content."
-          icon={LibraryBig}
-          onClick={() => navigate("/tutor/lessons")}
-        />
+      <div className="mt-6 grid gap-6 xl:grid-cols-3">
+        <DashboardWidget title="Today's Teaching" description="Your scheduled sessions" className="xl:col-span-2">
+          <MyDay items={todaySchedule} />
+        </DashboardWidget>
+        <DashboardWidget title="Recent Learner Activity" description="Latest submissions requiring awareness">
+          <ActivityFeed items={recentActivity} />
+        </DashboardWidget>
+      </div>
 
-        <DashboardCard
-          title="Visual Lesson Builder"
-          description="Build rich lessons using interactive blocks."
-          icon={PenTool}
-          onClick={() => navigate("/tutor/lessons")}
-        />
+      <div className="mt-6 grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
+        <WorkspaceCard title="Academic Management" icon={GraduationCap} items={[
+          ["Programmes", "/tutor/programmes"],
+          ["Course Units", "/tutor/course-units"],
+          ["Modules", "/tutor/modules"],
+          ["Lessons", "/tutor/lessons"],
+        ]} navigate={navigate} />
+        <WorkspaceCard title="Assessment Centre" icon={FileText} items={[
+          ["Assessment Workspace", "/tutor/assessments"],
+          ["Question Bank", "/tutor/questions"],
+          ["Assessment Bank", "/tutor/quizzes"],
+          ["Examination Bank", "/tutor/exams"],
+        ]} navigate={navigate} />
+        <WorkspaceCard title="Learner Management" icon={Users} items={[
+          ["Students", "/tutor/students"],
+          ["Enrolments", "/tutor/enrollments"],
+          ["Gradebook", "/tutor/gradebook"],
+          ["Class Analytics", "/tutor/class-analytics"],
+        ]} navigate={navigate} />
+        <WorkspaceCard title="Clinical & Schedule" icon={Stethoscope} items={[
+          ["Clinical Logbook", "/tutor/clinical-logbook"],
+          ["Attendance", "/tutor/attendance"],
+          ["Timetable", "/tutor/timetable"],
+          ["Messages", "/tutor/messages"],
+        ]} navigate={navigate} />
+        <WorkspaceCard title="Institution Tools" icon={WalletCards} items={[
+          ["Finance", "/tutor/finance"],
+          ["Announcements", "/tutor/announcements"],
+          ["Notifications", "/tutor/notifications"],
+          ["Analytics", "/tutor/class-analytics"],
+        ]} navigate={navigate} />
+        <WorkspaceCard title="Curriculum Builder" icon={LibraryBig} items={[
+          ["Curriculum Explorer", "/tutor/curriculum"],
+          ["Lesson Builder", "/tutor/lessons/builder"],
+          ["Universal Builder", "/tutor/quizzes/builder"],
+          ["Examination Builder", "/tutor/exams/builder"],
+        ]} navigate={navigate} />
+      </div>
 
-        <DashboardCard
-          title="Curriculum Explorer"
-          description="Review curriculum structure."
-          icon={BarChart3}
-          onClick={() => navigate("/tutor/curriculum")}
-        />
-      </DashboardSection>
-
-      <DashboardSection title="Assessment Centre">
-        <DashboardCard
-          title="Assessment Workspace"
-          description="Open the central medical assessment control centre."
-          icon={ClipboardCheck}
-          onClick={() => navigate("/tutor/assessments")}
-        />
-
-        <DashboardCard
-          title="Question Bank"
-          description="Create reusable MCQs, SAQs, essays, EMQs and clinical questions."
-          icon={HelpCircle}
-          onClick={() => navigate("/tutor/questions")}
-        />
-
-        <DashboardCard
-          title="Assessment Bank"
-          description="Manage lesson quizzes, CATs, module tests, practice tests, mock exams and final assessments."
-          icon={ClipboardCheck}
-          onClick={() => navigate("/tutor/quizzes")}
-        />
-
-        <DashboardCard
-          title="Universal Assessment Builder"
-          description="Build CATs, lesson quizzes, module tests and mock exams from the Question Bank."
-          icon={PlusCircle}
-          onClick={() => navigate("/tutor/quizzes/builder")}
-        />
-
-        <DashboardCard
-          title="Examination Bank"
-          description="Manage full professional examination papers."
-          icon={FileText}
-          onClick={() => navigate("/tutor/exams")}
-        />
-
-        <DashboardCard
-          title="Examination Builder"
-          description="Create sectioned papers, UAHEB-style exams and marking guides."
-          icon={FileText}
-          onClick={() => navigate("/tutor/exams/builder")}
-        />
-      </DashboardSection>
-      <DashboardSection title="Student Management">
-        <DashboardCard
-  title="Students"
-  description="Search, filter and manage student academic records."
-  icon={Users}
-  onClick={() => navigate("/tutor/students")}
-/><DashboardCard
-  title="Enrollment Manager"
-  description="Assign students to programmes, course units, semesters and class groups."
-  icon={GraduationCap}
-  onClick={() => navigate("/tutor/enrollments")}
-/>
-
-        <DashboardCard
-          title="Clinical Logbook"
-          description="Review clinical procedures, reflections and competency submissions."
-          icon={Stethoscope}
-          onClick={() => navigate("/tutor/clinical-logbook")}
-        />
-
-
-        <DashboardCard
-          title="AI Academic Assistant"
-          description="Generate lesson plans, assessments, marking guides and performance-support materials."
-          icon={Sparkles}
-          onClick={() => navigate("/tutor/ai-assistant")}
-        />
-
-        <DashboardCard
-          title="Finance Management"
-          description="Manage fee structures, student billing, payments, receipts and clearance."
-          icon={WalletCards}
-          onClick={() => navigate("/tutor/finance")}
-        />
-
-        <DashboardCard
-          title="Attendance Management"
-          description="Record class attendance, monitor participation and export reports."
-          icon={CalendarCheck}
-          onClick={() => navigate("/tutor/attendance")}
-        />
-
-        <DashboardCard
-          title="Timetable Management"
-          description="Schedule course units, venues, class groups and teaching times."
-          icon={CalendarDays}
-          onClick={() => navigate("/tutor/timetable")}
-        />
-
-        <DashboardCard
-          title="Announcements"
-          description="Publish institutional notices, assessment reminders and course updates."
-          icon={Megaphone}
-          onClick={() => navigate("/tutor/announcements")}
-        />
-
-        <DashboardCard
-          title="Messages"
-          description="Communicate directly with students and fellow tutors."
-          icon={MessageCircle}
-          onClick={() => navigate("/tutor/messages")}
-        />
-
-        <DashboardCard
-          title="Notifications"
-          description="Review unread messages and important system updates."
-          icon={Bell}
-          onClick={() => navigate("/tutor/notifications")}
-        />
-
-        <DashboardCard
-          title="Submission Inbox"
-          description="Review submitted assessments and open attempts for marking."
-          icon={ClipboardCheck}
-          onClick={() => navigate("/tutor/submissions")}
-        />
-
-        <DashboardCard
-          title="Gradebook"
-          description="Review manually marked assessment scores and pass/fail results."
-          icon={BarChart3}
-          onClick={() => navigate("/tutor/gradebook")}
-        />
-
-        <DashboardCard
-          title="Automatic Gradebook"
-          description="Automatically calculate student averages, grades and rankings."
-          icon={GraduationCap}
-          onClick={() => navigate("/tutor/automatic-gradebook")}
-        />
-
-        <DashboardCard
-          title="Student Performance"
-          description="Open detailed academic profiles, assessment history and progress reports."
-          icon={Users}
-          onClick={() => navigate("/tutor/student-performance/demo")}
-        />
-
-        <DashboardCard
-          title="Class Analytics"
-          description="View class averages, pass rates, grade distribution and performance trends."
-          icon={BarChart3}
-          onClick={() => navigate("/tutor/class-analytics")}
-        />
-
-        <DashboardCard
-          title="Assessment Analytics"
-          description="Analyse assessment statistics, question performance and learner outcomes."
-          icon={ClipboardCheck}
-          onClick={() => navigate("/tutor/quizzes")}
-        />
-      </DashboardSection>
-
-      <DashboardSection title="AI Tools">
-        <DashboardCard
-          title="AI Question Generator"
-          description="Generate MCQs, SAQs, essays, OSCE stations and clinical cases."
-          icon={Sparkles}
-          onClick={() => alert("AI Question Generator coming soon.")}
-        />
-
-        <DashboardCard
-          title="AI Lesson Generator"
-          description="Generate lesson plans, notes, presentations and tutor guides."
-          icon={Brain}
-          onClick={() => alert("AI Lesson Generator coming soon.")}
-        />
-      </DashboardSection>
+      {notifications.length > 0 && (
+        <p className="mt-6 text-center text-sm text-slate-500">Latest update: {notifications[0].title}</p>
+      )}
     </TutorLayout>
   );
 }
 
-function DashboardSection({
+function WorkspaceCard({
   title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="mb-10">
-      <h2 className="mb-5 text-2xl font-bold text-slate-950">{title}</h2>
-
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        {children}
-      </div>
-    </section>
-  );
-}
-
-function DashboardCard({
-  title,
-  description,
   icon: Icon,
-  onClick,
+  items,
+  navigate,
 }: {
   title: string;
-  description: string;
   icon: React.ElementType;
-  onClick: () => void;
+  items: [string, string][];
+  navigate: ReturnType<typeof useNavigate>;
 }) {
   return (
-    <Card
-      onClick={onClick}
-      className="cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-blue-300"
-    >
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-100">
-        <Icon size={28} className="text-blue-700" />
+    <DashboardWidget title={title} action={<Icon className="text-emerald-700" size={24} />}>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {items.map(([label, path]) => (
+          <button
+            key={path}
+            type="button"
+            onClick={() => navigate(path)}
+            className="rounded-xl bg-slate-50 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-800"
+          >
+            {label}
+          </button>
+        ))}
       </div>
-
-      <h3 className="mt-5 text-xl font-bold text-slate-950">
-        {title}
-      </h3>
-
-      <p className="mt-2 text-sm leading-6 text-slate-600">
-        {description}
-      </p>
-
-      <div className="mt-6 flex items-center justify-between">
-        <span className="font-semibold text-blue-700">
-          Open Module →
-        </span>
-
-        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-          Medical Elites
-        </span>
-      </div>
-    </Card>
+    </DashboardWidget>
   );
 }

@@ -39,6 +39,7 @@ service cloud.firestore {
         && (
           data.studentEmail == request.auth.token.email
           || data.email == request.auth.token.email
+          || data.emailNormalized == request.auth.token.email
           || data.studentEmailNormalized == request.auth.token.email
         );
     }
@@ -51,16 +52,24 @@ service cloud.firestore {
           get(/databases/$(database)/documents/students/$(data.studentId)).data.authUid == request.auth.uid
           || (
             request.auth.token.email != null
-            && get(/databases/$(database)/documents/students/$(data.studentId)).data.email == request.auth.token.email
+            && (
+              get(/databases/$(database)/documents/students/$(data.studentId)).data.email == request.auth.token.email
+              || get(/databases/$(database)/documents/students/$(data.studentId)).data.emailNormalized == request.auth.token.email
+            )
           )
         );
     }
 
     match /users/{userId} {
+      // Testing-phase policy: students and tutors may self-register.
+      // Before commercialization, restrict tutor creation to invitations,
+      // administrator approval, or subscription entitlements.
       allow create: if signedIn()
         && request.auth.uid == userId
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.role == 'student';
+        && request.resource.data.requestedRole in ['student', 'tutor']
+        && request.resource.data.role == request.resource.data.requestedRole
+        && request.resource.data.isActive == true;
 
       allow read: if signedIn();
 
@@ -255,7 +264,10 @@ service cloud.firestore {
         || (
           resource.data.studentId != null
           && request.auth.token.email != null
-          && get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.email == request.auth.token.email
+          && (
+            get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.email == request.auth.token.email
+            || get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.emailNormalized == request.auth.token.email
+          )
         )
         || isTutorOrAdmin()
       );
@@ -266,7 +278,10 @@ service cloud.firestore {
         signedIn()
         && request.auth.token.email != null
         && resource.data.studentId != null
-        && get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.email == request.auth.token.email
+        && (
+          get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.email == request.auth.token.email
+          || get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.emailNormalized == request.auth.token.email
+        )
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'studentAuthUid', 'userId', 'studentEmailNormalized',
           'identityLinkedAt', 'updatedAt'
@@ -274,6 +289,25 @@ service cloud.firestore {
         && request.resource.data.studentAuthUid == request.auth.uid
         && request.resource.data.userId == request.auth.uid
       );
+    }
+
+    match /contactRequests/{requestId} {
+      allow create: if
+        request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.email is string
+        && request.resource.data.email.size() >= 5
+        && request.resource.data.email.size() <= 200
+        && request.resource.data.subject is string
+        && request.resource.data.subject.size() >= 3
+        && request.resource.data.subject.size() <= 200
+        && request.resource.data.message is string
+        && request.resource.data.message.size() >= 5
+        && request.resource.data.message.size() <= 5000
+        && request.resource.data.status == 'new'
+        && request.resource.data.source == 'public-website';
+      allow read, update, delete: if isAdmin();
     }
 
     match /aiUsageLogs/{logId} {

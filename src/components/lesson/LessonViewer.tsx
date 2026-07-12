@@ -1,6 +1,6 @@
 import type { LessonBlock } from "../../models/LessonBlock";
 import InteractiveQuestion from "./InteractiveQuestion";
-import PowerPointViewer from "./PowerPointViewer";
+import DocumentViewer from "./DocumentViewer";
 
 type Props = {
   blocks: LessonBlock[];
@@ -79,18 +79,29 @@ export default function LessonViewer({ blocks }: Props) {
           )}
 
           {block.type === "pdf" && block.url && (
-            <a
-              href={block.url}
-              target="_blank"
-              rel="noreferrer"
-              className="block rounded-2xl border border-slate-200 bg-white p-5 font-semibold text-blue-700 underline"
-            >
-              View PDF: {block.title || "PDF resource"}
-            </a>
+            <DocumentViewer
+              originalUrl={block.url}
+              title={block.title || "PDF resource"}
+              originalLabel="Download PDF"
+            />
           )}
 
           {block.type === "powerpoint" && block.url && (
-            <PowerPointViewer url={block.url} title={block.title} />
+            <DocumentViewer
+              originalUrl={block.url}
+              previewPdfUrl={block.metadata?.previewPdfUrl as string | undefined}
+              title={block.title || "PowerPoint presentation"}
+              originalLabel="Download PowerPoint"
+            />
+          )}
+
+          {block.type === "document" && block.url && (
+            <DocumentViewer
+              originalUrl={block.url}
+              previewPdfUrl={block.metadata?.previewPdfUrl as string | undefined}
+              title={block.title || "Word document"}
+              originalLabel="Download Word document"
+            />
           )}
 
           {block.type === "clinical-case" && (

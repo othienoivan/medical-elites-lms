@@ -7,6 +7,7 @@ export interface AppUser {
   fullName: string;
   email: string;
   role: UserRole;
+  requestedRole?: UserRole;
   profilePhoto?: string;
   enrolledCourses: string[];
   isActive: boolean;

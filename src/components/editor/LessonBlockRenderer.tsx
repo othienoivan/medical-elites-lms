@@ -93,9 +93,22 @@ export default function LessonBlockRenderer({
           block={block}
           onChange={onChange}
           folder="powerpoints"
-          accept=".ppt,.pptx"
+          accept=".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
           uploadLabel="Upload PowerPoint"
           titlePlaceholder="PowerPoint title"
+          requirePdfPreview
+        />
+      )}
+
+      {block.type === "document" && (
+        <ResourceUploadBlock
+          block={block}
+          onChange={onChange}
+          folder="documents"
+          accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          uploadLabel="Upload Word Document"
+          titlePlaceholder="Document title"
+          requirePdfPreview
         />
       )}
 
@@ -376,13 +389,15 @@ function ResourceUploadBlock({
   accept,
   uploadLabel,
   titlePlaceholder,
+  requirePdfPreview = false,
 }: {
   block: LessonBlock;
   onChange: (updatedBlock: LessonBlock) => void;
-  folder: "images" | "pdfs" | "powerpoints";
+  folder: "images" | "pdfs" | "powerpoints" | "documents";
   accept: string;
   uploadLabel: string;
   titlePlaceholder: string;
+  requirePdfPreview?: boolean;
 }) {
   return (
     <div className="grid gap-4">
@@ -410,6 +425,45 @@ function ResourceUploadBlock({
           })
         }
       />
+
+      {requirePdfPreview && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+          <p className="font-semibold text-blue-950">Browser preview PDF</p>
+          <p className="mt-1 text-sm leading-6 text-blue-800">
+            Convert the Office file to PDF and upload it here. Students will read
+            the PDF in the browser while the original PowerPoint or Word file
+            remains available for download.
+          </p>
+          <div className="mt-4">
+            <FileUpload
+              folder="pdfs"
+              accept=".pdf,application/pdf"
+              label={block.metadata?.previewPdfUrl ? "Replace PDF Preview" : "Upload PDF Preview"}
+              onUploaded={(file) =>
+                onChange({
+                  ...block,
+                  metadata: {
+                    ...block.metadata,
+                    previewPdfUrl: file.downloadUrl,
+                    previewPdfFileName: file.fileName,
+                    previewPdfFilePath: file.filePath,
+                  },
+                })
+              }
+            />
+          </div>
+          {block.metadata?.previewPdfUrl && (
+            <a
+              href={block.metadata.previewPdfUrl as string}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-block font-semibold text-blue-700 underline"
+            >
+              Open uploaded PDF preview
+            </a>
+          )}
+        </div>
+      )}
 
       {block.url && block.type === "image" && (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
