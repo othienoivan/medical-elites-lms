@@ -4,3 +4,15 @@
     @apply w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-100;
   }
 }
+
+
+html { scroll-behavior: smooth; }
+body { min-width: 320px; overflow-x: hidden; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 3px solid rgb(37 99 235); outline-offset: 2px; }
+.skip-link { position: fixed; left: 1rem; top: -4rem; z-index: 200; border-radius: .75rem; background: #0f172a; color: white; padding: .75rem 1rem; font-weight: 700; transition: top .2s; }
+.skip-link:focus { top: 1rem; }
+@media (max-width: 640px) {
+  table { font-size: .875rem; }
+  button, [role="button"] { min-height: 44px; }
+}

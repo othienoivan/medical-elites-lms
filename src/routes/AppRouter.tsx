@@ -11,6 +11,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 
 import ProtectedRoute from "../components/ProtectedRoute";
+import PageSkeleton from "../components/loading/PageSkeleton";
 import type { UserRole } from "../models/User";
 
 const StudentTranscriptPage = lazy(() => import("../pages/StudentTranscriptPage"));
@@ -84,7 +85,7 @@ const LEARNER_ROLES: readonly UserRole[] = ["student", "tutor", "admin"];
 export default function AppRouter() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<RouteLoadingFallback />}>
+      <Suspense fallback={<PageSkeleton />}>
         <Routes>
         {/* Public */}
         <Route path="/" element={<HomePage />} />
@@ -661,16 +662,5 @@ export default function AppRouter() {
         </Routes>
       </Suspense>
     </BrowserRouter>
-  );
-}
-
-function RouteLoadingFallback() {
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
-      <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 text-center shadow-sm">
-        <div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-blue-100 border-t-blue-700" />
-        <p className="mt-3 font-semibold text-slate-700">Loading page...</p>
-      </div>
-    </main>
   );
 }

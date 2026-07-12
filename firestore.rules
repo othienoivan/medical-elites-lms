@@ -39,6 +39,20 @@ service cloud.firestore {
         && (
           data.studentEmail == request.auth.token.email
           || data.email == request.auth.token.email
+          || data.studentEmailNormalized == request.auth.token.email
+        );
+    }
+
+    function ownsLinkedStudent(data) {
+      return signedIn()
+        && data.studentId != null
+        && exists(/databases/$(database)/documents/students/$(data.studentId))
+        && (
+          get(/databases/$(database)/documents/students/$(data.studentId)).data.authUid == request.auth.uid
+          || (
+            request.auth.token.email != null
+            && get(/databases/$(database)/documents/students/$(data.studentId)).data.email == request.auth.token.email
+          )
         );
     }
 
@@ -183,6 +197,7 @@ service cloud.firestore {
       allow read: if signedIn() && (
         ownsByUid(resource.data)
         || ownsByEmail(resource.data)
+        || ownsLinkedStudent(resource.data)
         || isTutorOrAdmin()
       );
       allow create, update, delete: if isTutorOrAdmin();
@@ -192,6 +207,7 @@ service cloud.firestore {
       allow read: if signedIn() && (
         ownsByUid(resource.data)
         || ownsByEmail(resource.data)
+        || ownsLinkedStudent(resource.data)
         || isTutorOrAdmin()
       );
       allow create, update, delete: if isTutorOrAdmin();

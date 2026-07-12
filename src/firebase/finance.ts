@@ -124,26 +124,37 @@ export async function getStudentInvoices(): Promise<StudentInvoice[]> {
   return snapshot.docs.map((item) => invoiceFromSnapshot(item.id, item.data()));
 }
 
+async function runOwnedQuery<T>(operation: Promise<T>): Promise<T | null> {
+  try {
+    return await operation;
+  } catch (error) {
+    console.warn("Finance identity query skipped:", error);
+    return null;
+  }
+}
+
 export async function getInvoicesForStudent(
   studentId: string,
   authUid?: string,
   email?: string | null
 ): Promise<StudentInvoice[]> {
   const results = new Map<string, StudentInvoice>();
+  const normalizedEmail = email?.trim().toLowerCase() || "";
   const searches = [];
+
   if (authUid) {
-    searches.push(getDocs(query(collection(db, INVOICES), where("studentAuthUid", "==", authUid))));
+    searches.push(runOwnedQuery(getDocs(query(collection(db, INVOICES), where("studentAuthUid", "==", authUid)))));
   }
-  if (email) {
-    searches.push(getDocs(query(collection(db, INVOICES), where("studentEmail", "==", email.trim().toLowerCase()))));
+  if (normalizedEmail) {
+    searches.push(runOwnedQuery(getDocs(query(collection(db, INVOICES), where("studentEmail", "==", normalizedEmail)))));
   }
-  if (studentId) {
-    searches.push(getDocs(query(collection(db, INVOICES), where("studentId", "==", studentId))));
+  if (!authUid && !normalizedEmail && studentId) {
+    searches.push(runOwnedQuery(getDocs(query(collection(db, INVOICES), where("studentId", "==", studentId)))));
   }
 
   const snapshots = await Promise.all(searches);
   snapshots.forEach((snapshot) => {
-    snapshot.docs.forEach((item) => results.set(item.id, invoiceFromSnapshot(item.id, item.data())));
+    snapshot?.docs.forEach((item) => results.set(item.id, invoiceFromSnapshot(item.id, item.data())));
   });
 
   return [...results.values()].sort(
@@ -204,14 +215,18 @@ export async function getPaymentsForStudent(
   email?: string | null
 ): Promise<FinancePayment[]> {
   const results = new Map<string, FinancePayment>();
+  const normalizedEmail = email?.trim().toLowerCase() || "";
   const searches = [];
-  if (authUid) searches.push(getDocs(query(collection(db, PAYMENTS), where("studentAuthUid", "==", authUid))));
-  if (email) searches.push(getDocs(query(collection(db, PAYMENTS), where("studentEmail", "==", email.trim().toLowerCase()))));
-  if (studentId) searches.push(getDocs(query(collection(db, PAYMENTS), where("studentId", "==", studentId))));
+
+  if (authUid) searches.push(runOwnedQuery(getDocs(query(collection(db, PAYMENTS), where("studentAuthUid", "==", authUid)))));
+  if (normalizedEmail) searches.push(runOwnedQuery(getDocs(query(collection(db, PAYMENTS), where("studentEmail", "==", normalizedEmail)))));
+  if (!authUid && !normalizedEmail && studentId) {
+    searches.push(runOwnedQuery(getDocs(query(collection(db, PAYMENTS), where("studentId", "==", studentId)))));
+  }
 
   const snapshots = await Promise.all(searches);
   snapshots.forEach((snapshot) => {
-    snapshot.docs.forEach((item) => results.set(item.id, paymentFromSnapshot(item.id, item.data())));
+    snapshot?.docs.forEach((item) => results.set(item.id, paymentFromSnapshot(item.id, item.data())));
   });
   return [...results.values()].sort(
     (a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)
