@@ -44,15 +44,12 @@ export async function getLessons(moduleId: string): Promise<Lesson[]> {
     });
 }
 
-<<<<<<< HEAD
 export async function getLessonsByModule(
   moduleId: string
 ): Promise<Lesson[]> {
   return getLessons(moduleId);
 }
 
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 export async function getLessonById(id: string): Promise<Lesson | null> {
   const lessonRef = doc(db, COLLECTION, id);
   const snapshot = await getDoc(lessonRef);

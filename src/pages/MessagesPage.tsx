@@ -113,10 +113,15 @@ export default function MessagesPage() {
         body: messageBody,
       });
       setMessageBody("");
-      await Promise.all([
-        loadConversationMessages(selectedConversation.id),
-        loadInitial(),
-      ]);
+
+      try {
+        await Promise.all([
+          loadConversationMessages(selectedConversation.id),
+          loadInitial(),
+        ]);
+      } catch (refreshError) {
+        console.warn("Message sent, but the conversation could not refresh immediately:", refreshError);
+      }
     } catch (caughtError) {
       alert(caughtError instanceof Error ? caughtError.message : "Failed to send message.");
     } finally {

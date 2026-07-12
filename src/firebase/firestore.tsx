@@ -23,10 +23,7 @@ export async function createUserProfile({
     role,
     profilePhoto: "",
     enrolledCourses: [],
-<<<<<<< HEAD
     isActive: true,
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

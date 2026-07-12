@@ -5,7 +5,6 @@ export const quizzes: Quiz[] = [
     id: "quiz-module-1",
     moduleId: "module-1",
     title: "Introduction to Pathology Quiz",
-<<<<<<< HEAD
     description: "A formative quiz covering the foundations of pathology.",
     assessmentType: "lesson-quiz",
     totalMarks: 5,
@@ -20,12 +19,6 @@ export const quizzes: Quiz[] = [
         questionId: "q1",
         order: 1,
         marks: 1,
-=======
-    passMark: 80,
-    questions: [
-      {
-        id: "q1",
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
         question: "Pathology is best defined as:",
         options: [
           "The study of drugs",
@@ -39,12 +32,9 @@ export const quizzes: Quiz[] = [
       },
       {
         id: "q2",
-<<<<<<< HEAD
         questionId: "q2",
         order: 2,
         marks: 1,
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
         question: "Etiology refers to:",
         options: [
           "The cause of disease",
@@ -57,12 +47,9 @@ export const quizzes: Quiz[] = [
       },
       {
         id: "q3",
-<<<<<<< HEAD
         questionId: "q3",
         order: 3,
         marks: 1,
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
         question: "Pathogenesis means:",
         options: [
           "The outcome of disease",
@@ -76,12 +63,9 @@ export const quizzes: Quiz[] = [
       },
       {
         id: "q4",
-<<<<<<< HEAD
         questionId: "q4",
         order: 4,
         marks: 1,
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
         question: "Morphologic changes refer to:",
         options: [
           "Changes in drug action",
@@ -95,12 +79,9 @@ export const quizzes: Quiz[] = [
       },
       {
         id: "q5",
-<<<<<<< HEAD
         questionId: "q5",
         order: 5,
         marks: 1,
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
         question: "The routine stain commonly used in histopathology is:",
         options: [
           "Gram stain",

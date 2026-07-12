@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 export type QuizStatus = "draft" | "published" | "archived";
 
 export type AssessmentType =
@@ -20,19 +19,10 @@ export interface QuizQuestionRef {
   options?: string[];
   correctAnswer?: string;
   explanation?: string;
-=======
-export interface QuizQuestion {
-  id: string;
-  question: string;
-  options: string[];
-  correctAnswer: string;
-  explanation: string;
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 }
 
 export interface Quiz {
   id: string;
-<<<<<<< HEAD
   title: string;
   description: string;
   assessmentType: AssessmentType;
@@ -63,10 +53,3 @@ export interface Quiz {
   createdAt?: Date;
   updatedAt?: Date;
 }
-=======
-  moduleId: string;
-  title: string;
-  passMark: number;
-  questions: QuizQuestion[];
-}
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d

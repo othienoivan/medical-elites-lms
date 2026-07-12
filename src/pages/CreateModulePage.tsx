@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import {
   BookOpen,
   Clock,
@@ -7,8 +6,6 @@ import {
   Save,
   Target,
 } from "lucide-react";
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -42,13 +39,10 @@ export default function CreateModulePage() {
     (programme) => programme.id === programmeId
   );
 
-<<<<<<< HEAD
   const selectedCourseUnit = courseUnits.find(
     (courseUnit) => courseUnit.id === courseUnitId
   );
 
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
   const filteredCourseUnits = courseUnits.filter(
     (courseUnit) => courseUnit.programmeId === programmeId
   );
@@ -61,26 +55,16 @@ export default function CreateModulePage() {
       return;
     }
 
-<<<<<<< HEAD
-=======
-    const selectedCourseUnit = courseUnits.find(
-      (courseUnit) => courseUnit.id === courseUnitId
-    );
-
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
     if (!selectedProgramme || !selectedCourseUnit) {
       alert("Please select both a programme and a course unit.");
       return;
     }
 
-<<<<<<< HEAD
     if (!title.trim()) {
       alert("Please enter module title.");
       return;
     }
 
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
     try {
       setLoading(true);
 
@@ -115,7 +99,6 @@ export default function CreateModulePage() {
   return (
     <TutorLayout
       title="Create Module"
-<<<<<<< HEAD
       subtitle="Create a structured learning module under a selected course unit."
     >
       <div className="mb-8 rounded-3xl bg-gradient-to-r from-blue-700 to-indigo-700 p-8 text-white">
@@ -439,196 +422,4 @@ function SummaryItem({
       </div>
     </div>
   );
-=======
-      subtitle="Create a module under a selected course unit."
-    >
-      <Card className="mx-auto max-w-3xl">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label
-              htmlFor="programme"
-              className="mb-2 block font-semibold text-slate-700"
-            >
-              Programme
-            </label>
-
-            <select
-              id="programme"
-              aria-label="Programme"
-              value={programmeId}
-              onChange={(event) => {
-                setProgrammeId(event.target.value);
-                setCourseUnitId("");
-              }}
-              required
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-            >
-              <option value="">
-                {programmesLoading
-                  ? "Loading programmes..."
-                  : "Select Programme"}
-              </option>
-
-              {programmes.map((programme) => (
-                <option key={programme.id} value={programme.id}>
-                  {programme.title} — {programme.level}
-                </option>
-              ))}
-            </select>
-
-            {selectedProgramme && (
-              <p className="mt-2 text-sm text-green-700">
-                Selected: {selectedProgramme.title}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="course-unit"
-              className="mb-2 block font-semibold text-slate-700"
-            >
-              Course Unit
-            </label>
-
-            <select
-              id="course-unit"
-              aria-label="Course Unit"
-              value={courseUnitId}
-              onChange={(event) => setCourseUnitId(event.target.value)}
-              required
-              disabled={!programmeId || courseUnitsLoading}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-700 disabled:bg-slate-100"
-            >
-              <option value="">
-                {courseUnitsLoading
-                  ? "Loading course units..."
-                  : programmeId
-                  ? filteredCourseUnits.length > 0
-                    ? "Select Course Unit"
-                    : "No course units found for this programme"
-                  : "Select Programme first"}
-              </option>
-
-              {filteredCourseUnits.map((courseUnit) => (
-                <option key={courseUnit.id} value={courseUnit.id}>
-                  {courseUnit.title}
-                </option>
-              ))}
-            </select>
-
-            {programmeId && (
-              <div className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
-                <p>
-                  Total course units loaded:{" "}
-                  <span className="font-bold">{courseUnits.length}</span>
-                </p>
-                <p>
-                  Course units under selected programme:{" "}
-                  <span className="font-bold">
-                    {filteredCourseUnits.length}
-                  </span>
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="mb-2 block font-semibold text-slate-700">
-              Module Title
-            </label>
-            <Input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Cell Injury and Cell Death"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block font-semibold text-slate-700">
-              Module Code
-            </label>
-            <Input
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-              placeholder="Optional e.g. PATH-MOD-02"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block font-semibold text-slate-700">
-              Description
-            </label>
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Brief module description"
-              required
-              className="min-h-32 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-            />
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-3">
-            <div>
-              <label className="mb-2 block font-semibold text-slate-700">
-                Module Order
-              </label>
-              <Input
-                type="number"
-                min="1"
-                value={order}
-                onChange={(event) => setOrder(Number(event.target.value))}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block font-semibold text-slate-700">
-                Estimated Hours
-              </label>
-              <Input
-                type="number"
-                min="1"
-                value={estimatedHours}
-                onChange={(event) =>
-                  setEstimatedHours(Number(event.target.value))
-                }
-                required
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block font-semibold text-slate-700">
-                Pass Mark (%)
-              </label>
-              <Input
-                type="number"
-                min="1"
-                max="100"
-                value={passMark}
-                onChange={(event) => setPassMark(Number(event.target.value))}
-                required
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <Button type="submit" className="flex-1" disabled={loading}>
-              {loading ? "Creating Module..." : "Create Module"}
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate("/tutor/modules")}
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
-      </Card>
-    </TutorLayout>
-  );
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 }

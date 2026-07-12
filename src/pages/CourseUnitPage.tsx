@@ -33,14 +33,7 @@ export default function CourseUnitPage() {
           ) : (
             <div className="mt-12 grid gap-8 md:grid-cols-2 xl:grid-cols-4">
               {courseUnits.map((courseUnit) => (
-<<<<<<< HEAD
                 <CourseCard key={courseUnit.id} course={courseUnit} />
-=======
-                <CourseCard
-                  key={courseUnit.id}
-                  course={courseUnit}
-                />
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
               ))}
             </div>
           )}

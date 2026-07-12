@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 export type EnrollmentStatus = "active" | "inactive" | "completed" | "transferred";
 
 export interface Enrollment {
@@ -33,18 +32,3 @@ export interface Enrollment {
   createdAt?: Date;
   updatedAt?: Date;
 }
-=======
-export interface Enrollment {
-  id: string;
-  userId: string;
-  courseId: string;
-  courseSlug: string;
-  courseTitle: string;
-  status: "active" | "completed" | "dropped";
-  progress: number;
-  completedModules: string[];
-  unlockedModules: string[];
-  enrolledAt?: Date;
-  completedAt?: Date;
-}
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d

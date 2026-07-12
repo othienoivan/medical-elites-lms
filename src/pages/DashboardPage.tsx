@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import { useMemo } from "react";
 import {
   Award,
@@ -19,15 +18,6 @@ import {
   Stethoscope,
   WalletCards,
   Sparkles,
-=======
-import { useEffect, useState } from "react";
-import {
-  Award,
-  BookOpen,
-  Clock,
-  LogOut,
-  TrendingUp,
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -35,24 +25,17 @@ import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Container from "../components/ui/Container";
 import { logoutUser } from "../firebase/auth";
-<<<<<<< HEAD
 import useAuth from "../hooks/useAuth";
 import useQuizzes from "../hooks/useQuizzes";
 import useCourseUnits from "../hooks/useCourseUnits";
 import useStudentLearningAccess from "../hooks/useStudentLearningAccess";
 import useQuizAttempts from "../hooks/useQuizAttempts";
 import NotificationBell from "../components/NotificationBell";
-=======
-import { getDashboardData } from "../firebase/dashboard";
-import useAuth from "../hooks/useAuth";
-import type { Enrollment } from "../models/Enrollment";
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 
 export default function DashboardPage() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
-<<<<<<< HEAD
   const { quizzes, loading: quizzesLoading } = useQuizzes();
   const { courseUnits, loading: courseUnitsLoading } = useCourseUnits();
   const { attempts, loading: attemptsLoading } = useQuizAttempts();
@@ -116,30 +99,6 @@ export default function DashboardPage() {
 
   const loading =
     accessLoading || courseUnitsLoading || quizzesLoading || attemptsLoading;
-=======
-  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
-  const [overallProgress, setOverallProgress] = useState(0);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadDashboard() {
-      if (!currentUser) return;
-
-      try {
-        const data = await getDashboardData(currentUser.uid);
-
-        setEnrollments(data.enrollments);
-        setOverallProgress(data.overallProgress);
-      } catch (error) {
-        console.error("Failed to load dashboard:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadDashboard();
-  }, [currentUser]);
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 
   async function handleLogout() {
     await logoutUser();
@@ -154,7 +113,6 @@ export default function DashboardPage() {
             <h1 className="text-2xl font-bold text-blue-700">
               Medical Elites LMS
             </h1>
-<<<<<<< HEAD
             <p className="text-sm text-slate-500">Student Learning Portal</p>
           </div>
 
@@ -165,20 +123,10 @@ export default function DashboardPage() {
               Logout
             </Button>
           </div>
-=======
-            <p className="text-sm text-slate-500">Student Dashboard</p>
-          </div>
-
-          <Button variant="outline" className="gap-2" onClick={handleLogout}>
-            <LogOut size={18} />
-            Logout
-          </Button>
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
         </Container>
       </header>
 
       <Container className="py-10">
-<<<<<<< HEAD
         <section className="mb-8 rounded-3xl bg-gradient-to-r from-blue-700 to-indigo-700 p-8 text-white">
           <h2 className="text-3xl font-bold">Welcome back 👋</h2>
 
@@ -380,92 +328,11 @@ export default function DashboardPage() {
                 {assignedCourseUnits.slice(0, 4).map((courseUnit) => (
                   <div
                     key={courseUnit.id}
-=======
-        <section className="mb-8">
-          <h2 className="text-3xl font-bold text-slate-950">
-            Welcome back 👋
-          </h2>
-
-          <p className="mt-2 text-slate-600">
-            Signed in as{" "}
-            <span className="font-semibold text-blue-700">
-              {currentUser?.email}
-            </span>
-          </p>
-        </section>
-
-        <section className="grid gap-6 md:grid-cols-4">
-          <Card>
-            <BookOpen className="text-blue-700" size={30} />
-            <p className="mt-4 text-sm font-semibold text-slate-500">
-              Enrolled Courses
-            </p>
-            <h3 className="mt-2 text-3xl font-bold">
-              {loading ? "..." : enrollments.length}
-            </h3>
-          </Card>
-
-          <Card>
-            <TrendingUp className="text-green-700" size={30} />
-            <p className="mt-4 text-sm font-semibold text-slate-500">
-              Overall Progress
-            </p>
-            <h3 className="mt-2 text-3xl font-bold">
-              {loading ? "..." : `${overallProgress}%`}
-            </h3>
-          </Card>
-
-          <Card>
-            <Clock className="text-amber-600" size={30} />
-            <p className="mt-4 text-sm font-semibold text-slate-500">
-              Study Time
-            </p>
-            <h3 className="mt-2 text-3xl font-bold">0h</h3>
-          </Card>
-
-          <Card>
-            <Award className="text-purple-700" size={30} />
-            <p className="mt-4 text-sm font-semibold text-slate-500">
-              Certificates
-            </p>
-            <h3 className="mt-2 text-3xl font-bold">0</h3>
-          </Card>
-        </section>
-
-        <section className="mt-8 grid gap-6 lg:grid-cols-3">
-          <Card className="lg:col-span-2">
-            <h3 className="text-xl font-bold text-slate-950">My Courses</h3>
-
-            {loading ? (
-              <p className="mt-6 text-slate-600">Loading your courses...</p>
-            ) : enrollments.length === 0 ? (
-              <div className="mt-6 rounded-2xl border border-dashed border-slate-300 p-8 text-center">
-                <BookOpen className="mx-auto text-slate-400" size={40} />
-
-                <h4 className="mt-4 text-lg font-bold text-slate-800">
-                  No courses enrolled yet
-                </h4>
-
-                <p className="mt-2 text-slate-600">
-                  Browse the academy and enroll in your first course.
-                </p>
-
-                <Button className="mt-5" onClick={() => navigate("/courses")}>
-                  Browse Courses
-                </Button>
-              </div>
-            ) : (
-              <div className="mt-6 space-y-4">
-                {enrollments.map((enrollment) => (
-                  <div
-                    key={enrollment.id}
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
                     className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
                   >
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                       <div>
                         <h4 className="text-lg font-bold text-slate-900">
-<<<<<<< HEAD
                           {courseUnit.title}
                         </h4>
 
@@ -473,52 +340,28 @@ export default function DashboardPage() {
                           Programme:{" "}
                           <span className="font-semibold text-blue-700">
                             {courseUnit.programmeTitle}
-=======
-                          {enrollment.courseTitle}
-                        </h4>
-
-                        <p className="mt-1 text-sm text-slate-600">
-                          Status:{" "}
-                          <span className="font-semibold capitalize text-green-700">
-                            {enrollment.status}
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
                           </span>
                         </p>
 
                         <p className="mt-1 text-sm text-slate-600">
-<<<<<<< HEAD
                           Code: {courseUnit.code || "Not assigned"}
-=======
-                          Progress: {enrollment.progress}%
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
                         </p>
                       </div>
 
                       <Button
                         onClick={() =>
-<<<<<<< HEAD
                           navigate(`/courses/${courseUnit.slug}`)
                         }
                       >
                         <PlayCircle size={18} />
                         Continue
-=======
-                          navigate(`/courses/${enrollment.courseSlug}`)
-                        }
-                      >
-                        Continue Learning
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
                       </Button>
                     </div>
 
                     <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-200">
                       <div
                         className="h-full rounded-full bg-blue-700"
-<<<<<<< HEAD
                         style={{ width: "0%" }}
-=======
-                        style={{ width: `${enrollment.progress}%` }}
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
                       />
                     </div>
                   </div>
@@ -527,7 +370,6 @@ export default function DashboardPage() {
             )}
           </Card>
 
-<<<<<<< HEAD
           <div className="space-y-6">
             <Card>
               <h3 className="text-xl font-bold text-slate-950">
@@ -606,21 +448,10 @@ export default function DashboardPage() {
               </div>
             </Card>
           </div>
-=======
-          <Card>
-            <h3 className="text-xl font-bold text-slate-950">Next Lesson</h3>
-
-            <p className="mt-4 text-slate-600">
-              Your next lesson will appear here once lessons are added to your
-              enrolled course.
-            </p>
-          </Card>
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
         </section>
       </Container>
     </main>
   );
-<<<<<<< HEAD
 }
 
 function StatCard({
@@ -693,6 +524,4 @@ function QuickLink({
       {label}
     </button>
   );
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 }

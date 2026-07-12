@@ -2,10 +2,7 @@ import type React from "react";
 
 import {
   Award,
-<<<<<<< HEAD
   Lock,
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
   BookOpen,
   Clock,
   GraduationCap,
@@ -19,30 +16,20 @@ import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Container from "../components/ui/Container";
 import ModuleCard from "../components/ui/ModuleCard";
-<<<<<<< HEAD
 import useAuth from "../hooks/useAuth";
 import useCourseUnits from "../hooks/useCourseUnits";
 import useModules from "../hooks/useModules";
 import useStudentLearningAccess from "../hooks/useStudentLearningAccess";
-=======
-import { enrollInCourse } from "../firebase/enrollments";
-import useAuth from "../hooks/useAuth";
-import useCourseUnits from "../hooks/useCourseUnits";
-import useModules from "../hooks/useModules";
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 
 export default function CourseUnitDetailsPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-<<<<<<< HEAD
   const {
     canAccessCourseUnit,
     loading: accessLoading,
     hasElevatedAccess,
   } = useStudentLearningAccess();
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 
   const { courseUnits, loading: courseUnitsLoading } = useCourseUnits();
 
@@ -50,23 +37,16 @@ export default function CourseUnitDetailsPage() {
 
   const { modules, loading: modulesLoading } = useModules(courseUnit?.id);
 
-<<<<<<< HEAD
   const hasCourseAccess = courseUnit
     ? canAccessCourseUnit(courseUnit.id, courseUnit.programmeId)
     : false;
 
   function handlePrimaryAction() {
-=======
-  async function handleEnroll() {
-    if (!courseUnit) return;
-
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
     if (!currentUser) {
       navigate("/login");
       return;
     }
 
-<<<<<<< HEAD
     if (hasCourseAccess || hasElevatedAccess) {
       const firstModule = modules[0];
       navigate(firstModule ? `/lesson/${firstModule.id}` : "/my-courses");
@@ -74,27 +54,13 @@ export default function CourseUnitDetailsPage() {
     }
 
     navigate("/my-courses");
-=======
-    await enrollInCourse({
-      userId: currentUser.uid,
-      courseId: courseUnit.id,
-      courseSlug: courseUnit.slug,
-      courseTitle: courseUnit.title,
-    });
-
-    navigate("/dashboard");
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
   }
 
   function handleStartModule(moduleId: string) {
     navigate(`/lesson/${moduleId}`);
   }
 
-<<<<<<< HEAD
   if (courseUnitsLoading || accessLoading) {
-=======
-  if (courseUnitsLoading) {
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
         <p className="text-slate-600">Loading course unit...</p>
@@ -141,7 +107,6 @@ export default function CourseUnitDetailsPage() {
 
             <div className="mt-8 flex flex-wrap gap-4">
               <Button
-<<<<<<< HEAD
                 onClick={handlePrimaryAction}
                 className="bg-white text-blue-700 hover:bg-slate-100"
               >
@@ -150,12 +115,6 @@ export default function CourseUnitDetailsPage() {
                   : hasCourseAccess || hasElevatedAccess
                     ? "Start Learning"
                     : "Access Not Assigned"}
-=======
-                onClick={handleEnroll}
-                className="bg-white text-blue-700 hover:bg-slate-100"
-              >
-                Enroll Now
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
               </Button>
 
               <Link to="/courses">
@@ -251,7 +210,6 @@ export default function CourseUnitDetailsPage() {
               Learners must score at least 80% to unlock the next module.
             </p>
 
-<<<<<<< HEAD
             <Button onClick={handlePrimaryAction} className="mt-6 w-full">
               {hasCourseAccess || hasElevatedAccess
                 ? "Start Learning"
@@ -264,11 +222,6 @@ export default function CourseUnitDetailsPage() {
                 This course unit has not been assigned to your active enrolment.
               </div>
             )}
-=======
-            <Button onClick={handleEnroll} className="mt-6 w-full">
-              Enroll Now
-            </Button>
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
           </Card>
         </div>
 
@@ -296,17 +249,12 @@ export default function CourseUnitDetailsPage() {
                 <ModuleCard
                   key={module.id}
                   module={module}
-<<<<<<< HEAD
                   isUnlocked={hasCourseAccess || hasElevatedAccess}
                   onStart={() => {
                     if (hasCourseAccess || hasElevatedAccess) {
                       handleStartModule(module.id);
                     }
                   }}
-=======
-                  isUnlocked={module.id === "module-1"}
-                  onStart={() => handleStartModule(module.id)}
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
                 />
               ))}
             </div>

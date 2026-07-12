@@ -25,10 +25,21 @@ service cloud.firestore {
       return hasRole('admin');
     }
 
-    function normalizedAuthEmail() {
-      return request.auth.token.email == null
-        ? ''
-        : request.auth.token.email;
+    function ownsByUid(data) {
+      return signedIn() && (
+        data.studentAuthUid == request.auth.uid
+        || data.userId == request.auth.uid
+        || data.studentId == request.auth.uid
+      );
+    }
+
+    function ownsByEmail(data) {
+      return signedIn()
+        && request.auth.token.email != null
+        && (
+          data.studentEmail == request.auth.token.email
+          || data.email == request.auth.token.email
+        );
     }
 
     match /users/{userId} {
@@ -55,35 +66,29 @@ service cloud.firestore {
     match /quizAttempts/{attemptId} {
       allow create: if signedIn()
         && request.resource.data.studentId == request.auth.uid;
-      allow read: if signedIn()
-        && ((resource.data.studentAuthUid == request.auth.uid || resource.data.userId == request.auth.uid) || isTutorOrAdmin());
-      allow update: if isTutorOrAdmin();
-      allow delete: if isTutorOrAdmin();
+      allow read: if ownsByUid(resource.data) || isTutorOrAdmin();
+      allow update, delete: if isTutorOrAdmin();
     }
 
     match /quizDraftAttempts/{draftId} {
-      allow create, read, update, delete: if signedIn()
-        && (request.resource.data.studentId == request.auth.uid
-          || resource.data.studentId == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.studentId == request.auth.uid;
+      allow read, update, delete: if signedIn()
+        && resource.data.studentId == request.auth.uid;
     }
 
     match /students/{studentId} {
-      allow read: if signedIn()
-        && (
-          resource.data.authUid == request.auth.uid
-          || (
-            request.auth.token.email != null
-            && resource.data.email == request.auth.token.email
-          )
-          || isTutorOrAdmin()
-        );
+      allow read: if signedIn() && (
+        resource.data.authUid == request.auth.uid
+        || ownsByEmail(resource.data)
+        || isTutorOrAdmin()
+      );
 
       allow create, delete: if isTutorOrAdmin();
 
       allow update: if isTutorOrAdmin() || (
         signedIn()
-        && request.auth.token.email != null
-        && resource.data.email == request.auth.token.email
+        && ownsByEmail(resource.data)
         && (!('authUid' in resource.data) || resource.data.authUid == request.auth.uid)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'authUid',
@@ -100,15 +105,11 @@ service cloud.firestore {
     }
 
     match /attendanceRecords/{recordId} {
-      allow read: if signedIn()
-        && (
-          resource.data.studentAuthUid == request.auth.uid
-          || (
-            request.auth.token.email != null
-            && resource.data.studentEmail == request.auth.token.email
-          )
-          || isTutorOrAdmin()
-        );
+      allow read: if signedIn() && (
+        resource.data.studentAuthUid == request.auth.uid
+        || ownsByEmail(resource.data)
+        || isTutorOrAdmin()
+      );
       allow create, update, delete: if isTutorOrAdmin();
     }
 
@@ -116,31 +117,62 @@ service cloud.firestore {
       allow read: if signedIn()
         && request.auth.uid in resource.data.participantUids;
       allow create: if signedIn()
-        && request.auth.uid in request.resource.data.participantUids;
+        && request.auth.uid in request.resource.data.participantUids
+        && request.resource.data.createdByUid == request.auth.uid;
       allow update: if signedIn()
-        && request.auth.uid in resource.data.participantUids;
+        && request.auth.uid in resource.data.participantUids
+        && request.resource.data.participantUids == resource.data.participantUids
+        && request.resource.data.createdByUid == resource.data.createdByUid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'lastMessage',
+          'lastMessageAt',
+          'lastSenderUid',
+          'updatedAt'
+        ]);
       allow delete: if isTutorOrAdmin();
     }
 
     match /messages/{messageId} {
+      function conversationData() {
+        return get(
+          /databases/$(database)/documents/conversations/$(resource.data.conversationId)
+        ).data;
+      }
+
+      function newConversationData() {
+        return get(
+          /databases/$(database)/documents/conversations/$(request.resource.data.conversationId)
+        ).data;
+      }
+
       allow read: if signedIn()
-        && (
-          resource.data.senderUid == request.auth.uid
-          || resource.data.recipientUid == request.auth.uid
-        );
+        && request.auth.uid in conversationData().participantUids;
+
       allow create: if signedIn()
-        && request.resource.data.senderUid == request.auth.uid;
+        && request.resource.data.senderUid == request.auth.uid
+        && request.auth.uid in newConversationData().participantUids
+        && request.resource.data.recipientUid in newConversationData().participantUids;
+
       allow update: if signedIn()
-        && resource.data.recipientUid == request.auth.uid;
+        && request.auth.uid in conversationData().participantUids
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'readByUids'
+        ]);
+
       allow delete: if isTutorOrAdmin();
     }
 
     match /notifications/{notificationId} {
       allow read, update, delete: if signedIn()
         && resource.data.userUid == request.auth.uid;
-      allow create: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.createdByUid == request.auth.uid
+        && (
+          request.resource.data.userUid == request.auth.uid
+          || isTutorOrAdmin()
+          || request.resource.data.type == 'message'
+        );
     }
-
 
     match /feeStructures/{feeStructureId} {
       allow read: if signedIn();
@@ -149,11 +181,8 @@ service cloud.firestore {
 
     match /studentInvoices/{invoiceId} {
       allow read: if signedIn() && (
-        resource.data.studentAuthUid == request.auth.uid
-        || (
-          request.auth.token.email != null
-          && resource.data.studentEmail == request.auth.token.email
-        )
+        ownsByUid(resource.data)
+        || ownsByEmail(resource.data)
         || isTutorOrAdmin()
       );
       allow create, update, delete: if isTutorOrAdmin();
@@ -161,11 +190,8 @@ service cloud.firestore {
 
     match /financePayments/{paymentId} {
       allow read: if signedIn() && (
-        resource.data.studentAuthUid == request.auth.uid
-        || (
-          request.auth.token.email != null
-          && resource.data.studentEmail == request.auth.token.email
-        )
+        ownsByUid(resource.data)
+        || ownsByEmail(resource.data)
         || isTutorOrAdmin()
       );
       allow create, update, delete: if isTutorOrAdmin();
@@ -174,32 +200,19 @@ service cloud.firestore {
     match /clinicalLogbookEntries/{entryId} {
       allow create: if signedIn()
         && request.resource.data.studentAuthUid == request.auth.uid;
-      allow read: if signedIn()
-        && (
-          resource.data.studentAuthUid == request.auth.uid
-          || isTutorOrAdmin()
-        );
+      allow read: if signedIn() && (
+        resource.data.studentAuthUid == request.auth.uid
+        || isTutorOrAdmin()
+      );
       allow update: if isTutorOrAdmin() || (
         signedIn()
         && resource.data.studentAuthUid == request.auth.uid
         && request.resource.data.studentAuthUid == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'clinicalSite',
-          'department',
-          'supervisorName',
-          'courseUnitId',
-          'courseUnitTitle',
-          'procedureCategory',
-          'procedureName',
-          'procedureDate',
-          'patientAgeGroup',
-          'patientSex',
-          'indication',
-          'outcome',
-          'reflection',
-          'status',
-          'submittedAt',
-          'updatedAt'
+          'clinicalSite', 'department', 'supervisorName', 'courseUnitId',
+          'courseUnitTitle', 'procedureCategory', 'procedureName',
+          'procedureDate', 'patientAgeGroup', 'patientSex', 'indication',
+          'outcome', 'reflection', 'status', 'submittedAt', 'updatedAt'
         ])
         && request.resource.data.status in ['draft', 'submitted']
       );
@@ -221,16 +234,15 @@ service cloud.firestore {
     }
 
     match /enrollments/{enrollmentId} {
-      allow read: if signedIn()
-        && (
-          resource.data.studentAuthUid == request.auth.uid
-          || resource.data.userId == request.auth.uid
-          || (
-            resource.data.studentId != null
-            && get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.email == request.auth.token.email
-          )
-          || isTutorOrAdmin()
-        );
+      allow read: if signedIn() && (
+        ownsByUid(resource.data)
+        || (
+          resource.data.studentId != null
+          && request.auth.token.email != null
+          && get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.email == request.auth.token.email
+        )
+        || isTutorOrAdmin()
+      );
 
       allow create, delete: if isTutorOrAdmin();
 
@@ -240,17 +252,13 @@ service cloud.firestore {
         && resource.data.studentId != null
         && get(/databases/$(database)/documents/students/$(resource.data.studentId)).data.email == request.auth.token.email
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'studentAuthUid',
-          'userId',
-          'studentEmailNormalized',
-          'identityLinkedAt',
-          'updatedAt'
+          'studentAuthUid', 'userId', 'studentEmailNormalized',
+          'identityLinkedAt', 'updatedAt'
         ])
         && request.resource.data.studentAuthUid == request.auth.uid
         && request.resource.data.userId == request.auth.uid
       );
     }
-
 
     match /aiUsageLogs/{logId} {
       allow read: if isTutorOrAdmin() || (
@@ -259,9 +267,45 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
-    match /{document=**} {
+    // Academic catalogue and assessment definitions.
+    match /programmes/{documentId} {
       allow read: if signedIn();
-      allow write: if isTutorOrAdmin();
+      allow create, update, delete: if isTutorOrAdmin();
+    }
+
+    match /courses/{documentId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isTutorOrAdmin();
+    }
+
+    match /modules/{documentId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isTutorOrAdmin();
+    }
+
+    match /lessons/{documentId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isTutorOrAdmin();
+    }
+
+    match /questions/{documentId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isTutorOrAdmin();
+    }
+
+    match /quizzes/{documentId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isTutorOrAdmin();
+    }
+
+    match /examinations/{documentId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isTutorOrAdmin();
+    }
+
+    // Secure default: collections not explicitly listed above are inaccessible.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

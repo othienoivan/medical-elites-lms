@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import {
   BookOpen,
   GraduationCap,
@@ -7,9 +6,6 @@ import {
   Search,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-=======
-import { GraduationCap, Plus } from "lucide-react";
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 import { useNavigate } from "react-router-dom";
 
 import Button from "../components/ui/Button";
@@ -21,7 +17,6 @@ export default function ProgrammeManagerPage() {
   const navigate = useNavigate();
   const { programmes, loading } = useProgrammes();
 
-<<<<<<< HEAD
   const [search, setSearch] = useState("");
 
   const filteredProgrammes = useMemo(() => {
@@ -41,25 +36,14 @@ export default function ProgrammeManagerPage() {
     <main className="min-h-screen bg-slate-100">
       <header className="border-b bg-white">
         <Container className="flex flex-col gap-4 py-5 md:flex-row md:items-center md:justify-between">
-=======
-  return (
-    <main className="min-h-screen bg-slate-100">
-      <header className="border-b bg-white">
-        <Container className="flex items-center justify-between py-5">
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
           <div>
             <h1 className="text-2xl font-bold text-blue-700">
               Programme Manager
             </h1>
-<<<<<<< HEAD
 
             <p className="text-sm text-slate-500">
               Create, organise and manage academic programmes for Medical
               Elites LMS.
-=======
-            <p className="text-sm text-slate-500">
-              Manage academic programmes.
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
             </p>
           </div>
 
@@ -74,7 +58,6 @@ export default function ProgrammeManagerPage() {
       </header>
 
       <Container className="py-10">
-<<<<<<< HEAD
         <section className="mb-8 rounded-3xl bg-gradient-to-r from-blue-700 to-indigo-700 p-8 text-white">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -158,20 +141,6 @@ export default function ProgrammeManagerPage() {
 
             <p className="mt-2 text-slate-600">
               Create your first academic programme to organise your curriculum.
-=======
-        {loading ? (
-          <p className="text-slate-600">Loading programmes...</p>
-        ) : programmes.length === 0 ? (
-          <Card className="text-center">
-            <GraduationCap className="mx-auto text-slate-400" size={44} />
-
-            <h2 className="mt-4 text-xl font-bold text-slate-900">
-              No programmes yet
-            </h2>
-
-            <p className="mt-2 text-slate-600">
-              Create your first programme to organize your curriculum.
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
             </p>
 
             <Button
@@ -183,7 +152,6 @@ export default function ProgrammeManagerPage() {
           </Card>
         ) : (
           <div className="grid gap-6 md:grid-cols-2">
-<<<<<<< HEAD
             {filteredProgrammes.map((programme) => (
               <Card key={programme.id}>
                 <div className="flex flex-wrap gap-2">
@@ -192,15 +160,6 @@ export default function ProgrammeManagerPage() {
                 </div>
 
                 <h2 className="mt-4 text-xl font-bold text-slate-950">
-=======
-            {programmes.map((programme) => (
-              <Card key={programme.id}>
-                <p className="text-sm font-semibold text-blue-700">
-                  {programme.level}
-                </p>
-
-                <h2 className="mt-2 text-xl font-bold text-slate-950">
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
                   {programme.title}
                 </h2>
 
@@ -208,7 +167,6 @@ export default function ProgrammeManagerPage() {
                   {programme.description}
                 </p>
 
-<<<<<<< HEAD
                 <div className="mt-6 flex flex-wrap gap-3">
                   <Button
                     variant="outline"
@@ -227,16 +185,6 @@ export default function ProgrammeManagerPage() {
                   <Button onClick={() => navigate("/tutor/course-units/new")}>
                     Add Course Unit
                   </Button>
-=======
-                <p className="mt-4 text-sm text-slate-500">
-                  Duration: {programme.duration}
-                </p>
-
-                <div className="mt-6 flex gap-3">
-                  <Button variant="outline">View</Button>
-                  <Button variant="outline">Edit</Button>
-                  <Button>Add Course Unit</Button>
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
                 </div>
               </Card>
             ))}
@@ -245,7 +193,6 @@ export default function ProgrammeManagerPage() {
       </Container>
     </main>
   );
-<<<<<<< HEAD
 }
 
 function StatCard({
@@ -277,6 +224,4 @@ function Badge({ children }: { children: React.ReactNode }) {
       {children}
     </span>
   );
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 }

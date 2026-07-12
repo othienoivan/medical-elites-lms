@@ -13,7 +13,6 @@ import Badge from "./Badge";
 import Button from "./Button";
 import Card from "./Card";
 
-<<<<<<< HEAD
 export type CourseCardData = {
   id: string;
   slug: string;
@@ -33,8 +32,6 @@ export type CourseCardData = {
   certificate: boolean;
 };
 
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 type CourseCardProps = {
   course: CourseUnit;
 };

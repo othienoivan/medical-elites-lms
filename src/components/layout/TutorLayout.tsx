@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import {
   BarChart3,
-<<<<<<< HEAD
   CalendarCheck,
   CalendarDays,
   Megaphone,
@@ -9,8 +8,6 @@ import {
   MessageCircle,
   Stethoscope,
   WalletCards,
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
   BookOpen,
   FileEdit,
   FilePlus2,
@@ -21,17 +18,11 @@ import {
   PlusCircle,
   Presentation,
   Settings,
-<<<<<<< HEAD
   Sparkles,
   Users,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import NotificationBell from "../NotificationBell";
-=======
-  Users,
-} from "lucide-react";
-import { NavLink } from "react-router-dom";
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 
 type Props = {
   title: string;
@@ -61,7 +52,6 @@ const navigationGroups = [
   },
   {
     title: "Learners",
-<<<<<<< HEAD
     items: [
       { name: "Students", icon: Users, path: "/tutor/students" },
       { name: "Clinical Logbook", icon: Stethoscope, path: "/tutor/clinical-logbook" },
@@ -73,9 +63,6 @@ const navigationGroups = [
       { name: "Messages", icon: MessageCircle, path: "/tutor/messages" },
       { name: "Notifications", icon: Bell, path: "/tutor/notifications" },
     ],
-=======
-    items: [{ name: "Students", icon: Users, path: "/tutor/students" }],
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
   },
   {
     title: "Reports",
@@ -139,7 +126,6 @@ export default function TutorLayout({ title, subtitle, children }: Props) {
 
         <main className="flex-1">
           <header className="border-b bg-white px-10 py-8">
-<<<<<<< HEAD
             <div className="flex items-start justify-between gap-6">
               <div>
                 <h1 className="text-3xl font-bold text-slate-950">{title}</h1>
@@ -147,10 +133,6 @@ export default function TutorLayout({ title, subtitle, children }: Props) {
               </div>
               <NotificationBell />
             </div>
-=======
-            <h1 className="text-3xl font-bold text-slate-950">{title}</h1>
-            {subtitle && <p className="mt-2 text-slate-600">{subtitle}</p>}
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
           </header>
 
           <section className="p-10">{children}</section>

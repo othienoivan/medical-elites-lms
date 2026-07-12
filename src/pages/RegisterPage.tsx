@@ -1,7 +1,4 @@
-<<<<<<< HEAD
 import { FirebaseError } from "firebase/app";
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -65,7 +62,6 @@ export default function RegisterPage() {
       );
 
       navigate("/login");
-<<<<<<< HEAD
     } catch (error: unknown) {
       console.error(error);
 
@@ -74,11 +70,6 @@ export default function RegisterPage() {
         return;
       }
 
-=======
-    } catch (error: any) {
-      console.error(error);
-
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
       if (error.code === "auth/email-already-in-use") {
         setError("This email address is already registered.");
       } else if (error.code === "auth/invalid-email") {

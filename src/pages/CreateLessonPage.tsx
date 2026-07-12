@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import {
   BookOpen,
   Clock,
@@ -6,8 +5,6 @@ import {
   Layers,
   Save,
 } from "lucide-react";
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -40,7 +37,6 @@ export default function CreateLessonPage() {
 
   const [loading, setLoading] = useState(false);
 
-<<<<<<< HEAD
   const selectedProgramme = programmes.find(
     (programme) => programme.id === programmeId
   );
@@ -51,8 +47,6 @@ export default function CreateLessonPage() {
 
   const selectedModule = modules.find((module) => module.id === moduleId);
 
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
   const filteredCourseUnits = courseUnits.filter(
     (courseUnit) => courseUnit.programmeId === programmeId
   );
@@ -69,32 +63,16 @@ export default function CreateLessonPage() {
       return;
     }
 
-<<<<<<< HEAD
-=======
-    const selectedProgramme = programmes.find(
-      (programme) => programme.id === programmeId
-    );
-
-    const selectedCourseUnit = courseUnits.find(
-      (courseUnit) => courseUnit.id === courseUnitId
-    );
-
-    const selectedModule = modules.find((module) => module.id === moduleId);
-
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
     if (!selectedProgramme || !selectedCourseUnit || !selectedModule) {
       alert("Please select Programme, Course Unit, and Module.");
       return;
     }
 
-<<<<<<< HEAD
     if (!title.trim()) {
       alert("Please enter lesson title.");
       return;
     }
 
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
     try {
       setLoading(true);
 
@@ -135,7 +113,6 @@ export default function CreateLessonPage() {
       title="Create Lesson"
       subtitle="Create a lesson under a selected module."
     >
-<<<<<<< HEAD
       <div className="mb-8 rounded-3xl bg-gradient-to-r from-blue-700 to-indigo-700 p-8 text-white">
         <div className="flex items-center gap-4">
           <BookOpen size={46} />
@@ -450,163 +427,4 @@ function SummaryItem({
       </div>
     </div>
   );
-=======
-      <Card className="mx-auto max-w-3xl">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="mb-2 block font-semibold text-slate-700">
-              Programme
-            </label>
-
-            <select
-              aria-label="Programme"
-              value={programmeId}
-              onChange={(event) => {
-                setProgrammeId(event.target.value);
-                setCourseUnitId("");
-                setModuleId("");
-              }}
-              required
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-            >
-              <option value="">Select Programme</option>
-
-              {programmes.map((programme, index) => (
-                <option key={`${programme.id}-${index}`} value={programme.id}>
-                  {programme.title} — {programme.level}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-2 block font-semibold text-slate-700">
-              Course Unit
-            </label>
-
-            <select
-              aria-label="Course Unit"
-              value={courseUnitId}
-              onChange={(event) => {
-                setCourseUnitId(event.target.value);
-                setModuleId("");
-              }}
-              required
-              disabled={!programmeId}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-700 disabled:bg-slate-100"
-            >
-              <option value="">
-                {programmeId ? "Select Course Unit" : "Select Programme first"}
-              </option>
-
-              {filteredCourseUnits.map((courseUnit, index) => (
-                <option key={`${courseUnit.id}-${index}`} value={courseUnit.id}>
-                  {courseUnit.title}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-2 block font-semibold text-slate-700">
-              Module
-            </label>
-
-            <select
-              aria-label="Module"
-              value={moduleId}
-              onChange={(event) => setModuleId(event.target.value)}
-              required
-              disabled={!courseUnitId}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-700 disabled:bg-slate-100"
-            >
-              <option value="">
-                {courseUnitId ? "Select Module" : "Select Course Unit first"}
-              </option>
-
-              {filteredModules.map((module, index) => (
-                <option key={`${module.id}-${index}`} value={module.id}>
-                  Module {module.order}: {module.title}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-2 block font-semibold text-slate-700">
-              Lesson Title
-            </label>
-
-            <Input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Introduction to Pathology"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block font-semibold text-slate-700">
-              Description
-            </label>
-
-            <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Brief lesson description"
-              required
-              className="min-h-32 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-            />
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2">
-            <div>
-              <label className="mb-2 block font-semibold text-slate-700">
-                Lesson Order
-              </label>
-
-              <Input
-                type="number"
-                min="1"
-                value={order}
-                onChange={(event) => setOrder(Number(event.target.value))}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block font-semibold text-slate-700">
-                Estimated Minutes
-              </label>
-
-              <Input
-                type="number"
-                min="1"
-                value={estimatedMinutes}
-                onChange={(event) =>
-                  setEstimatedMinutes(Number(event.target.value))
-                }
-                required
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <Button type="submit" className="flex-1" disabled={loading}>
-              {loading ? "Creating Lesson..." : "Create Lesson"}
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate("/tutor/lessons")}
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
-      </Card>
-    </TutorLayout>
-  );
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 }

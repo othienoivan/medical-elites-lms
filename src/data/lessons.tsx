@@ -23,19 +23,11 @@ export const lessons: Lesson[] = [
     },
 
     learningObjectives: [
-<<<<<<< HEAD
       { id: "objective-1", objective: "Explain the background and meaning of pathology." },
       { id: "objective-2", objective: "Identify major causes of disease." },
       { id: "objective-3", objective: "Describe the concept of pathogenesis." },
       { id: "objective-4", objective: "Explain morphologic changes and clinical significance." },
       { id: "objective-5", objective: "Describe diagnostic techniques used in pathology." },
-=======
-      "Explain the background and meaning of pathology.",
-      "Identify major causes of disease.",
-      "Describe the concept of pathogenesis.",
-      "Explain morphologic changes and clinical significance.",
-      "Describe diagnostic techniques used in pathology.",
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
     ],
 
     sections: [

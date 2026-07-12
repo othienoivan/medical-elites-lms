@@ -1,7 +1,4 @@
-<<<<<<< HEAD
 import { BookOpen, GraduationCap, Image, Layers, Save } from "lucide-react";
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -51,14 +48,11 @@ export default function CreateCourseUnitPage() {
       return;
     }
 
-<<<<<<< HEAD
     if (!title.trim()) {
       alert("Please enter course unit title.");
       return;
     }
 
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
     try {
       setLoading(true);
 
@@ -87,11 +81,7 @@ export default function CreateCourseUnitPage() {
         updatedAt: new Date(),
       });
 
-<<<<<<< HEAD
       navigate("/tutor/programmes");
-=======
-      navigate("/tutor");
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
     } catch (error) {
       console.error("Failed to create course unit:", error);
       alert("Failed to create course unit. Please try again.");
@@ -105,7 +95,6 @@ export default function CreateCourseUnitPage() {
       title="Create Course Unit"
       subtitle="Attach a course unit to an academic programme."
     >
-<<<<<<< HEAD
       <div className="mb-8 rounded-3xl bg-gradient-to-r from-blue-700 to-indigo-700 p-8 text-white">
         <div className="flex items-center gap-4">
           <BookOpen size={46} />
@@ -341,138 +330,4 @@ function SummaryItem({
       </div>
     </div>
   );
-=======
-      <Card className="mx-auto max-w-3xl">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label
-              htmlFor="programme"
-              className="mb-2 block font-semibold text-slate-700"
-            >
-              Parent Programme
-            </label>
-
-            <select
-              id="programme"
-              aria-label="Parent Programme"
-              value={programmeId}
-              onChange={(e) => setProgrammeId(e.target.value)}
-              required
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-            >
-              <option value="">
-                {programmesLoading
-                  ? "Loading programmes..."
-                  : "Select Programme"}
-              </option>
-
-              {programmes.map((programme, index) => (
-                <option
-                  key={`${programme.id}-${index}`}
-                  value={programme.id}
-                >
-                  {programme.title} — {programme.level}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {selectedProgramme && (
-            <div>
-              <label className="mb-2 block font-semibold text-slate-700">
-                Programme Level
-              </label>
-
-              <Input value={selectedProgramme.level} readOnly />
-
-              <p className="mt-2 text-sm text-slate-500">
-                The course unit automatically inherits the level of its parent
-                programme.
-              </p>
-            </div>
-          )}
-
-          <div>
-            <label className="mb-2 block font-semibold text-slate-700">
-              Course Unit Title
-            </label>
-
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="General Pathology and Immunology"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block font-semibold text-slate-700">
-              Category
-            </label>
-
-            <Input
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="Core Medical Sciences"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block font-semibold text-slate-700">
-              Description
-            </label>
-
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief course unit description"
-              required
-              className="min-h-32 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block font-semibold text-slate-700">
-              Duration
-            </label>
-
-            <Input
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              placeholder="6 Weeks"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block font-semibold text-slate-700">
-              Course Unit Image URL
-            </label>
-
-            <Input
-              value={image}
-              onChange={(e) => setImage(e.target.value)}
-              placeholder="Optional image URL"
-            />
-          </div>
-
-          <div className="flex gap-3">
-            <Button type="submit" className="flex-1" disabled={loading}>
-              {loading ? "Creating Course Unit..." : "Create Course Unit"}
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate("/tutor")}
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
-      </Card>
-    </TutorLayout>
-  );
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 }

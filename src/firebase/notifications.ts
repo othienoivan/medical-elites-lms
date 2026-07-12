@@ -9,7 +9,7 @@ import {
   where,
 } from "firebase/firestore";
 
-import { db } from "../config/firebase";
+import { auth, db } from "../config/firebase";
 import type { AppNotification, NotificationType } from "../models/Notification";
 
 const COLLECTION = "notifications";
@@ -38,7 +38,11 @@ export async function createNotification(input: {
   type: NotificationType;
   link?: string;
 }): Promise<string> {
+  const actorUid = auth.currentUser?.uid;
+  if (!actorUid) throw new Error("Sign in before creating a notification.");
+
   const reference = await addDoc(collection(db, COLLECTION), {
+    createdByUid: actorUid,
     userUid: input.userUid,
     title: input.title,
     body: input.body,

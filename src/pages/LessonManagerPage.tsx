@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import {
   BookOpen,
   Clock,
@@ -9,9 +8,6 @@ import {
   Search,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-=======
-import { BookOpen, Clock, Edit, Eye, Plus } from "lucide-react";
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 import { useNavigate } from "react-router-dom";
 
 import TutorLayout from "../components/layout/TutorLayout";
@@ -22,18 +18,13 @@ import useModules from "../hooks/useModules";
 
 export default function LessonManagerPage() {
   const navigate = useNavigate();
-<<<<<<< HEAD
   const { modules, loading } = useModules();
 
   const [search, setSearch] = useState("");
-=======
-  const { modules } = useModules();
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 
   return (
     <TutorLayout
       title="Lesson Manager"
-<<<<<<< HEAD
       subtitle="View, create and manage lessons across modules."
     >
       <section className="mb-8 rounded-3xl bg-gradient-to-r from-blue-700 to-indigo-700 p-8 text-white">
@@ -121,54 +112,10 @@ export default function LessonManagerPage() {
           ))}
         </div>
       )}
-=======
-      subtitle="View, create, and manage lessons across modules."
-    >
-      <div className="mb-6 flex justify-end">
-        <Button
-          className="gap-2"
-          onClick={() => navigate("/tutor/lessons/new")}
-        >
-          <Plus size={18} />
-          New Lesson
-        </Button>
-      </div>
-
-      <div className="grid gap-6">
-        {modules.length === 0 ? (
-          <Card className="text-center">
-            <BookOpen className="mx-auto text-slate-400" size={48} />
-
-            <h2 className="mt-4 text-xl font-bold text-slate-900">
-              No modules available
-            </h2>
-
-            <p className="mt-2 text-slate-600">
-              Create a module first before adding lessons.
-            </p>
-
-            <Button
-              className="mt-6"
-              onClick={() => navigate("/tutor/modules/new")}
-            >
-              Create Module
-            </Button>
-          </Card>
-        ) : (
-          modules.map((module) => (
-            <ModuleLessonsCard
-              key={module.id}
-              moduleId={module.id}
-            />
-          ))
-        )}
-      </div>
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
     </TutorLayout>
   );
 }
 
-<<<<<<< HEAD
 function ModuleLessonsCard({
   moduleId,
   search,
@@ -198,54 +145,27 @@ function ModuleLessonsCard({
 
   if (search && filteredLessons.length === 0) {
     return null;
-=======
-function ModuleLessonsCard({ moduleId }: { moduleId: string }) {
-  const navigate = useNavigate();
-  const { lessons, loading } = useLessons(moduleId);
-
-  if (loading) {
-    return (
-      <Card>
-        <p className="text-slate-600">Loading lessons...</p>
-      </Card>
-    );
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
   }
 
   return (
     <Card>
       {lessons.length === 0 ? (
         <div className="text-center">
-<<<<<<< HEAD
           <BookOpen className="mx-auto text-slate-400" size={44} />
-=======
-          <BookOpen
-            className="mx-auto text-slate-400"
-            size={40}
-          />
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 
           <h3 className="mt-4 text-lg font-bold text-slate-900">
             No lessons in this module yet
           </h3>
 
-<<<<<<< HEAD
           <p className="mt-2 text-slate-600">
             Add the first lesson or build one using the visual builder.
           </p>
 
           <Button className="mt-5" onClick={() => navigate("/tutor/lessons/new")}>
-=======
-          <Button
-            className="mt-5"
-            onClick={() => navigate("/tutor/lessons/new")}
-          >
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
             Add Lesson
           </Button>
         </div>
       ) : (
-<<<<<<< HEAD
         <div>
           <div className="mb-5 border-b border-slate-200 pb-4">
             <p className="text-sm font-semibold text-blue-700">
@@ -311,78 +231,10 @@ function ModuleLessonsCard({ moduleId }: { moduleId: string }) {
               </div>
             ))}
           </div>
-=======
-        <div className="space-y-5">
-          {lessons.map((lesson) => (
-            <div
-              key={lesson.id}
-              className="rounded-2xl border border-slate-200 bg-slate-50 p-5"
-            >
-              <p className="text-sm font-semibold text-blue-700">
-                {lesson.moduleTitle}
-              </p>
-
-              <h3 className="mt-1 text-lg font-bold text-slate-950">
-                Lesson {lesson.order}: {lesson.title}
-              </h3>
-
-              <p className="mt-2 text-slate-600">
-                {lesson.description}
-              </p>
-
-              <div className="mt-4 flex flex-wrap gap-5 text-sm text-slate-500">
-                <div className="flex items-center gap-2">
-                  <Clock size={16} />
-                  {lesson.estimatedMinutes} minutes
-                </div>
-
-                <div>
-                  Blocks: {lesson.blocks?.length ?? 0}
-                </div>
-
-                <div>
-                  Status:{" "}
-                  <span
-                    className={
-                      lesson.isPublished
-                        ? "font-semibold text-green-600"
-                        : "font-semibold text-orange-600"
-                    }
-                  >
-                    {lesson.isPublished ? "Published" : "Draft"}
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    navigate(`/tutor/lessons/${lesson.id}/preview`)
-                  }
-                >
-                  <Eye size={16} />
-                  Preview
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    navigate(`/tutor/lessons/${lesson.id}/builder`)
-                  }
-                >
-                  <Edit size={16} />
-                  Open Builder
-                </Button>
-              </div>
-            </div>
-          ))}
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
         </div>
       )}
     </Card>
   );
-<<<<<<< HEAD
 }
 
 function StatCard({
@@ -414,6 +266,4 @@ function Badge({ children }: { children: React.ReactNode }) {
       {children}
     </span>
   );
-=======
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
 }

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
@@ -51,22 +50,3 @@ export default function ProtectedRoute({
 
   return <>{children}</>;
 }
-=======
-import { Navigate } from "react-router-dom";
-import type { ReactNode } from "react";
-import useAuth from "../hooks/useAuth";
-
-type ProtectedRouteProps = {
-  children: ReactNode;
-};
-
-export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { currentUser } = useAuth();
-
-  if (!currentUser) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return children;
-}
->>>>>>> 8acb30b37116733fddeb6e5fc7a6f2cac276937d
