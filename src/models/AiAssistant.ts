@@ -6,7 +6,8 @@ export type AiAssistantMode =
   | "tutor_questions"
   | "tutor_lesson"
   | "tutor_marking_guide"
-  | "tutor_performance";
+  | "tutor_performance"
+  | "curriculum_import";
 
 export interface AiAssistantRequest {
   mode: AiAssistantMode;

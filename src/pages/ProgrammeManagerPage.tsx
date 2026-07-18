@@ -10,7 +10,7 @@ import { useNavigate } from "react-router-dom";
 
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
-import Container from "../components/ui/Container";
+import TutorLayout from "../components/layout/TutorLayout";
 import useProgrammes from "../hooks/useProgrammes";
 
 export default function ProgrammeManagerPage() {
@@ -25,39 +25,18 @@ export default function ProgrammeManagerPage() {
     return programmes.filter((programme) => {
       return (
         programme.title.toLowerCase().includes(keyword) ||
-        programme.description.toLowerCase().includes(keyword) ||
-        programme.level.toLowerCase().includes(keyword) ||
-        programme.duration.toLowerCase().includes(keyword)
+        (programme.description ?? "").toLowerCase().includes(keyword) ||
+        (programme.level ?? "").toLowerCase().includes(keyword) ||
+        (programme.duration ?? "").toLowerCase().includes(keyword)
       );
     });
   }, [programmes, search]);
 
   return (
-    <main className="min-h-screen bg-slate-100">
-      <header className="border-b bg-white">
-        <Container className="flex flex-col gap-4 py-5 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-blue-700">
-              Programme Manager
-            </h1>
-
-            <p className="text-sm text-slate-500">
-              Create, organise and manage academic programmes for Medical
-              Elites LMS.
-            </p>
-          </div>
-
-          <Button
-            className="gap-2"
-            onClick={() => navigate("/tutor/programmes/new")}
-          >
-            <Plus size={18} />
-            New Programme
-          </Button>
-        </Container>
-      </header>
-
-      <Container className="py-10">
+    <TutorLayout
+      title="Programme Management"
+      subtitle="Create, organise and manage academic programmes for Medical Elites LMS."
+    >
         <section className="mb-8 rounded-3xl bg-gradient-to-r from-blue-700 to-indigo-700 p-8 text-white">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -190,8 +169,7 @@ export default function ProgrammeManagerPage() {
             ))}
           </div>
         )}
-      </Container>
-    </main>
+    </TutorLayout>
   );
 }
 

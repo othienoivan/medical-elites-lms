@@ -1,6 +1,7 @@
 import type { LessonBlock } from "../../models/LessonBlock";
 import InteractiveQuestion from "./InteractiveQuestion";
 import DocumentViewer from "./DocumentViewer";
+import OfficeDocumentViewer from "./OfficeDocumentViewer";
 
 type Props = {
   blocks: LessonBlock[];
@@ -87,18 +88,20 @@ export default function LessonViewer({ blocks }: Props) {
           )}
 
           {block.type === "powerpoint" && block.url && (
-            <DocumentViewer
+            <OfficeDocumentViewer
               originalUrl={block.url}
-              previewPdfUrl={block.metadata?.previewPdfUrl as string | undefined}
+              filePath={block.metadata?.filePath as string | undefined}
+              manualPreviewPdfUrl={block.metadata?.previewPdfUrl as string | undefined}
               title={block.title || "PowerPoint presentation"}
               originalLabel="Download PowerPoint"
             />
           )}
 
           {block.type === "document" && block.url && (
-            <DocumentViewer
+            <OfficeDocumentViewer
               originalUrl={block.url}
-              previewPdfUrl={block.metadata?.previewPdfUrl as string | undefined}
+              filePath={block.metadata?.filePath as string | undefined}
+              manualPreviewPdfUrl={block.metadata?.previewPdfUrl as string | undefined}
               title={block.title || "Word document"}
               originalLabel="Download Word document"
             />

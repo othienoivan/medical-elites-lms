@@ -227,6 +227,14 @@ function ModuleLessonsCard({
                     <Edit size={16} />
                     Open Builder
                   </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate(`/tutor/learning-packages/${lesson.id}`)}
+                  >
+                    <BookOpen size={16} />
+                    Learning Package
+                  </Button>
                 </div>
               </div>
             ))}

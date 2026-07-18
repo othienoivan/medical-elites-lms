@@ -1,22 +1,23 @@
 {
   "name": "medical-elites-functions",
-  "version": "1.0.0",
   "private": true,
   "main": "lib/index.js",
+  "type": "commonjs",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
-    "clean": "node -e \"require('fs').rmSync('lib',{recursive:true,force:true})\"",
-    "build": "npm run clean && tsc",
+    "build": "tsc",
     "serve": "npm run build && firebase emulators:start --only functions",
-    "deploy": "npm run build && firebase deploy --only functions:medicalElitesAi"
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
   },
   "dependencies": {
     "firebase-admin": "^13.0.0",
-    "firebase-functions": "^6.0.0"
+    "firebase-functions": "^7.2.5",
+    "openai": "^6.46.0"
   },
   "devDependencies": {
-    "typescript": "^5.7.0"
+    "typescript": "^7.0.2"
   }
 }

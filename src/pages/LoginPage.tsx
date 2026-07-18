@@ -70,7 +70,13 @@ export default function LoginPage() {
       }
 
       sessionStorage.removeItem("redirectAfterLogin");
-      const destination = searchParams.get("redirect") || (userProfile.role === "student" ? "/dashboard" : "/tutor");
+      const roleDestination =
+        userProfile.role === "student"
+          ? "/dashboard"
+          : userProfile.role === "admin"
+            ? "/admin"
+            : "/tutor";
+      const destination = searchParams.get("redirect") || roleDestination;
       navigate(destination, { replace: true });
     }
 

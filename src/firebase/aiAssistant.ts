@@ -11,7 +11,7 @@ const callMedicalElitesAi = httpsCallable<
   AiAssistantRequest,
   AiAssistantResponse
 >(functions, "medicalElitesAi", {
-  timeout: 120_000,
+  timeout: 300_000,
 });
 
 export async function generateAiResponse(

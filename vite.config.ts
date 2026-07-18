@@ -4,6 +4,19 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  server: {
+    watch: {
+      ignored: [
+        "**/*.rar",
+        "**/*.zip",
+        "**/*.7z",
+        "**/*.tar",
+        "**/*.gz",
+        "**/backups/**",
+        "**/Backups/**",
+      ],
+    },
+  },
   build: {
     chunkSizeWarningLimit: 900,
     rolldownOptions: {

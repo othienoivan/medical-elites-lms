@@ -128,22 +128,14 @@ export default function LessonBuilderPage() {
 
 
   function validateDocumentPreviews() {
-    const incompleteOfficeBlock = blocks.find(
-      (block) =>
-        (block.type === "powerpoint" || block.type === "document") &&
-        block.url &&
-        !block.metadata?.previewPdfUrl
-    );
+    const unsupportedLegacyFile = blocks.find((block) => {
+      if ((block.type !== "powerpoint" && block.type !== "document") || !block.url) return false;
+      const fileName = String(block.metadata?.fileName || block.url).toLowerCase();
+      return fileName.endsWith(".ppt") || fileName.endsWith(".doc");
+    });
 
-    if (incompleteOfficeBlock) {
-      alert(
-        `Please upload a PDF preview for ${
-          incompleteOfficeBlock.title ||
-          (incompleteOfficeBlock.type === "powerpoint"
-            ? "the PowerPoint presentation"
-            : "the Word document")
-        }. This guarantees that students can read it inside the browser.`
-      );
+    if (unsupportedLegacyFile) {
+      alert("Legacy .ppt and .doc files cannot be converted reliably. Please save the file as .pptx or .docx and upload it again.");
       return false;
     }
 

@@ -328,6 +328,11 @@ service cloud.firestore {
       allow create, update, delete: if isTutorOrAdmin();
     }
 
+    match /courseUnits/{documentId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isTutorOrAdmin();
+    }
+
     match /modules/{documentId} {
       allow read: if signedIn();
       allow create, update, delete: if isTutorOrAdmin();
@@ -336,6 +341,15 @@ service cloud.firestore {
     match /lessons/{documentId} {
       allow read: if signedIn();
       allow create, update, delete: if isTutorOrAdmin();
+    }
+
+    match /curriculumImports/{documentId} {
+      allow read: if isTutorOrAdmin();
+      allow create: if isTutorOrAdmin()
+        && request.resource.data.importedByUid == request.auth.uid
+        && request.resource.data.importedByRole == userDocument().data.role
+        && request.resource.data.status == 'completed';
+      allow update, delete: if isAdmin();
     }
 
     match /questions/{documentId} {
@@ -354,6 +368,32 @@ service cloud.firestore {
     }
 
     // Secure default: collections not explicitly listed above are inaccessible.
+
+    match /academicYears/{documentId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /semesters/{documentId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /departments/{documentId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /institutionSettings/{documentId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /powerpointPreviews/{previewId} {
+      allow read: if signedIn();
+      allow create, update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

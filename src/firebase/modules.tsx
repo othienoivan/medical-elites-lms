@@ -33,17 +33,14 @@ export async function createModule(module: Module): Promise<string> {
 /**
  * Get all published modules
  */
-export async function getModules(): Promise<Module[]> {
+export async function getAllModules(): Promise<Module[]> {
   const snapshot = await getDocs(collection(db, COLLECTION));
 
   return snapshot.docs
     .map((docSnap) => ({
       ...(docSnap.data() as Omit<Module, "id">),
-
-      // Always use the Firestore document ID
       id: docSnap.id,
     }))
-    .filter((module) => module.published === true)
     .sort((a, b) => {
       if (a.order !== b.order) {
         return a.order - b.order;
@@ -51,6 +48,10 @@ export async function getModules(): Promise<Module[]> {
 
       return a.title.localeCompare(b.title);
     });
+}
+
+export async function getModules(): Promise<Module[]> {
+  return (await getAllModules()).filter((module) => module.published === true);
 }
 
 /**

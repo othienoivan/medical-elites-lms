@@ -205,20 +205,23 @@ export default function StudentDirectoryPage() {
                   </p>
                 </div>
 
-                <div className="mt-5 grid gap-3 md:grid-cols-2">
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
                   <Button
                     variant="outline"
-                    onClick={() =>
-                      navigate(`/tutor/student-profile/${student.id}`)
-                    }
+                    onClick={() => navigate(`/tutor/student-profile/${student.id}`)}
                   >
                     View Profile
                   </Button>
 
                   <Button
-                    onClick={() =>
-                      navigate(`/tutor/student-transcript/${student.id}`)
-                    }
+                    variant="outline"
+                    onClick={() => navigate(`/tutor/students/${student.id}/edit`)}
+                  >
+                    Edit Profile
+                  </Button>
+
+                  <Button
+                    onClick={() => navigate(`/tutor/student-transcript/${student.id}`)}
                   >
                     Transcript
                   </Button>

@@ -96,7 +96,6 @@ export default function LessonBlockRenderer({
           accept=".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
           uploadLabel="Upload PowerPoint"
           titlePlaceholder="PowerPoint title"
-          requirePdfPreview
         />
       )}
 
@@ -108,7 +107,6 @@ export default function LessonBlockRenderer({
           accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           uploadLabel="Upload Word Document"
           titlePlaceholder="Document title"
-          requirePdfPreview
         />
       )}
 
@@ -430,9 +428,9 @@ function ResourceUploadBlock({
         <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
           <p className="font-semibold text-blue-950">Browser preview PDF</p>
           <p className="mt-1 text-sm leading-6 text-blue-800">
-            Convert the Office file to PDF and upload it here. Students will read
-            the PDF in the browser while the original PowerPoint or Word file
-            remains available for download.
+            A PDF preview is generated automatically after upload. You may still
+            upload a manual PDF replacement when a lecturer needs a specially
+            formatted preview.
           </p>
           <div className="mt-4">
             <FileUpload

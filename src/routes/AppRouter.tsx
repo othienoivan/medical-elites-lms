@@ -13,6 +13,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ProtectedRoute from "../components/ProtectedRoute";
 import PageSkeleton from "../components/loading/PageSkeleton";
 import type { UserRole } from "../models/User";
+import StudentWorkspaceGate from "../components/layout/StudentWorkspaceGate";
 
 const StudentTranscriptPage = lazy(() => import("../pages/StudentTranscriptPage"));
 const HomePage = lazy(() => import("../pages/HomePage"));
@@ -29,6 +30,7 @@ const AssessmentHistoryPage = lazy(() => import("../pages/AssessmentHistoryPage"
 const AssessmentAttemptReviewPage = lazy(() => import("../pages/AssessmentAttemptReviewPage"));
 const ResultSlipPage = lazy(() => import("../pages/ResultSlipPage"));
 const StudentProfilePage = lazy(() => import("../pages/StudentProfilePage"));
+const EditStudentPage = lazy(() => import("../pages/EditStudentPage"));
 const CourseUnitPage = lazy(() => import("../pages/CourseUnitPage"));
 const CourseUnitDetailsPage = lazy(() => import("../pages/CourseUnitDetailsPage"));
 const LessonPage = lazy(() => import("../pages/LessonPage"));
@@ -83,13 +85,32 @@ const TermsPage = lazy(() => import("../pages/TermsPage"));
 const TestimonialsPage = lazy(() => import("../pages/TestimonialsPage"));
 const ContactPage = lazy(() => import("../pages/ContactPage"));
 const NotFoundPage = lazy(() => import("../pages/NotFoundPage"));
+const AdminDashboard = lazy(() => import("../pages/AdminDashboard"));
+const FounderDashboardPage = lazy(() => import("../pages/FounderDashboardPage"));
+const FounderDiagnosticsPage = lazy(() => import("../pages/FounderDiagnosticsPage"));
+const AdminSetupWizardPage = lazy(() => import("../pages/AdminSetupWizardPage"));
+const AdminAcademicYearsPage = lazy(() => import("../pages/AdminAcademicYearsPage"));
+const AdminSemestersPage = lazy(() => import("../pages/AdminSemestersPage"));
+const AdminDepartmentsPage = lazy(() => import("../pages/AdminDepartmentsPage"));
+const AdminTutorsPage = lazy(() => import("../pages/AdminTutorsPage"));
+const AdminSettingsPage = lazy(() => import("../pages/AdminSettingsPage"));
+const AdminSystemStatusPage = lazy(() => import("../pages/AdminSystemStatusPage"));
+const AdminProgrammesPage = lazy(() => import("../pages/AdminProgrammesPage"));
+const AdminCourseUnitsPage = lazy(() => import("../pages/AdminCourseUnitsPage"));
+const AdminModulesPage = lazy(() => import("../pages/AdminModulesPage"));
+const AdminCurriculumDesignerPage = lazy(() => import("../pages/AdminCurriculumDesignerPage"));
+const AdminCurriculumPage = lazy(() => import("../pages/AdminCurriculumPage"));
+const TutorCurriculumImportPage = lazy(() => import("../pages/TutorCurriculumImportPage"));
+const LearningPackageBuilderPage = lazy(() => import("../pages/LearningPackageBuilderPage"));
 
 const TUTOR_ROLES: readonly UserRole[] = ["tutor", "admin"];
+const ADMIN_ROLES: readonly UserRole[] = ["admin"];
 const LEARNER_ROLES: readonly UserRole[] = ["student", "tutor", "admin"];
 
 export default function AppRouter() {
   return (
     <BrowserRouter>
+      <StudentWorkspaceGate>
       <Suspense fallback={<PageSkeleton />}>
         <Routes>
         {/* Public */}
@@ -102,6 +123,43 @@ export default function AppRouter() {
         <Route path="/testimonials" element={<TestimonialsPage />} />
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
+
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/admin/setup" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminSetupWizardPage /></ProtectedRoute>} />
+        <Route path="/admin/academic-years" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminAcademicYearsPage /></ProtectedRoute>} />
+        <Route path="/admin/semesters" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminSemestersPage /></ProtectedRoute>} />
+        <Route path="/admin/departments" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminDepartmentsPage /></ProtectedRoute>} />
+        <Route path="/admin/programmes" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminProgrammesPage /></ProtectedRoute>} />
+        <Route path="/admin/course-units" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminCourseUnitsPage /></ProtectedRoute>} />
+        <Route path="/admin/modules" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminModulesPage /></ProtectedRoute>} />
+        <Route path="/admin/curriculum-designer" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminCurriculumDesignerPage /></ProtectedRoute>} />
+        <Route path="/admin/curriculum-import" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminCurriculumPage /></ProtectedRoute>} />
+        <Route path="/admin/tutors" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminTutorsPage /></ProtectedRoute>} />
+        <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminSettingsPage /></ProtectedRoute>} />
+        <Route path="/admin/system-status" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminSystemStatusPage /></ProtectedRoute>} />
+        <Route
+          path="/founder"
+          element={
+            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
+              <FounderDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/founder/diagnostics"
+          element={
+            <ProtectedRoute allowedRoles={ADMIN_ROLES}>
+              <FounderDiagnosticsPage />
+            </ProtectedRoute>
+          }
+        />
 
         <Route path="/courses" element={<CourseUnitPage />} />
         <Route path="/courses/:slug" element={<CourseUnitDetailsPage />} />
@@ -137,6 +195,14 @@ export default function AppRouter() {
   element={
     <ProtectedRoute allowedRoles={TUTOR_ROLES}>
       <StudentProfilePage />
+    </ProtectedRoute>
+  }
+/>
+<Route
+  path="/tutor/students/:studentId/edit"
+  element={
+    <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+      <EditStudentPage />
     </ProtectedRoute>
   }
 />
@@ -339,6 +405,7 @@ export default function AppRouter() {
             </ProtectedRoute>
           }
         />
+        <Route path="/tutor/curriculum-import" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><TutorCurriculumImportPage /></ProtectedRoute>} />
 
         <Route
           path="/tutor/programmes"
@@ -426,6 +493,15 @@ export default function AppRouter() {
           element={
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
               <LessonBuilderPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/tutor/learning-packages/:lessonId"
+          element={
+            <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+              <LearningPackageBuilderPage />
             </ProtectedRoute>
           }
         />
@@ -671,6 +747,7 @@ export default function AppRouter() {
         <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
+      </StudentWorkspaceGate>
     </BrowserRouter>
   );
 }

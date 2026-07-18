@@ -7,15 +7,24 @@ import useTimetable from "../hooks/useTimetable";
 const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 export default function StudentTimetablePage() {
-  const { courseUnitIds, loading: accessLoading } = useStudentLearningAccess();
+  const { courseUnitIds, programmeIds, loading: accessLoading } = useStudentLearningAccess();
   const { entries, loading, error } = useTimetable();
 
-  const visibleEntries = useMemo(() => entries.filter((entry) =>
-    entry.status === "scheduled" && courseUnitIds.has(entry.courseUnitId)
-  ).sort((a, b) => {
+  const visibleEntries = useMemo(() => entries.filter((entry) => {
+    if (entry.status !== "scheduled") return false;
+
+    const matchesCourseUnit = Boolean(
+      entry.courseUnitId && courseUnitIds.has(entry.courseUnitId)
+    );
+    const matchesProgramme = Boolean(
+      entry.programmeId && programmeIds.has(entry.programmeId)
+    );
+
+    return matchesCourseUnit || matchesProgramme;
+  }).sort((a, b) => {
     const dayDifference = days.indexOf(a.dayOfWeek) - days.indexOf(b.dayOfWeek);
     return dayDifference || a.startTime.localeCompare(b.startTime);
-  }), [courseUnitIds, entries]);
+  }), [courseUnitIds, entries, programmeIds]);
 
   if (loading || accessLoading) return <main className="min-h-screen bg-slate-50 p-8">Loading timetable...</main>;
 

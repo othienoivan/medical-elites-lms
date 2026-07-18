@@ -149,6 +149,13 @@ export default function StudentProfilePage() {
 
             <Button
               className="bg-white text-blue-700 hover:bg-blue-50"
+              onClick={() => navigate(`/tutor/students/${studentId}/edit`)}
+            >
+              Edit Profile
+            </Button>
+
+            <Button
+              className="bg-white text-blue-700 hover:bg-blue-50"
               onClick={() =>
                 navigate(`/tutor/student-transcript/${studentId}`)
               }

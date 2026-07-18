@@ -62,6 +62,9 @@ export interface Lesson {
   description: string;
   order: number;
   estimatedMinutes: number;
+  difficulty?: "beginner" | "intermediate" | "advanced";
+  prerequisites?: string[];
+  references?: string[];
   learningObjectives?: LessonObjective[];
   sections?: LessonSection[];
   resources?: LessonResource[];
