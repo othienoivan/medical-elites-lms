@@ -160,7 +160,7 @@ export default function DashboardPage() {
           subtitle="Your learning, assessments, timetable and academic progress—organized for today."
         >
           <div className="flex flex-wrap items-center gap-3">
-            <Button className="bg-white text-blue-700 hover:bg-blue-50" onClick={() => navigate("/my-courses")}>
+            <Button className="bg-white text-blue-700 hover:bg-blue-50" onClick={() => navigate("/student/course-units")}>
               <PlayCircle size={18} /> Continue Learning
             </Button>
             <Button className="border-white/40 bg-white/10 text-white hover:bg-white/20" onClick={() => navigate("/ai-assistant")}>
@@ -185,7 +185,7 @@ export default function DashboardPage() {
         <DashboardWidget title="Quick Actions" description="Your most-used academic tools" className="xl:col-span-2">
           <QuickActions
             actions={[
-              { label: "My Courses", description: "Continue assigned lessons", icon: BookOpen, onClick: () => navigate("/my-courses") },
+              { label: "My Courses", description: "Continue assigned lessons", icon: BookOpen, onClick: () => navigate("/student/course-units") },
               { label: "Assessments", description: "Take quizzes and exams", icon: ClipboardCheck, onClick: () => navigate("/assessments") },
               { label: "Ask Medi", description: "Get structured study support", icon: Sparkles, onClick: () => navigate("/ai-assistant") },
               { label: "Timetable", description: "See classes and venues", icon: CalendarDays, onClick: () => navigate("/timetable") },

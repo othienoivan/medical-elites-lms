@@ -5,12 +5,15 @@ import {
   doc,
   getDoc,
   getDocs,
+  query,
   serverTimestamp,
   updateDoc,
+  where,
 } from "firebase/firestore";
 
 import { db } from "../config/firebase";
 import type { Quiz, QuizQuestionRef } from "../models/Quiz";
+import { requireAccessScope, type AccessScope } from "./accessScope";
 
 const COLLECTION = "quizzes";
 
@@ -82,9 +85,38 @@ export async function createQuiz(quiz: Quiz): Promise<string> {
   return docRef.id;
 }
 
-export async function getQuizzes(): Promise<Quiz[]> {
-  const snapshot = await getDocs(collection(db, COLLECTION));
+export async function getQuizzes(scope: AccessScope): Promise<Quiz[]> {
+  const access = requireAccessScope(scope);
 
+  if (access.role === "student") {
+    const assignedIds = [...new Set(access.assignedCourseUnitIds ?? [])];
+    if (assignedIds.length === 0) return [];
+
+    const chunks: string[][] = [];
+    for (let index = 0; index < assignedIds.length; index += 10) {
+      chunks.push(assignedIds.slice(index, index + 10));
+    }
+
+    const results = await Promise.allSettled(
+      chunks.map((ids) =>
+        getDocs(query(collection(db, COLLECTION), where("courseUnitId", "in", ids)))
+      )
+    );
+
+    const quizzes = results.flatMap((result) =>
+      result.status === "fulfilled"
+        ? result.value.docs.map((docSnap) => ({
+            ...(docSnap.data() as Omit<Quiz, "id">),
+            id: docSnap.id,
+          }))
+        : []
+    );
+
+    return [...new Map(quizzes.map((quiz) => [quiz.id, quiz])).values()]
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  const snapshot = await getDocs(collection(db, COLLECTION));
   return snapshot.docs
     .map((docSnap) => ({
       ...(docSnap.data() as Omit<Quiz, "id">),

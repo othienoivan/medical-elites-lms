@@ -1,0 +1,1 @@
+import{t as e}from"./react-vendor-CuiJ2BLZ.js";import{n as t,t as n}from"./Footer-AeMVxAFY.js";var r=e();function i({children:e}){return(0,r.jsxs)(`div`,{className:`min-h-screen bg-slate-50 text-slate-900`,children:[(0,r.jsx)(t,{}),(0,r.jsx)(`main`,{children:e}),(0,r.jsx)(n,{})]})}export{i as t};

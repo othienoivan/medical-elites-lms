@@ -1,0 +1,1 @@
+import{t as e}from"./react-vendor-CuiJ2BLZ.js";var t=e();function n({children:e,className:n=``}){return(0,t.jsx)(`div`,{className:`mx-auto max-w-7xl px-6 ${n}`,children:e})}export{n as t};

@@ -89,8 +89,17 @@ export default function CurriculumImportPanel() {
         ];
       }
 
+      if (!currentUser || !userProfile || (userProfile.role !== "admin" && userProfile.role !== "tutor")) {
+        throw new Error("Your tutor or administrator profile must be active before comparing curricula.");
+      }
       setStage("Comparing the proposed curriculum with existing records…");
-      const comparisonResult = await compareCurriculumDraft(nextDraft);
+      const comparisonResult = await compareCurriculumDraft(nextDraft, {
+        uid: currentUser.uid,
+        email: currentUser.email || userProfile.email,
+        fullName: userProfile.fullName,
+        role: userProfile.role,
+        institutionId: userProfile.institutionId,
+      });
       setDraft(nextDraft);
       setComparison(comparisonResult);
       setValidation(null);
@@ -197,6 +206,7 @@ export default function CurriculumImportPanel() {
           email: currentUser.email || userProfile.email,
           fullName: userProfile.fullName,
           role: userProfile.role,
+          institutionId: userProfile.institutionId,
         }
       );
       setImportSummary(summary);

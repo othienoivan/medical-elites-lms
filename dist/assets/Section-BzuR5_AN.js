@@ -1,0 +1,1 @@
+import{t as e}from"./react-vendor-CuiJ2BLZ.js";var t=e();function n({children:e,className:n=``,id:r}){return(0,t.jsx)(`section`,{id:r,className:`py-16 ${n}`,children:e})}export{n as t};

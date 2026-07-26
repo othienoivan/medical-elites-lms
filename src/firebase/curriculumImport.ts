@@ -2,8 +2,12 @@ import {
   collection,
   doc,
   getDocs,
+  query,
   serverTimestamp,
+  where,
   writeBatch,
+  type DocumentData,
+  type QuerySnapshot,
   type WriteBatch,
 } from "firebase/firestore";
 import { FirebaseError } from "firebase/app";
@@ -36,21 +40,57 @@ function inferLevel(award?: string): ProgrammeLevel {
   return "Degree";
 }
 
-async function loadCatalogue() {
-  const [programmeSnapshot, courseSnapshot, moduleSnapshot] = await Promise.all([
-    getDocs(collection(db, "programmes")),
-    getDocs(collection(db, "courses")),
-    getDocs(collection(db, "modules")),
+async function loadCatalogue(actor: CurriculumImportActor) {
+  const settledRows = (results: PromiseSettledResult<QuerySnapshot<DocumentData>>[]) => {
+    const documents = results.flatMap((result) => result.status === "fulfilled" ? result.value.docs : []);
+    return [...new Map(documents.map((item) => [item.id, { id: item.id, ...item.data() }])).values()];
+  };
+
+  const programmeRef = collection(db, "programmes");
+  const programmeRequests = [
+    getDocs(query(programmeRef, where("ownerUserId", "==", actor.uid))),
+    getDocs(query(programmeRef, where("assignedTutorIds", "array-contains", actor.uid))),
+  ];
+  if (actor.role === "admin" && actor.institutionId) {
+    programmeRequests.push(getDocs(query(programmeRef, where("institutionId", "==", actor.institutionId))));
+  }
+
+  const programmeResults = await Promise.allSettled(programmeRequests);
+  const programmes = settledRows(programmeResults) as Programme[];
+  const programmeIds = programmes.map((item) => item.id);
+
+  const scopedRequests = (collectionName: "courses" | "modules") => {
+    const ref = collection(db, collectionName);
+    const requests = [
+      getDocs(query(ref, where("ownerUserId", "==", actor.uid))),
+      getDocs(query(ref, where("assignedTutorIds", "array-contains", actor.uid))),
+    ];
+    if (actor.role === "admin" && actor.institutionId) {
+      requests.push(getDocs(query(ref, where("institutionId", "==", actor.institutionId))));
+    }
+    if (actor.role === "admin") {
+      for (let index = 0; index < programmeIds.length; index += 10) {
+        requests.push(getDocs(query(ref, where("programmeId", "in", programmeIds.slice(index, index + 10)))));
+      }
+    }
+    return requests;
+  };
+
+  const [courseResults, moduleResults] = await Promise.all([
+    Promise.allSettled(scopedRequests("courses")),
+    Promise.allSettled(scopedRequests("modules")),
   ]);
+
   return {
-    programmes: programmeSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Programme)),
-    courses: courseSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Record<string, unknown> & { id: string })),
-    modules: moduleSnapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Record<string, unknown> & { id: string })),
+    programmes,
+    courses: settledRows(courseResults) as (Record<string, unknown> & { id: string })[],
+    modules: settledRows(moduleResults) as (Record<string, unknown> & { id: string })[],
   };
 }
 
-export async function compareCurriculumDraft(draft: CurriculumImportDraft): Promise<CurriculumComparisonSummary> {
-  const catalogue = await loadCatalogue();
+
+export async function compareCurriculumDraft(draft: CurriculumImportDraft, actor: CurriculumImportActor): Promise<CurriculumComparisonSummary> {
+  const catalogue = await loadCatalogue(actor);
   const matchedProgramme = catalogue.programmes.find((item) =>
     normalise(item.code || item.title) === normalise(draft.programme.code || draft.programme.title)
   );
@@ -191,7 +231,7 @@ export async function importCurriculumDraft(
   if (actor.role !== "admin" && actor.role !== "tutor") throw new Error("Only administrators and tutors may import curricula.");
 
   try {
-    const catalogue = await loadCatalogue();
+    const catalogue = await loadCatalogue(actor);
     const programmeMatch = selectedProgramme ?? catalogue.programmes.find((item) =>
       normalise(item.code || item.title) === normalise(draft.programme.code || draft.programme.title)
     ) ?? null;
@@ -215,7 +255,11 @@ export async function importCurriculumDraft(
         yearsOfStudy: draft.programme.durationYears || null,
         totalCourseUnits: draft.courseUnits.filter((unit) => unit.decision !== "skip").length,
         totalCredits: draft.courseUnits.reduce((sum, unit) => sum + (unit.creditUnits || 0), 0),
+        ownerUserId: actor.uid,
+        createdByUid: actor.uid,
         createdBy: actor.uid,
+        assignedTutorIds: [actor.uid],
+        institutionId: actor.institutionId ?? null,
         createdByEmail: actor.email,
         createdByRole: actor.role,
         published: false,
@@ -285,7 +329,9 @@ export async function importCurriculumDraft(
             order: index + 1, passMark: 50,
             duration: module.estimatedHours ? `${module.estimatedHours} hours` : "To be defined",
             lessons: 0, published: false,
-            createdBy: actor.uid, createdByEmail: actor.email, createdByRole: actor.role,
+            ownerUserId: actor.uid, createdByUid: actor.uid, createdBy: actor.uid,
+            assignedTutorIds: [actor.uid], institutionId: actor.institutionId ?? null,
+            createdByEmail: actor.email, createdByRole: actor.role,
             createdAt: serverTimestamp(), updatedAt: serverTimestamp(), importSource: draft.sourceFileName,
           }));
         }
@@ -296,6 +342,7 @@ export async function importCurriculumDraft(
     operations.push((batch) => batch.set(auditRef, {
       id: auditRef.id, sourceFileName: draft.sourceFileName, programmeId,
       programmeTitle: draft.programme.title,
+      ownerUserId: actor.uid, institutionId: actor.institutionId ?? null,
       importedBy: actor.uid, importedByUid: actor.uid, importedByEmail: actor.email,
       importedByName: actor.fullName || actor.email, importedByRole: actor.role,
       analysisMethod: draft.analysisMethod, aiProvider: draft.aiProvider || null,
@@ -336,6 +383,8 @@ function coursePayload(
     duration: unit.contactHours ? `${unit.contactHours} hours` : "To be defined",
     modules: unit.modules.length, lessons: 0, rating: 0, students: "0", certificate: false,
     isFeatured: false, isNew: true, published: false,
+    ownerUserId: actor.uid, createdByUid: actor.uid, assignedTutorIds: [actor.uid],
+    institutionId: actor.institutionId ?? null,
     createdBy: actor.uid, updatedBy: actor.uid,
     createdByEmail: actor.email, updatedByEmail: actor.email,
     createdByRole: actor.role, updatedByRole: actor.role,

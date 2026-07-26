@@ -1,0 +1,1 @@
+import{t as e}from"./react-vendor-CuiJ2BLZ.js";var t=e();function n({className:e=``,...n}){return(0,t.jsx)(`input`,{className:`w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-blue-700 focus:ring-2 focus:ring-blue-200 ${e}`,...n})}export{n as t};

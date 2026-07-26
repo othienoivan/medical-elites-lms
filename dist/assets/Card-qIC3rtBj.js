@@ -1,0 +1,1 @@
+import{t as e}from"./react-vendor-CuiJ2BLZ.js";var t=e();function n({children:e,className:n=``,...r}){return(0,t.jsx)(`div`,{className:`rounded-2xl bg-white p-6 shadow-sm transition ${n}`,...r,children:e})}export{n as t};

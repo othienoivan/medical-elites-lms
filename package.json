@@ -1,14 +1,18 @@
 {
   "name": "medical-elites-lms",
   "private": true,
-  "version": "1.0.0-rc.2",
+  "version": "1.0.0-rc.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false",
+    "test": "node --test tests/*.test.mjs",
+    "validate:release": "node scripts/validate-release.mjs",
+    "validate:env": "node scripts/check-env.mjs",
+    "release:check": "npm run validate:release && npm test && npm run typecheck && npm run build"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

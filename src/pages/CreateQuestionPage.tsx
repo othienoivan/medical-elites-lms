@@ -7,14 +7,14 @@ import {
   Save,
   Target,
 } from "lucide-react";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 
 import TutorLayout from "../components/layout/TutorLayout";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
-import { createQuestion } from "../firebase/questions";
+import { createQuestion, getQuestionById, updateQuestion } from "../firebase/questions";
 import useAuth from "../hooks/useAuth";
 import useCourseUnits from "../hooks/useCourseUnits";
 import useModules from "../hooks/useModules";
@@ -28,7 +28,9 @@ import type {
 
 export default function CreateQuestionPage() {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { questionId } = useParams();
+  const isEditing = Boolean(questionId);
+  const { currentUser, userProfile } = useAuth();
 
   const { programmes } = useProgrammes();
   const { courseUnits } = useCourseUnits();
@@ -56,6 +58,8 @@ export default function CreateQuestionPage() {
   const [correctAnswer, setCorrectAnswer] = useState("");
   const [explanation, setExplanation] = useState("");
   const [marks, setMarks] = useState(1);
+  const [estimatedTimeMinutes, setEstimatedTimeMinutes] = useState(1);
+  const [isPublished, setIsPublished] = useState(true);
   const [tagsText, setTagsText] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -76,6 +80,36 @@ export default function CreateQuestionPage() {
   );
 
   const selectedModule = modules.find((module) => module.id === moduleId);
+
+  useEffect(() => {
+    if (!questionId) return;
+    let cancelled = false;
+    void getQuestionById(questionId).then((question) => {
+      if (!question || cancelled) return;
+      setProgrammeId(question.programmeId ?? "");
+      setCourseUnitId(question.courseUnitId ?? "");
+      setModuleId(question.moduleId ?? "");
+      setTopic(question.topic ?? "");
+      setSubtopic(question.subtopic ?? "");
+      setType(question.type);
+      setDifficulty(question.difficulty);
+      setBloomLevel(question.bloomLevel);
+      setQuestionText(question.questionText);
+      setOptions(question.options?.length ? question.options : options);
+      setCorrectAnswer(question.correctAnswer ?? "");
+      setExplanation(question.explanation ?? "");
+      setMarks(question.marks ?? 1);
+      setEstimatedTimeMinutes(question.estimatedTimeMinutes ?? 1);
+      setTagsText((question.tags ?? []).join(", "));
+      setIsPublished(question.isPublished ?? true);
+    }).catch((error) => {
+      console.error("Failed to load question:", error);
+      alert("Failed to load question for editing.");
+    });
+    return () => { cancelled = true; };
+  // options is only a fallback for legacy questions without stored options.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questionId]);
 
   function updateOption(label: string, value: string) {
     setOptions((current) =>
@@ -111,8 +145,8 @@ export default function CreateQuestionPage() {
     try {
       setLoading(true);
 
-      await createQuestion({
-        id: "",
+      const payload = {
+        id: questionId ?? "",
 
         programmeId: selectedProgramme?.id,
         programmeTitle: selectedProgramme?.title,
@@ -137,18 +171,31 @@ export default function CreateQuestionPage() {
         explanation,
 
         marks,
+        estimatedTimeMinutes,
 
         tags: tagsText
           .split(",")
           .map((tag) => tag.trim())
           .filter(Boolean),
 
-        isPublished: true,
+        isPublished,
+        isDeleted: false,
+        usageCount: 0,
 
-        createdBy: currentUser.email || currentUser.uid,
+        createdBy: currentUser.uid,
+        ownerUserId: currentUser.uid,
+        createdByUid: currentUser.uid,
+        institutionId: userProfile?.institutionId,
+        assignedTutorIds: [currentUser.uid],
         createdAt: new Date(),
         updatedAt: new Date(),
-      });
+      };
+
+      if (questionId) {
+        await updateQuestion(questionId, payload);
+      } else {
+        await createQuestion(payload);
+      }
 
       navigate("/tutor/questions");
     } catch (error) {
@@ -161,15 +208,15 @@ export default function CreateQuestionPage() {
 
   return (
     <TutorLayout
-      title="Create Question"
-      subtitle="Add a reusable question to the Medical Elites question bank."
+      title={isEditing ? "Edit Question" : "Create Question"}
+      subtitle={isEditing ? "Update this reusable question and its classification." : "Add a reusable question to the Medical Elites question bank."}
     >
       <div className="mb-8 rounded-3xl bg-gradient-to-r from-blue-700 to-indigo-700 p-8 text-white">
         <div className="flex items-center gap-4">
           <Brain size={46} />
 
           <div>
-            <h2 className="text-3xl font-bold">New Medical Question</h2>
+            <h2 className="text-3xl font-bold">{isEditing ? "Edit Medical Question" : "New Medical Question"}</h2>
 
             <p className="mt-2 max-w-3xl text-blue-100">
               Create reusable questions for lesson quizzes, CATs, module tests,
@@ -393,13 +440,23 @@ export default function CreateQuestionPage() {
                 </Field>
               )}
 
-              <div className="grid gap-6 md:grid-cols-2">
+              <div className="grid gap-6 md:grid-cols-3">
                 <Field label="Marks">
                   <Input
                     type="number"
                     min="1"
                     value={marks}
                     onChange={(event) => setMarks(Number(event.target.value))}
+                    required
+                  />
+                </Field>
+
+                <Field label="Estimated Time (minutes)">
+                  <Input
+                    type="number"
+                    min="1"
+                    value={estimatedTimeMinutes}
+                    onChange={(event) => setEstimatedTimeMinutes(Number(event.target.value))}
                     required
                   />
                 </Field>
@@ -413,6 +470,18 @@ export default function CreateQuestionPage() {
                 </Field>
               </div>
 
+              <Field label="Publication Status">
+                <select
+                  aria-label="Publication Status"
+                  value={isPublished ? "published" : "draft"}
+                  onChange={(event) => setIsPublished(event.target.value === "published")}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
+                >
+                  <option value="published">Published — available for assessment use</option>
+                  <option value="draft">Draft — keep private while reviewing</option>
+                </select>
+              </Field>
+
               <Field label="Explanation / Feedback">
                 <textarea
                   value={explanation}
@@ -425,7 +494,7 @@ export default function CreateQuestionPage() {
               <div className="flex flex-col gap-3 border-t border-slate-200 pt-6 md:flex-row">
                 <Button type="submit" className="flex-1" disabled={loading}>
                   <Save size={18} />
-                  {loading ? "Saving Question..." : "Save Question"}
+                  {loading ? "Saving Question..." : isEditing ? "Update Question" : "Save Question"}
                 </Button>
 
                 <Button

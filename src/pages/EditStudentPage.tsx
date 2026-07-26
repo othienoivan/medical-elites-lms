@@ -8,6 +8,8 @@ import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import { getStudentById, updateStudentRecord } from "../firebase/students";
 import useProgrammes from "../hooks/useProgrammes";
+import useCourseUnits from "../hooks/useCourseUnits";
+import { matchesAcademicPlacement, suggestedCourseUnitIds } from "../utils/academicPlacement";
 import type { Student, StudentStatus } from "../models/Student";
 
 type FormState = {
@@ -22,6 +24,7 @@ type FormState = {
   intake: string;
   yearOfStudy: string;
   semester: string;
+  assignedCourseUnitIds: string[];
   email: string;
   phone: string;
   guardianName: string;
@@ -44,6 +47,7 @@ const emptyForm: FormState = {
   intake: "",
   yearOfStudy: "",
   semester: "",
+  assignedCourseUnitIds: [],
   email: "",
   phone: "",
   guardianName: "",
@@ -58,11 +62,13 @@ export default function EditStudentPage() {
   const { studentId } = useParams();
   const navigate = useNavigate();
   const { programmes, loading: programmesLoading } = useProgrammes();
+  const { courseUnits, loading: courseUnitsLoading } = useCourseUnits(true);
   const [student, setStudent] = useState<Student | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [assignmentNotice, setAssignmentNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -98,6 +104,7 @@ export default function EditStudentPage() {
           intake: record.intake || "",
           yearOfStudy: record.yearOfStudy || "",
           semester: record.semester || "",
+          assignedCourseUnitIds: record.assignedCourseUnitIds || [],
           email: record.email || "",
           phone: record.phone || "",
           guardianName: record.guardianName || "",
@@ -130,6 +137,44 @@ export default function EditStudentPage() {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
+
+  function handleApplyAcademicUnits() {
+    setAssignmentNotice(null);
+
+    if (!form.programmeId) {
+      setAssignmentNotice("Select a programme before applying course units.");
+      return;
+    }
+
+    if (courseUnits.length === 0) {
+      setAssignmentNotice("No course units are currently available to this tutor. Confirm that course units were created under this programme and redeploy the latest Firestore rules.");
+      return;
+    }
+
+    const programmeUnits = courseUnits.filter((course) => course.programmeId === form.programmeId);
+    if (programmeUnits.length === 0) {
+      setAssignmentNotice("No course units are linked to the selected programme.");
+      return;
+    }
+
+    const suggestedIds = suggestedCourseUnitIds(
+      programmeUnits,
+      form.programmeId,
+      form.yearOfStudy,
+      form.semester
+    );
+
+    if (suggestedIds.length === 0) {
+      setAssignmentNotice(
+        `No units match ${form.yearOfStudy || "the selected year"} and ${form.semester || "the selected semester"}. ${programmeUnits.length} programme unit${programmeUnits.length === 1 ? " is" : "s are"} available for manual selection.`
+      );
+      return;
+    }
+
+    updateField("assignedCourseUnitIds", suggestedIds);
+    setAssignmentNotice(`${suggestedIds.length} course unit${suggestedIds.length === 1 ? "" : "s"} selected. Click Save Changes to store the assignment.`);
+  }
+
   async function handleSave() {
     if (!studentId || !student) return;
 
@@ -155,6 +200,7 @@ export default function EditStudentPage() {
         intake: form.intake.trim(),
         yearOfStudy: form.yearOfStudy.trim(),
         semester: form.semester.trim(),
+        assignedCourseUnitIds: form.assignedCourseUnitIds,
         email: form.email.trim(),
         phone: form.phone.trim(),
         guardianName: form.guardianName.trim(),
@@ -195,7 +241,7 @@ export default function EditStudentPage() {
 
       {error && <Card className="mb-6 border border-red-200 text-red-700">{error}</Card>}
 
-      {loading || programmesLoading ? (
+      {loading || programmesLoading || courseUnitsLoading ? (
         <Card>Loading student profile...</Card>
       ) : !student ? (
         <Card className="text-center">
@@ -229,6 +275,38 @@ export default function EditStudentPage() {
               <Field label="Semester"><Input value={form.semester} onChange={(e) => updateField("semester", e.target.value)} placeholder="Semester I" /></Field>
               <Field label="Admission Date"><Input type="date" value={form.admissionDate} onChange={(e) => updateField("admissionDate", e.target.value)} /></Field>
               <Field label="Status"><select className="w-full rounded-xl border border-slate-300 px-4 py-3" value={form.status} onChange={(e) => updateField("status", e.target.value as StudentStatus)}><option value="active">Active</option><option value="deferred">Deferred</option><option value="completed">Completed</option><option value="graduated">Graduated</option></select></Field>
+            </div>
+
+            <div className="mt-7 border-t border-slate-200 pt-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-slate-950">Assigned Course Units</h3>
+                  <p className="text-sm text-slate-500">Only selected units will be available to this student.</p>
+                </div>
+                <Button type="button" variant="outline" onClick={handleApplyAcademicUnits}>
+                  Apply Year/Semester Units
+                </Button>
+              </div>
+              {assignmentNotice && (
+                <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-900">
+                  {assignmentNotice}
+                </div>
+              )}
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {courseUnits.filter((course) => !form.programmeId || course.programmeId === form.programmeId).map((course) => {
+                  const checked = form.assignedCourseUnitIds.includes(course.id);
+                  const recommended = matchesAcademicPlacement(course, form.programmeId, form.yearOfStudy, form.semester);
+                  return <label key={course.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${checked ? "border-blue-400 bg-blue-50" : "border-slate-200"}`}>
+                    <input type="checkbox" className="mt-1" checked={checked} onChange={(event) => updateField("assignedCourseUnitIds", event.target.checked ? Array.from(new Set([...form.assignedCourseUnitIds, course.id])) : form.assignedCourseUnitIds.filter((id) => id !== course.id))} />
+                    <span><span className="block font-semibold text-slate-900">{course.code ? `${course.code} — ` : ""}{course.title}</span><span className="text-xs text-slate-500">Year {course.yearOfStudy ?? "—"} · Semester {course.semester ?? "—"}{recommended ? " · Recommended" : ""}</span></span>
+                  </label>;
+                })}
+                {courseUnits.filter((course) => !form.programmeId || course.programmeId === form.programmeId).length === 0 && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 md:col-span-2">
+                    No course units are available for the selected programme. Create or correctly link course units before applying the academic placement.
+                  </div>
+                )}
+              </div>
             </div>
           </Card>
 

@@ -1,0 +1,15 @@
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import TutorLayout from "../components/layout/TutorLayout";
+import Button from "../components/ui/Button";
+import Card from "../components/ui/Card";
+import Input from "../components/ui/Input";
+import { getModuleById, updateModule } from "../firebase/modules";
+
+export default function EditModulePage(){
+ const {moduleId=""}=useParams(); const navigate=useNavigate();
+ const [title,setTitle]=useState("");const [code,setCode]=useState("");const [description,setDescription]=useState("");const [order,setOrder]=useState(1);const [hours,setHours]=useState(4);const [passMark,setPassMark]=useState(80);const [published,setPublished]=useState(false);const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);
+ useEffect(()=>{void getModuleById(moduleId).then(m=>{if(!m)throw new Error("Module not found");setTitle(m.title);setCode(m.code??"");setDescription(m.description);setOrder(m.order);setHours(m.estimatedHours??4);setPassMark(m.passMark);setPublished(m.published);}).catch(e=>{alert(e instanceof Error?e.message:"Unable to load module");navigate("/tutor/modules")}).finally(()=>setLoading(false));},[moduleId,navigate]);
+ async function submit(e:React.FormEvent){e.preventDefault();try{setSaving(true);await updateModule(moduleId,{title,code,description,order,estimatedHours:hours,duration:`${hours} Hours`,passMark,published});navigate("/tutor/modules");}catch(err){alert(err instanceof Error?err.message:"Failed to update module");}finally{setSaving(false)}}
+ return <TutorLayout title="Edit Module" subtitle="Update module content, sequencing and publication status."><Card className="mx-auto max-w-3xl">{loading?<p>Loading module...</p>:<form onSubmit={submit} className="space-y-5"><label className="block font-semibold">Module Title<Input value={title} onChange={e=>setTitle(e.target.value)} required/></label><label className="block font-semibold">Code<Input value={code} onChange={e=>setCode(e.target.value)}/></label><label className="block font-semibold">Description<textarea value={description} onChange={e=>setDescription(e.target.value)} required className="mt-2 min-h-32 w-full rounded-xl border px-4 py-3"/></label><div className="grid gap-4 md:grid-cols-3"><label className="font-semibold">Order<Input type="number" value={order} onChange={e=>setOrder(Number(e.target.value))}/></label><label className="font-semibold">Estimated Hours<Input type="number" value={hours} onChange={e=>setHours(Number(e.target.value))}/></label><label className="font-semibold">Pass Mark %<Input type="number" value={passMark} onChange={e=>setPassMark(Number(e.target.value))}/></label></div><label className="flex items-center gap-3"><input type="checkbox" checked={published} onChange={e=>setPublished(e.target.checked)}/> Published and visible to students</label><div className="flex gap-3"><Button type="submit" disabled={saving}>{saving?"Saving...":"Save Changes"}</Button><Button type="button" variant="outline" onClick={()=>navigate("/tutor/modules")}>Cancel</Button></div></form>}</Card></TutorLayout>
+}

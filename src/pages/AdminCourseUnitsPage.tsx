@@ -6,6 +6,7 @@ import Input from "../components/ui/Input";
 import { createCourseUnit, deleteCourseUnit, getAllCourseUnits, updateCourseUnit } from "../firebase/courseUnits";
 import { getAllProgrammes } from "../firebase/programmes";
 import useAuth from "../hooks/useAuth";
+import useAccessScope from "../hooks/useAccessScope";
 import type { CourseUnit } from "../models/CourseUnit";
 import type { Programme } from "../models/Programme";
 
@@ -13,6 +14,7 @@ const blank = { programmeId: "", title: "", code: "", semester: 1, yearOfStudy: 
 const slugify = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
 
 export default function AdminCourseUnitsPage() {
+  const accessScope = useAccessScope();
   const { currentUser } = useAuth();
   const [records, setRecords] = useState<CourseUnit[]>([]);
   const [programmes, setProgrammes] = useState<Programme[]>([]);
@@ -24,9 +26,9 @@ export default function AdminCourseUnitsPage() {
 
   const reload = useCallback(async () => {
     setLoading(true);
-    try { const [courseRows, programmeRows] = await Promise.all([getAllCourseUnits(), getAllProgrammes()]); setRecords(courseRows); setProgrammes(programmeRows); }
+    try { const [courseRows, programmeRows] = await Promise.all([getAllCourseUnits(accessScope!), getAllProgrammes(accessScope!)]); setRecords(courseRows); setProgrammes(programmeRows); }
     finally { setLoading(false); }
-  }, []);
+  }, [accessScope]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void reload();
@@ -53,7 +55,7 @@ export default function AdminCourseUnitsPage() {
   }
 
   function edit(item: CourseUnit) { setEditingId(item.id); setForm({ programmeId: item.programmeId, title: item.title, code: item.code ?? "", semester: item.semester ?? 1, yearOfStudy: item.yearOfStudy ?? 1, creditUnits: item.creditUnits ?? 3, duration: item.duration, description: item.description, published: item.published }); window.scrollTo({ top: 0, behavior: "smooth" }); }
-  async function remove(item: CourseUnit) { if (window.prompt(`Delete ${item.title}? Type DELETE to confirm.`) !== "DELETE") return; try { await deleteCourseUnit(item.id); await reload(); alert("Course unit deleted."); } catch (error) { alert(error instanceof Error ? error.message : "Failed to delete course unit."); } }
+  async function remove(item: CourseUnit) { if (window.prompt(`Delete ${item.title}? Type DELETE to confirm.`) !== "DELETE") return; try { await deleteCourseUnit(item.id, accessScope!); await reload(); alert("Course unit deleted."); } catch (error) { alert(error instanceof Error ? error.message : "Failed to delete course unit."); } }
   async function archive(item: CourseUnit) { await updateCourseUnit(item.id, { published: false }); await reload(); alert("Course unit archived."); }
 
   return <AdminLayout title="Course Units" subtitle="Manage course units, programme linkage and academic placement."><div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]">

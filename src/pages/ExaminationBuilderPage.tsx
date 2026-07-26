@@ -9,6 +9,8 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import CandidatePaperPreview from "../components/assessment/CandidatePaperPreview";
+import ExaminationBlueprint from "../components/assessment/ExaminationBlueprint";
+import MarkingGuidePreview from "../components/assessment/MarkingGuidePreview";
 import ExaminationDetailsPanel from "../components/assessment/ExaminationDetailsPanel";
 import SectionBuilder from "../components/assessment/SectionBuilder";
 import TutorLayout from "../components/layout/TutorLayout";
@@ -24,6 +26,8 @@ import type {
   Examination,
   ExaminationSection,
   ExaminationStatus,
+  ExaminationTemplate,
+  ExaminationType,
 } from "../models/Examination";
 
 export default function ExaminationBuilderPage() {
@@ -40,6 +44,11 @@ export default function ExaminationBuilderPage() {
   const [semester, setSemester] = useState("");
   const [timeAllowed, setTimeAllowed] = useState("");
   const [candidateInstructions, setCandidateInstructions] = useState("");
+  const [yearOfStudy, setYearOfStudy] = useState("");
+  const [examinationType, setExaminationType] = useState<ExaminationType>("final");
+  const [template, setTemplate] = useState<ExaminationTemplate>("institutional");
+  const [targetMarks, setTargetMarks] = useState(100);
+  const [previewMode, setPreviewMode] = useState<"candidate" | "marking">("candidate");
 
   const [sections, setSections] = useState<ExaminationSection[]>([]);
   const [saving, setSaving] = useState(false);
@@ -71,6 +80,10 @@ export default function ExaminationBuilderPage() {
         setSemester(existing.semester || "");
         setTimeAllowed(existing.timeAllowed || "");
         setCandidateInstructions(existing.candidateInstructions || "");
+        setYearOfStudy(existing.yearOfStudy || "");
+        setExaminationType(existing.examinationType || "final");
+        setTemplate(existing.template || "institutional");
+        setTargetMarks(existing.targetMarks || existing.totalMarks || 100);
         setSections(existing.sections || []);
       } catch (error) {
         console.error("Failed to load examination:", error);
@@ -102,6 +115,10 @@ export default function ExaminationBuilderPage() {
     semester,
     timeAllowed,
     candidateInstructions,
+    yearOfStudy,
+    examinationType,
+    template,
+    targetMarks,
     sections,
     totalMarks,
     status: "draft",
@@ -125,6 +142,16 @@ export default function ExaminationBuilderPage() {
 
     if (sections.length === 0) {
       alert("Please add at least one examination section.");
+      return;
+    }
+
+    if (sections.some((section) => section.questions.length === 0)) {
+      alert("Every examination section must contain at least one question.");
+      return;
+    }
+
+    if (targetMarks > 0 && totalMarks !== targetMarks) {
+      alert(`Mark total mismatch: the paper has ${totalMarks} marks but the target is ${targetMarks}.`);
       return;
     }
 
@@ -226,9 +253,18 @@ export default function ExaminationBuilderPage() {
             setTimeAllowed={setTimeAllowed}
             candidateInstructions={candidateInstructions}
             setCandidateInstructions={setCandidateInstructions}
+            yearOfStudy={yearOfStudy}
+            setYearOfStudy={setYearOfStudy}
+            examinationType={examinationType}
+            setExaminationType={setExaminationType}
+            template={template}
+            setTemplate={setTemplate}
+            targetMarks={targetMarks}
+            setTargetMarks={setTargetMarks}
           />
 
           <SectionBuilder sections={sections} setSections={setSections} />
+          <ExaminationBlueprint sections={sections} totalMarks={totalMarks} />
         </div>
 
         <div className="space-y-6">
@@ -290,7 +326,11 @@ export default function ExaminationBuilderPage() {
             </div>
           </Card>
 
-          <CandidatePaperPreview examination={examinationPreview} />
+          <div className="flex gap-2">
+            <Button variant={previewMode === "candidate" ? "primary" : "outline"} onClick={() => setPreviewMode("candidate")}>Candidate Paper</Button>
+            <Button variant={previewMode === "marking" ? "primary" : "outline"} onClick={() => setPreviewMode("marking")}>Marking Guide</Button>
+          </div>
+          {previewMode === "candidate" ? <CandidatePaperPreview examination={examinationPreview} /> : <MarkingGuidePreview examination={examinationPreview} />}
         </div>
       </div>
     </TutorLayout>

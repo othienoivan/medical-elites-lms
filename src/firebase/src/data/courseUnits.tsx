@@ -1,0 +1,80 @@
+import type { CourseCardData } from "../components/ui/CourseCard";
+
+export const featuredCourses: CourseCardData[] = [
+  {
+    id: "1",
+    slug: "general-pathology",
+    title: "General Pathology and Immunology",
+    category: "Core Medical Sciences",
+    description:
+      "Master the fundamental mechanisms of disease, inflammation, healing, neoplasia and immune disorders.",
+    image: "/images/courses/pathology.jpg",
+    tutor: "Othieno Ivan",
+    duration: "6 Weeks",
+    modules: 12,
+    lessons: 48,
+    level: "Beginner",
+    rating: 4.9,
+    students: "Launching Soon",
+    isFeatured: true,
+    isNew: true,
+    certificate: true,
+  },
+
+  {
+    id: "2",
+    slug: "pharmacology-essentials",
+    title: "Pharmacology Essentials",
+    category: "Clinical Sciences",
+    description:
+      "Learn pharmacokinetics, pharmacodynamics, drug classifications and safe prescribing.",
+    image: "/images/courses/pharmacology.jpg",
+    tutor: "Medical Elites Faculty",
+    duration: "8 Weeks",
+    modules: 16,
+    lessons: 63,
+    level: "Intermediate",
+    rating: 4.8,
+    students: "Launching Soon",
+    isFeatured: true,
+    certificate: true,
+  },
+
+  {
+    id: "3",
+    slug: "medical-microbiology",
+    title: "Medical Microbiology",
+    category: "Laboratory Sciences",
+    description:
+      "Study bacteria, viruses, fungi and parasites together with diagnosis and prevention.",
+    image: "/images/courses/microbiology.jpg",
+    tutor: "Medical Elites Faculty",
+    duration: "7 Weeks",
+    modules: 14,
+    lessons: 56,
+    level: "Intermediate",
+    rating: 4.8,
+    students: "Launching Soon",
+    isFeatured: true,
+    certificate: true,
+  },
+
+  {
+    id: "4",
+    slug: "clinical-medicine-revision",
+    title: "Clinical Medicine Revision",
+    category: "Exam Preparation",
+    description:
+      "A comprehensive revision course designed for final examinations and licensing assessments.",
+    image: "/images/courses/clinical-medicine.jpg",
+    tutor: "Medical Elites Faculty",
+    duration: "10 Weeks",
+    modules: 20,
+    lessons: 82,
+    level: "Advanced",
+    rating: 5.0,
+    students: "Launching Soon",
+    isFeatured: true,
+    certificate: true,
+  },
+];

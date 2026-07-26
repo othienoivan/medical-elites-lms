@@ -23,6 +23,8 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes("pptx-preview")) return "powerpoint-viewer";
+          if (id.includes("pdfjs-dist")) return "pdf-viewer";
+          if (id.includes("mammoth")) return "docx-parser";
           if (id.includes("jspdf") || id.includes("html2canvas")) return "pdf-tools";
           if (id.includes("xlsx")) return "excel-tools";
           if (id.includes("@tiptap")) return "rich-text-editor";

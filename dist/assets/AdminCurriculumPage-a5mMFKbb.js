@@ -1,0 +1,1 @@
+import{t as e}from"./react-vendor-CuiJ2BLZ.js";import{t}from"./AdminLayout-B36O9XBP.js";import{t as n}from"./CurriculumImportPanel-BKL6RpTR.js";var r=e();function i(){return(0,r.jsx)(t,{title:`Curriculum AI Import`,subtitle:`Use Medi to extract, compare, review and import an approved curriculum into the academic catalogue.`,children:(0,r.jsx)(n,{})})}export{i as default};

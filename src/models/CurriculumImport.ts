@@ -95,6 +95,7 @@ export interface CurriculumImportActor {
   email: string;
   role: "admin" | "tutor";
   fullName?: string;
+  institutionId?: string;
 }
 
 export interface CurriculumImportSummary {

@@ -1,0 +1,1 @@
+import{o as e}from"./rolldown-runtime-DAXXjFlN.js";import{m as t}from"./react-vendor-CuiJ2BLZ.js";var n=e(t(),1),r=(0,n.createContext)({currentUser:null,userProfile:null,role:null,loading:!0,profileError:null});function i(){return(0,n.useContext)(r)}export{r as n,i as t};

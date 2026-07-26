@@ -1,0 +1,1 @@
+import{t as e}from"./react-vendor-CuiJ2BLZ.js";var t=e();function n({title:e,subtitle:n,align:r=`left`}){return(0,t.jsxs)(`div`,{className:r===`center`?`text-center`:``,children:[n&&(0,t.jsx)(`p`,{className:`font-semibold uppercase tracking-wide text-blue-700`,children:n}),(0,t.jsx)(`h2`,{className:`mt-2 text-4xl font-bold text-slate-900`,children:e})]})}export{n as t};
