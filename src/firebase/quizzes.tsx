@@ -5,16 +5,72 @@ import {
   doc,
   getDoc,
   getDocs,
+  query,
   serverTimestamp,
   updateDoc,
+  where,
 } from "firebase/firestore";
 
 import { db } from "../config/firebase";
-import type { Quiz } from "../models/Quiz";
+import type { Quiz, QuizQuestionRef } from "../models/Quiz";
+import { requireAccessScope, type AccessScope } from "./accessScope";
 
 const COLLECTION = "quizzes";
 
+function validateQuestionReferences(questions: QuizQuestionRef[] | undefined) {
+  const validReferences = (questions || []).filter(
+    (item) =>
+      typeof item.questionId === "string" &&
+      item.questionId.trim().length > 0 &&
+      Number.isFinite(item.marks) &&
+      item.marks > 0
+  );
+
+  if (validReferences.length === 0) {
+    throw new Error(
+      "A quiz must contain at least one valid question with marks greater than zero."
+    );
+  }
+
+  if (validReferences.length !== questions?.length) {
+    throw new Error(
+      "One or more selected questions are invalid. Remove them and select valid questions from the Question Bank."
+    );
+  }
+
+  return validReferences;
+}
+
+async function assertQuestionDocumentsExist(questions: QuizQuestionRef[]) {
+  const uniqueQuestionIds = [
+    ...new Set(questions.map((item) => item.questionId.trim())),
+  ];
+
+  const snapshots = await Promise.all(
+    uniqueQuestionIds.map((questionId) =>
+      getDoc(doc(db, "questions", questionId))
+    )
+  );
+
+  const missing = snapshots
+    .filter((snapshot) => !snapshot.exists())
+    .map((_, index) => uniqueQuestionIds[index]);
+
+  if (missing.length > 0) {
+    throw new Error(
+      "One or more selected questions no longer exist in the Question Bank. Remove the missing questions before saving."
+    );
+  }
+}
+
+async function validateQuizQuestions(questions: QuizQuestionRef[] | undefined) {
+  const validReferences = validateQuestionReferences(questions);
+  await assertQuestionDocumentsExist(validReferences);
+}
+
 export async function createQuiz(quiz: Quiz): Promise<string> {
+  await validateQuizQuestions(quiz.questions);
+
   const docRef = await addDoc(collection(db, COLLECTION), {
     ...quiz,
     id: "",
@@ -29,9 +85,38 @@ export async function createQuiz(quiz: Quiz): Promise<string> {
   return docRef.id;
 }
 
-export async function getQuizzes(): Promise<Quiz[]> {
-  const snapshot = await getDocs(collection(db, COLLECTION));
+export async function getQuizzes(scope: AccessScope): Promise<Quiz[]> {
+  const access = requireAccessScope(scope);
 
+  if (access.role === "student") {
+    const assignedIds = [...new Set(access.assignedCourseUnitIds ?? [])];
+    if (assignedIds.length === 0) return [];
+
+    const chunks: string[][] = [];
+    for (let index = 0; index < assignedIds.length; index += 10) {
+      chunks.push(assignedIds.slice(index, index + 10));
+    }
+
+    const results = await Promise.allSettled(
+      chunks.map((ids) =>
+        getDocs(query(collection(db, COLLECTION), where("courseUnitId", "in", ids)))
+      )
+    );
+
+    const quizzes = results.flatMap((result) =>
+      result.status === "fulfilled"
+        ? result.value.docs.map((docSnap) => ({
+            ...(docSnap.data() as Omit<Quiz, "id">),
+            id: docSnap.id,
+          }))
+        : []
+    );
+
+    return [...new Map(quizzes.map((quiz) => [quiz.id, quiz])).values()]
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  const snapshot = await getDocs(collection(db, COLLECTION));
   return snapshot.docs
     .map((docSnap) => ({
       ...(docSnap.data() as Omit<Quiz, "id">),
@@ -57,6 +142,10 @@ export async function updateQuiz(
   id: string,
   data: Partial<Quiz>
 ): Promise<void> {
+  if (data.questions !== undefined) {
+    await validateQuizQuestions(data.questions);
+  }
+
   await updateDoc(doc(db, COLLECTION, id), {
     ...data,
     updatedAt: serverTimestamp(),

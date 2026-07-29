@@ -1,18 +1,23 @@
-const stats = [
-  { value: "5,000+", label: "Target Learners" },
-  { value: "120+", label: "Planned Courses" },
-  { value: "80%", label: "Pass Requirement" },
-  { value: "24/7", label: "Online Access" },
+import { BrainCircuit, ClipboardCheck, MonitorSmartphone, UsersRound } from "lucide-react";
+
+const strengths = [
+  { icon: UsersRound, label: "Role-based portals", text: "Focused workspaces for students, tutors and administrators." },
+  { icon: ClipboardCheck, label: "Assessment workflows", text: "Create, deliver, mark and review academic assessments." },
+  { icon: BrainCircuit, label: "AI-enabled tools", text: "Accelerate curriculum, lesson and question development." },
+  { icon: MonitorSmartphone, label: "Accessible anywhere", text: "Responsive learning on phones, tablets and computers." },
 ];
 
 export default function Stats() {
   return (
-    <section className="bg-white py-10">
-      <div className="mx-auto grid max-w-7xl gap-6 px-6 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
-          <div key={stat.label} className="rounded-2xl border border-slate-200 p-6 text-center">
-            <p className="text-3xl font-extrabold text-blue-700">{stat.value}</p>
-            <p className="mt-2 text-sm font-semibold text-slate-500">{stat.label}</p>
+    <section aria-label="Platform strengths" className="border-y border-slate-200 bg-white py-10">
+      <div className="mx-auto grid max-w-7xl gap-5 px-6 sm:grid-cols-2 lg:grid-cols-4">
+        {strengths.map(({ icon: Icon, label, text }) => (
+          <div key={label} className="flex gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><Icon size={22} /></span>
+            <div>
+              <p className="font-bold text-slate-900">{label}</p>
+              <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
+            </div>
           </div>
         ))}
       </div>

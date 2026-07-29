@@ -29,12 +29,23 @@ export default function useMessages() {
     try {
       setLoading(true);
       setError(null);
-      const [contactData, conversationData] = await Promise.all([
+      const [contactsResult, conversationsResult] = await Promise.allSettled([
         getMessagingContacts(),
         getConversationsForUser(currentUser.uid),
       ]);
-      setContacts(contactData.filter((contact) => contact.uid !== currentUser.uid));
-      setConversations(conversationData);
+
+      setContacts(
+        contactsResult.status === "fulfilled"
+          ? contactsResult.value.filter((contact) => contact.uid !== currentUser.uid)
+          : []
+      );
+      setConversations(
+        conversationsResult.status === "fulfilled" ? conversationsResult.value : []
+      );
+
+      if (conversationsResult.status === "rejected") {
+        throw conversationsResult.reason;
+      }
     } catch (caughtError) {
       console.error("Failed to load messages:", caughtError);
       setError(

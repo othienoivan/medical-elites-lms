@@ -1,6 +1,9 @@
 import type { LessonBlock } from "../../models/LessonBlock";
 import InteractiveQuestion from "./InteractiveQuestion";
-import PowerPointViewer from "./PowerPointViewer";
+import DocumentViewer from "./DocumentViewer";
+import OfficeDocumentViewer from "./OfficeDocumentViewer";
+import { Download, FileDown } from "lucide-react";
+import Button from "../ui/Button";
 
 type Props = {
   blocks: LessonBlock[];
@@ -27,10 +30,12 @@ export default function LessonViewer({ blocks }: Props) {
 
           {block.type === "objective" && (
             <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
-              <p className="font-semibold text-blue-800">
-                Learning Objective
-              </p>
-              <p className="mt-2 text-slate-700">{block.content}</p>
+              <p className="font-semibold text-blue-800">Learning Objectives</p>
+              <ol className="mt-3 list-decimal space-y-2 pl-6 text-slate-700">
+                {(block.content || "").split(/\r?\n/).map((item) => item.trim()).filter(Boolean).map((item, index) => (
+                  <li key={`${block.id}-objective-${index}`}>{item}</li>
+                ))}
+              </ol>
             </div>
           )}
 
@@ -79,18 +84,36 @@ export default function LessonViewer({ blocks }: Props) {
           )}
 
           {block.type === "pdf" && block.url && (
-            <a
-              href={block.url}
-              target="_blank"
-              rel="noreferrer"
-              className="block rounded-2xl border border-slate-200 bg-white p-5 font-semibold text-blue-700 underline"
-            >
-              View PDF: {block.title || "PDF resource"}
-            </a>
+            <DocumentViewer
+              originalUrl={block.url}
+              title={block.title || "PDF resource"}
+              originalLabel="Download PDF"
+            />
           )}
 
           {block.type === "powerpoint" && block.url && (
-            <PowerPointViewer url={block.url} title={block.title} />
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
+              <FileDown className="mx-auto text-orange-600" size={44} />
+              <h3 className="mt-4 text-xl font-bold text-slate-950">
+                {block.title || "PowerPoint presentation"}
+              </h3>
+              <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
+                PowerPoint files are available for download. Browser preview has been disabled.
+              </p>
+              <a href={block.url} target="_blank" rel="noreferrer" download className="mt-5 inline-block">
+                <Button><Download size={17} /> Download PowerPoint</Button>
+              </a>
+            </div>
+          )}
+
+          {block.type === "document" && block.url && (
+            <OfficeDocumentViewer
+              originalUrl={block.url}
+              filePath={block.metadata?.filePath as string | undefined}
+              manualPreviewPdfUrl={block.metadata?.previewPdfUrl as string | undefined}
+              title={block.title || "Word document"}
+              originalLabel="Download Word document"
+            />
           )}
 
           {block.type === "clinical-case" && (

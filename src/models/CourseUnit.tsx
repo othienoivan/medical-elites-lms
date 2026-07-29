@@ -50,6 +50,12 @@ export interface CourseUnit {
   isNew?: boolean;
   published: boolean;
 
+  // Ownership and tenant isolation
+  ownerUserId?: string;
+  createdByUid?: string;
+  institutionId?: string | null;
+  assignedTutorIds?: string[];
+
   // Audit Fields
   createdAt?: Date;
   updatedAt?: Date;

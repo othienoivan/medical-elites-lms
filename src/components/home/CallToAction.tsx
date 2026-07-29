@@ -10,7 +10,7 @@ export default function CallToAction() {
     <Section className="bg-blue-700 text-white">
       <Container>
         <div className="mx-auto max-w-4xl text-center">
-          <h2 className="text-5xl font-bold">
+          <h2 className="text-3xl font-extrabold sm:text-4xl lg:text-5xl">
             Ready to Become an Elite Healthcare Professional?
           </h2>
 
@@ -22,7 +22,7 @@ export default function CallToAction() {
 
           <div className="mt-10">
             <Link to="/register">
-              <Button className="bg-black text-blue-700 hover:bg-gray-100">
+              <Button className="bg-white text-blue-700 hover:bg-blue-50">
                 Create Free Account
                 <ArrowRight className="ml-2" size={20} />
               </Button>

@@ -15,6 +15,7 @@ import type {
   ClinicalEntryStatus,
   ClinicalLogbookEntry,
 } from "../models/ClinicalLogbook";
+import { writeAuditLog } from "./auditLogs";
 
 const COLLECTION = "clinicalLogbookEntries";
 
@@ -69,6 +70,15 @@ export async function createClinicalEntry(
       updatedAt: serverTimestamp(),
     })
   );
+  void writeAuditLog({
+    action: "clinical_logbook.create",
+    actorUid: entry.studentAuthUid,
+    actorRole: "student",
+    resourceType: "clinicalLogbookEntry",
+    resourceId: reference.id,
+    summary: `Created clinical logbook entry: ${entry.procedureName}`,
+    metadata: { status: entry.status, clinicalHours: entry.clinicalHours },
+  });
   return reference.id;
 }
 
@@ -127,13 +137,32 @@ export async function reviewClinicalEntry(input: {
   tutorComment: string;
   reviewedByUid: string;
   reviewedByName: string;
+  competencyLevel: import("../models/ClinicalLogbook").CompetencyLevel;
+  communicationScore: number;
+  clinicalReasoningScore: number;
+  professionalismScore: number;
+  proceduralSkillScore: number;
 }): Promise<void> {
   await updateDoc(doc(db, COLLECTION, input.entryId), {
     status: input.status,
     tutorComment: input.tutorComment.trim(),
     reviewedByUid: input.reviewedByUid,
     reviewedByName: input.reviewedByName,
+    competencyLevel: input.competencyLevel,
+    communicationScore: input.communicationScore,
+    clinicalReasoningScore: input.clinicalReasoningScore,
+    professionalismScore: input.professionalismScore,
+    proceduralSkillScore: input.proceduralSkillScore,
     reviewedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+  });
+  void writeAuditLog({
+    action: "clinical_logbook.review",
+    actorUid: input.reviewedByUid,
+    actorRole: "tutor",
+    resourceType: "clinicalLogbookEntry",
+    resourceId: input.entryId,
+    summary: `Reviewed clinical logbook entry: ${input.status}`,
+    metadata: { status: input.status, competencyLevel: input.competencyLevel },
   });
 }

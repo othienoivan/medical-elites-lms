@@ -1,145 +1,146 @@
 import {
   addDoc,
   collection,
-  deleteDoc,
   doc,
   getDoc,
   getDocs,
-  orderBy,
   query,
   serverTimestamp,
   updateDoc,
+  where,
+  writeBatch,
 } from "firebase/firestore";
 
 import { db } from "../config/firebase";
 import type { Question } from "../models/Question";
+import { requireAccessScope, type AccessScope } from "./accessScope";
+import { getAllProgrammes } from "./programmes";
 
 const COLLECTION = "questions";
 
-/**
- * Create Question
- */
+function fromDoc(id: string, data: Record<string, unknown>): Question {
+  return { ...(data as unknown as Omit<Question, "id">), id };
+}
+
+function dedupe(rows: Question[]): Question[] {
+  return [...new Map(rows.map((row) => [row.id, row])).values()];
+}
+
 export async function createQuestion(question: Question) {
   const questionData: Partial<Question> = { ...question };
   delete questionData.id;
-
-  const data = {
+  const document = await addDoc(collection(db, COLLECTION), {
     ...questionData,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  };
-
-  const document = await addDoc(collection(db, COLLECTION), data);
-
+  });
   return document.id;
 }
 
-/**
- * Update Question
- */
-export async function updateQuestion(
-  questionId: string,
-  data: Partial<Question>
-) {
+export async function updateQuestion(questionId: string, data: Partial<Question>) {
+  await updateDoc(doc(db, COLLECTION, questionId), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteQuestion(questionId: string, deletedBy?: string) {
   await updateDoc(doc(db, COLLECTION, questionId), {
-    ...data,
+    isDeleted: true,
+    isPublished: false,
+    deletedBy: deletedBy ?? null,
+    deletedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 }
 
-/**
- * Delete Question
- */
-export async function deleteQuestion(questionId: string) {
-  await deleteDoc(doc(db, COLLECTION, questionId));
+export async function restoreQuestion(questionId: string) {
+  await updateDoc(doc(db, COLLECTION, questionId), {
+    isDeleted: false,
+    deletedBy: null,
+    deletedAt: null,
+    updatedAt: serverTimestamp(),
+  });
 }
 
-/**
- * Get Question By ID
- */
-export async function getQuestionById(
-  questionId: string
-): Promise<Question | null> {
-  const snapshot = await getDoc(doc(db, COLLECTION, questionId));
+export async function duplicateQuestion(question: Question, ownerUserId: string) {
+  const copy: Question = {
+    ...question,
+    id: "",
+    questionText: `${question.questionText} (Copy)`,
+    ownerUserId,
+    createdBy: ownerUserId,
+    createdByUid: ownerUserId,
+    assignedTutorIds: [ownerUserId],
+    isDeleted: false,
+    isPublished: false,
+    usageCount: 0,
+  };
+  return createQuestion(copy);
+}
 
-  if (!snapshot.exists()) {
-    return null;
+export async function bulkCreateQuestions(questions: Question[]) {
+  const batch = writeBatch(db);
+  const ids: string[] = [];
+  questions.forEach((question) => {
+    const ref = doc(collection(db, COLLECTION));
+    ids.push(ref.id);
+    const data: Partial<Question> = { ...question };
+    delete data.id;
+    batch.set(ref, {
+      ...data,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  });
+  await batch.commit();
+  return ids;
+}
+
+export async function getQuestionById(questionId: string): Promise<Question | null> {
+  const snapshot = await getDoc(doc(db, COLLECTION, questionId));
+  return snapshot.exists() ? fromDoc(snapshot.id, snapshot.data()) : null;
+}
+
+export async function getQuestions(scope: AccessScope): Promise<Question[]> {
+  const access = requireAccessScope(scope);
+  if (access.role === "student") return [];
+
+  if (access.role === "admin" && access.institutionId) {
+    const snapshot = await getDocs(query(collection(db, COLLECTION), where("institutionId", "==", access.institutionId)));
+    return snapshot.docs.map((item) => fromDoc(item.id, item.data())).filter((item) => !item.isDeleted);
   }
 
-  return {
-    id: snapshot.id,
-    ...(snapshot.data() as Omit<Question, "id">),
-  };
+  const visibleProgrammeIds = (await getAllProgrammes(access)).map((item) => item.id);
+  const programmeQueries = visibleProgrammeIds.length > 0
+    ? [getDocs(query(collection(db, COLLECTION), where("programmeId", "in", visibleProgrammeIds.slice(0, 10))))]
+    : [];
+  const [owned, assigned, ...byProgramme] = await Promise.all([
+    getDocs(query(collection(db, COLLECTION), where("ownerUserId", "==", access.uid))),
+    getDocs(query(collection(db, COLLECTION), where("assignedTutorIds", "array-contains", access.uid))),
+    ...programmeQueries,
+  ]);
+  return dedupe([
+    ...owned.docs.map((item) => fromDoc(item.id, item.data())),
+    ...assigned.docs.map((item) => fromDoc(item.id, item.data())),
+    ...byProgramme.flatMap((snapshot) => snapshot.docs.map((item) => fromDoc(item.id, item.data()))),
+  ]).filter((item) => !item.isDeleted);
 }
 
-/**
- * Get All Questions
- */
-export async function getQuestions(): Promise<Question[]> {
-  const snapshot = await getDocs(
-    query(collection(db, COLLECTION), orderBy("createdAt", "desc"))
-  );
-
-  return snapshot.docs.map((document) => ({
-    ...(document.data() as Omit<Question, "id">),
-    id: document.id,
-  }));
+export async function getQuestionsByModule(moduleId: string, scope: AccessScope): Promise<Question[]> {
+  return (await getQuestions(scope)).filter((question) => question.moduleId === moduleId);
 }
 
-/**
- * Get Questions By Module
- */
-export async function getQuestionsByModule(
-  moduleId: string
-): Promise<Question[]> {
-  const allQuestions = await getQuestions();
-
-  return allQuestions.filter(
-    (question) => question.moduleId === moduleId
-  );
+export async function getQuestionsByCourseUnit(courseUnitId: string, scope: AccessScope): Promise<Question[]> {
+  return (await getQuestions(scope)).filter((question) => question.courseUnitId === courseUnitId);
 }
 
-/**
- * Get Questions By Course Unit
- */
-export async function getQuestionsByCourseUnit(
-  courseUnitId: string
-): Promise<Question[]> {
-  const allQuestions = await getQuestions();
-
-  return allQuestions.filter(
-    (question) => question.courseUnitId === courseUnitId
-  );
+export async function getQuestionsByProgramme(programmeId: string, scope: AccessScope): Promise<Question[]> {
+  return (await getQuestions(scope)).filter((question) => question.programmeId === programmeId);
 }
 
-/**
- * Get Questions By Programme
- */
-export async function getQuestionsByProgramme(
-  programmeId: string
-): Promise<Question[]> {
-  const allQuestions = await getQuestions();
-
-  return allQuestions.filter(
-    (question) => question.programmeId === programmeId
-  );
-}
-
-/**
- * Search Questions
- */
-export async function searchQuestions(
-  keyword: string
-): Promise<Question[]> {
-  const allQuestions = await getQuestions();
-
+export async function searchQuestions(keyword: string, scope: AccessScope): Promise<Question[]> {
   const search = keyword.toLowerCase();
-
-  return allQuestions.filter((question) => {
-    return (
-      question.questionText.toLowerCase().includes(search) ||
-      question.topic.toLowerCase().includes(search) ||
-      question.tags.some((tag) => tag.toLowerCase().includes(search))
-    );
-  });
+  return (await getQuestions(scope)).filter((question) =>
+    question.questionText.toLowerCase().includes(search) ||
+    question.topic.toLowerCase().includes(search) ||
+    question.tags.some((tag) => tag.toLowerCase().includes(search))
+  );
 }
