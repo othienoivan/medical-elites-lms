@@ -11,13 +11,11 @@ export default function CallToAction() {
       <Container>
         <div className="mx-auto max-w-4xl text-center">
           <h2 className="text-3xl font-extrabold sm:text-4xl lg:text-5xl">
-            Ready to Become an Elite Healthcare Professional?
+            Ready to teach, learn or grow with Medical Elites?
           </h2>
 
           <p className="mt-6 text-xl leading-8 text-blue-100">
-            Learn through structured lessons, interactive quizzes,
-            mastery-based progression, and certificates that demonstrate your
-            competence.
+            Join a connected platform for structured learning, professional assessment, AI-assisted teaching and health sciences commerce.
           </p>
 
           <div className="mt-10">

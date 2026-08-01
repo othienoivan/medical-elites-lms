@@ -69,7 +69,6 @@ const navigationGroups: NavigationGroup[] = [
       { name: "New Module", icon: PlusCircle, path: "/tutor/modules/new" },
       { name: "Lessons", icon: Presentation, path: "/tutor/lessons" },
       { name: "New Lesson", icon: PlusCircle, path: "/tutor/lessons/new" },
-      { name: "Lesson Builder", icon: FileEdit, path: "/tutor/lessons/builder" },
       { name: "Learning Packages", icon: PackageOpen, path: "/tutor/learning-packages" },
       { name: "AI Curriculum Import", icon: UploadCloud, path: "/tutor/curriculum-import" },
     ],

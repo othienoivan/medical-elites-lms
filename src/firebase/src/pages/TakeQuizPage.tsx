@@ -15,8 +15,8 @@ import {
   saveQuizDraftAttempt,
 } from "../firebase/quizAttempts";
 import { getQuizById } from "../firebase/quizzes";
+import { getQuestionById } from "../firebase/questions";
 import useAuth from "../hooks/useAuth";
-import useQuestions from "../hooks/useQuestions";
 import type { Question } from "../models/Question";
 import type { Quiz } from "../models/Quiz";
 import type { QuizAnswer } from "../models/QuizAttempt";
@@ -31,8 +31,8 @@ export default function TakeQuizPage() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
 
-  const { questions: questionBank, loading: questionsLoading } =
-    useQuestions();
+  const [linkedQuestions, setLinkedQuestions] = useState<Question[]>([]);
+  const [questionsLoading, setQuestionsLoading] = useState(true);
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [loadingQuiz, setLoadingQuiz] = useState(true);
@@ -63,6 +63,25 @@ export default function TakeQuizPage() {
 
         setQuiz(data);
 
+        if (data) {
+          const embeddedQuestions = data.questions
+            .map((ref) => toEmbeddedQuestion(ref, data))
+            .filter((question): question is Question => Boolean(question));
+
+          if (embeddedQuestions.length === data.questions.length) {
+            setLinkedQuestions(embeddedQuestions);
+          } else {
+            const loaded = await Promise.all(
+              data.questions.map((ref) => getQuestionById(ref.questionId))
+            );
+            setLinkedQuestions(
+              loaded.filter((question): question is Question => Boolean(question))
+            );
+          }
+        } else {
+          setLinkedQuestions([]);
+        }
+
         if (data?.timeLimitMinutes) {
           setSecondsRemaining(data.timeLimitMinutes * 60);
         }
@@ -70,6 +89,7 @@ export default function TakeQuizPage() {
         console.error("Failed to load quiz:", error);
       } finally {
         setLoadingQuiz(false);
+        setQuestionsLoading(false);
       }
     }
 
@@ -209,7 +229,7 @@ export default function TakeQuizPage() {
       .slice()
       .sort((a, b) => a.order - b.order)
       .map((ref) => {
-        const question = questionBank.find(
+        const question = linkedQuestions.find(
           (item) => item.id === ref.questionId
         );
 
@@ -222,7 +242,7 @@ export default function TakeQuizPage() {
       ref: Quiz["questions"][number];
       question: Question;
     }[];
-  }, [quiz, questionBank]);
+  }, [quiz, linkedQuestions]);
 
   const currentQuestion = quizQuestions[currentIndex];
 
@@ -689,4 +709,37 @@ function ReviewFeedback({
       )}
     </div>
   );
+}
+function toEmbeddedQuestion(
+  ref: Quiz["questions"][number],
+  quiz: Quiz
+): Question | null {
+  if (!ref.question || !Array.isArray(ref.options) || ref.options.length === 0) {
+    return null;
+  }
+
+  return {
+    id: ref.questionId,
+    programmeId: quiz.programmeId,
+    programmeTitle: quiz.programmeTitle,
+    courseUnitId: quiz.courseUnitId,
+    courseUnitTitle: quiz.courseUnitTitle,
+    moduleId: quiz.moduleId,
+    moduleTitle: quiz.moduleTitle,
+    topic: quiz.moduleTitle || quiz.courseUnitTitle || "Assessment",
+    type: "mcq",
+    difficulty: "medium",
+    bloomLevel: "understand",
+    questionText: ref.question,
+    options: ref.options.map((text, index) => ({
+      id: `${ref.questionId}-${index + 1}`,
+      label: String.fromCharCode(65 + index),
+      text,
+    })),
+    correctAnswer: ref.correctAnswer || "",
+    explanation: ref.explanation || "",
+    marks: ref.marks,
+    tags: [],
+    isPublished: true,
+  };
 }

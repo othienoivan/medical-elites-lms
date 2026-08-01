@@ -9,6 +9,7 @@ import Container from "../ui/Container";
 const links = [
   { to: "/about", label: "About" },
   { to: "/courses", label: "Course Units" },
+  { to: "/marketplace", label: "Marketplace" },
   { to: "/testimonials", label: "Testimonials" },
   { to: "/contact", label: "Contact" },
 ];

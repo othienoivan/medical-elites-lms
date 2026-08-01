@@ -51,6 +51,7 @@ async function loadUserProfile(user: FirebaseUser): Promise<AppUser> {
     email:
       typeof data.email === "string" ? data.email : user.email || "",
     role: isUserRole(data.role) ? data.role : "student",
+    platformRole: data.platformRole === "super_admin" || data.platformRole === "platform_support" || data.platformRole === "platform_finance" ? data.platformRole : undefined,
     requestedRole: isUserRole(data.requestedRole) ? data.requestedRole : undefined,
     institutionId: typeof data.institutionId === "string" ? data.institutionId : undefined,
     institutionName: typeof data.institutionName === "string" ? data.institutionName : undefined,

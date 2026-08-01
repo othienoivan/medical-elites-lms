@@ -14,6 +14,7 @@ import ProtectedRoute from "../components/ProtectedRoute";
 import PageSkeleton from "../components/loading/PageSkeleton";
 import type { UserRole } from "../models/User";
 import StudentWorkspaceGate from "../components/layout/StudentWorkspaceGate";
+import PlatformAccessGate from "../components/platform/PlatformAccessGate";
 
 const StudentTranscriptPage = lazy(() => import("../pages/StudentTranscriptPage"));
 const MyProfilePage = lazy(() => import("../pages/MyProfilePage"));
@@ -55,6 +56,7 @@ const LessonPreviewPage = lazy(() => import("../pages/LessonPreviewPage"));
 const AssessmentWorkspacePage = lazy(() => import("../pages/AssessmentWorkspacePage"));
 const QuestionBankPage = lazy(() => import("../pages/QuestionBankPage"));
 const CreateQuestionPage = lazy(() => import("../pages/CreateQuestionPage"));
+const QuestionDetailsPage = lazy(() => import("../pages/QuestionDetailsPage"));
 const QuizBankPage = lazy(() => import("../pages/QuizBankPage"));
 const CreateQuizPage = lazy(() => import("../pages/CreateQuizPage"));
 const QuizBuilderPage = lazy(() => import("../pages/QuizBuilderPage"));
@@ -115,6 +117,48 @@ const OsceManagerPage = lazy(() => import("../pages/OsceManagerPage"));
 const QualityAssurancePage = lazy(() => import("../pages/QualityAssurancePage"));
 const InstitutionalAnalyticsPage = lazy(() => import("../pages/InstitutionalAnalyticsPage"));
 
+
+const MarketplaceHomePage = lazy(() => import("../pages/marketplace/MarketplaceHomePage"));
+const MarketplaceProductPage = lazy(() => import("../pages/marketplace/MarketplaceProductPage"));
+const MarketplaceSellerPage = lazy(() => import("../pages/marketplace/MarketplaceSellerPage"));
+const MarketplaceSellPage = lazy(() => import("../pages/marketplace/MarketplaceSellPage"));
+const MarketplaceCartPage = lazy(() => import("../pages/marketplace/MarketplaceCartPage"));
+const MarketplaceWishlistPage = lazy(() => import("../pages/marketplace/MarketplaceWishlistPage"));
+const MarketplaceOrdersPage = lazy(() => import("../pages/marketplace/MarketplaceOrdersPage"));
+const MarketplaceCheckoutPage = lazy(() => import("../pages/marketplace/MarketplaceCheckoutPage"));
+const PlatformMarketplacePage = lazy(() => import("../pages/platform/PlatformMarketplacePage"));
+const MarketplaceSellerAnalyticsPage = lazy(() => import("../pages/marketplace/MarketplaceSellerAnalyticsPage"));
+const MarketplaceBuyerInsightsPage = lazy(() => import("../pages/marketplace/MarketplaceBuyerInsightsPage"));
+const MarketplaceIntelligencePage = lazy(() => import("../pages/platform/marketplace/MarketplaceIntelligencePage"));
+const MarketplaceOperationsPage = lazy(() => import("../pages/platform/marketplace/MarketplaceOperationsPage"));
+
+const PlatformDashboardPage = lazy(() => import("../pages/platform/PlatformDashboardPage"));
+const PlatformTenantsPage = lazy(() => import("../pages/platform/PlatformTenantsPage"));
+const PlatformTutorsPage = lazy(() => import("../pages/platform/PlatformTutorsPage"));
+const PlatformPlansPage = lazy(() => import("../pages/platform/PlatformPlansPage"));
+const PlatformFeatureFlagsPage = lazy(() => import("../pages/platform/PlatformFeatureFlagsPage"));
+const PlatformAuditPage = lazy(() => import("../pages/platform/PlatformAuditPage"));
+const PlatformSupportPage = lazy(() => import("../pages/platform/PlatformSupportPage"));
+const PlatformUsagePage = lazy(() => import("../pages/platform/PlatformUsagePage"));
+const PlatformOperationsPage = lazy(() => import("../pages/platform/PlatformOperationsPage"));
+const PlatformSettingsPage = lazy(() => import("../pages/platform/PlatformSettingsPage"));
+const PlatformAnnouncementsPage = lazy(() => import("../pages/platform/PlatformAnnouncementsPage"));
+const PlatformRoadmapPage = lazy(() => import("../pages/platform/PlatformRoadmapPage"));
+const PlatformLicensesPage = lazy(() => import("../pages/platform/PlatformLicensesPage"));
+const PlatformBrandingPage = lazy(() => import("../pages/platform/PlatformBrandingPage"));
+const FinanceDashboardPage = lazy(() => import("../pages/platform/finance/FinanceDashboardPage"));
+const CommerceOperationsPage = lazy(() => import("../pages/platform/finance/CommerceOperationsPage"));
+const FinancePlansPage = lazy(() => import("../pages/platform/finance/FinancePlansPage"));
+const SubscriptionsPage = lazy(() => import("../pages/platform/finance/SubscriptionsPage"));
+const WalletsPage = lazy(() => import("../pages/platform/finance/WalletsPage"));
+const InvoicesPage = lazy(() => import("../pages/platform/finance/InvoicesPage"));
+const PaymentsPage = lazy(() => import("../pages/platform/finance/PaymentsPage"));
+const CouponsPage = lazy(() => import("../pages/platform/finance/CouponsPage"));
+const CommissionRulesPage = lazy(() => import("../pages/platform/finance/CommissionRulesPage"));
+const WithdrawalsPage = lazy(() => import("../pages/platform/finance/WithdrawalsPage"));
+const RevenueSharingPage = lazy(() => import("../pages/platform/finance/RevenueSharingPage"));
+const FinanceOperationsPage = lazy(() => import("../pages/platform/finance/FinanceOperationsPage"));
+
 const TUTOR_ROLES: readonly UserRole[] = ["tutor", "admin"];
 const ADMIN_ROLES: readonly UserRole[] = ["admin"];
 const LEARNER_ROLES: readonly UserRole[] = ["student", "tutor", "admin"];
@@ -125,6 +169,51 @@ export default function AppRouter() {
       <StudentWorkspaceGate>
       <Suspense fallback={<PageSkeleton />}>
         <Routes>
+
+        {/* Platform Console — additive SaaS layer, isolated from academic LMS routes. */}
+        <Route path="/platform" element={<PlatformAccessGate><PlatformDashboardPage /></PlatformAccessGate>} />
+        <Route path="/platform/tenants" element={<PlatformAccessGate><PlatformTenantsPage /></PlatformAccessGate>} />
+        <Route path="/platform/tutors" element={<PlatformAccessGate><PlatformTutorsPage /></PlatformAccessGate>} />
+        <Route path="/platform/plans" element={<PlatformAccessGate><PlatformPlansPage /></PlatformAccessGate>} />
+        <Route path="/platform/feature-flags" element={<PlatformAccessGate><PlatformFeatureFlagsPage /></PlatformAccessGate>} />
+        <Route path="/platform/audit" element={<PlatformAccessGate><PlatformAuditPage /></PlatformAccessGate>} />
+        <Route path="/platform/support" element={<PlatformAccessGate><PlatformSupportPage /></PlatformAccessGate>} />
+        <Route path="/platform/usage" element={<PlatformAccessGate><PlatformUsagePage /></PlatformAccessGate>} />
+        <Route path="/platform/operations" element={<PlatformAccessGate><PlatformOperationsPage /></PlatformAccessGate>} />
+        <Route path="/platform/settings" element={<PlatformAccessGate><PlatformSettingsPage /></PlatformAccessGate>} />
+        <Route path="/platform/announcements" element={<PlatformAccessGate><PlatformAnnouncementsPage /></PlatformAccessGate>} />
+        <Route path="/platform/roadmap" element={<PlatformAccessGate><PlatformRoadmapPage /></PlatformAccessGate>} />
+        <Route path="/platform/licenses" element={<PlatformAccessGate><PlatformLicensesPage /></PlatformAccessGate>} />
+        <Route path="/platform/branding" element={<PlatformAccessGate><PlatformBrandingPage /></PlatformAccessGate>} />
+        <Route path="/platform/finance" element={<PlatformAccessGate><FinanceDashboardPage /></PlatformAccessGate>} />
+        <Route path="/platform/finance/commerce" element={<PlatformAccessGate><CommerceOperationsPage /></PlatformAccessGate>} />
+        <Route path="/platform/finance/plans" element={<PlatformAccessGate><FinancePlansPage /></PlatformAccessGate>} />
+        <Route path="/platform/finance/subscriptions" element={<PlatformAccessGate><SubscriptionsPage /></PlatformAccessGate>} />
+        <Route path="/platform/finance/wallets" element={<PlatformAccessGate><WalletsPage /></PlatformAccessGate>} />
+        <Route path="/platform/finance/invoices" element={<PlatformAccessGate><InvoicesPage /></PlatformAccessGate>} />
+        <Route path="/platform/finance/payments" element={<PlatformAccessGate><PaymentsPage /></PlatformAccessGate>} />
+        <Route path="/platform/finance/coupons" element={<PlatformAccessGate><CouponsPage /></PlatformAccessGate>} />
+        <Route path="/platform/finance/commission-rules" element={<PlatformAccessGate><CommissionRulesPage /></PlatformAccessGate>} />
+        <Route path="/platform/finance/withdrawals" element={<PlatformAccessGate><WithdrawalsPage /></PlatformAccessGate>} />
+        <Route path="/platform/finance/revenue-sharing" element={<PlatformAccessGate><RevenueSharingPage /></PlatformAccessGate>} />
+        <Route path="/platform/finance/operations" element={<PlatformAccessGate><FinanceOperationsPage /></PlatformAccessGate>} />
+
+
+        {/* RC5 Marketplace Foundation */}
+        <Route path="/marketplace" element={<MarketplaceHomePage />} />
+        <Route path="/marketplace/products/:productId" element={<MarketplaceProductPage />} />
+        <Route path="/marketplace/sellers/:sellerId" element={<MarketplaceSellerPage />} />
+        <Route path="/marketplace/sell" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><MarketplaceSellPage /></ProtectedRoute>} />
+        <Route path="/marketplace/cart" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><MarketplaceCartPage /></ProtectedRoute>} />
+        <Route path="/marketplace/wishlist" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><MarketplaceWishlistPage /></ProtectedRoute>} />
+        <Route path="/marketplace/orders" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><MarketplaceOrdersPage /></ProtectedRoute>} />
+        <Route path="/marketplace/checkout" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><MarketplaceCheckoutPage /></ProtectedRoute>} />
+        <Route path="/marketplace/insights" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><MarketplaceBuyerInsightsPage /></ProtectedRoute>} />
+        <Route path="/marketplace/seller-analytics" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><MarketplaceSellerAnalyticsPage /></ProtectedRoute>} />
+        <Route path="/platform/marketplace" element={<PlatformAccessGate><PlatformMarketplacePage /></PlatformAccessGate>} />
+        <Route path="/platform/marketplace/intelligence" element={<PlatformAccessGate><MarketplaceIntelligencePage /></PlatformAccessGate>} />
+        <Route path="/platform/marketplace/operations" element={<PlatformAccessGate><MarketplaceOperationsPage /></PlatformAccessGate>} />
+
         {/* Public */}
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
@@ -411,6 +500,11 @@ export default function AppRouter() {
           }
         />
 
+        <Route path="/tutor/erp" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><ErpCommandCentrePage /></ProtectedRoute>} />
+        <Route path="/tutor/osce" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><OsceManagerPage /></ProtectedRoute>} />
+        <Route path="/tutor/quality-assurance" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><QualityAssurancePage /></ProtectedRoute>} />
+        <Route path="/tutor/institutional-analytics" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><InstitutionalAnalyticsPage /></ProtectedRoute>} />
+
         <Route
           path="/tutor/finance"
           element={
@@ -530,7 +624,7 @@ export default function AppRouter() {
           path="/tutor/lessons/builder"
           element={
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
-              <LessonBuilderPage />
+              <Navigate to="/tutor/lessons" replace />
             </ProtectedRoute>
           }
         />
@@ -585,6 +679,15 @@ export default function AppRouter() {
           element={
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
               <CreateQuestionPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/tutor/questions/:questionId"
+          element={
+            <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+              <QuestionDetailsPage />
             </ProtectedRoute>
           }
         />
@@ -684,11 +787,6 @@ export default function AppRouter() {
             </ProtectedRoute>
           }
         />
-
-        <Route path="/tutor/erp" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><ErpCommandCentrePage /></ProtectedRoute>} />
-        <Route path="/tutor/osce" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><OsceManagerPage /></ProtectedRoute>} />
-        <Route path="/tutor/quality-assurance" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><QualityAssurancePage /></ProtectedRoute>} />
-        <Route path="/tutor/institutional-analytics" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><InstitutionalAnalyticsPage /></ProtectedRoute>} />
 
         <Route
           path="/tutor/attendance"

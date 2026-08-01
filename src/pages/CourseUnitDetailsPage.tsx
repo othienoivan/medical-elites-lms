@@ -17,6 +17,7 @@ import Card from "../components/ui/Card";
 import Container from "../components/ui/Container";
 import ModuleCard from "../components/ui/ModuleCard";
 import useAuth from "../hooks/useAuth";
+import usePublishedCourseUnits from "../hooks/usePublishedCourseUnits";
 import useCourseUnits from "../hooks/useCourseUnits";
 import useModules from "../hooks/useModules";
 import useStudentLearningAccess from "../hooks/useStudentLearningAccess";
@@ -33,9 +34,28 @@ export default function CourseUnitDetailsPage() {
     hasElevatedAccess,
   } = useStudentLearningAccess();
 
-  const { courseUnits, loading: courseUnitsLoading } = useCourseUnits();
+  const {
+    courseUnits: publishedCourseUnits,
+    loading: publishedCourseUnitsLoading,
+  } = usePublishedCourseUnits();
+  const {
+    courseUnits: accessibleCourseUnits,
+    loading: accessibleCourseUnitsLoading,
+  } = useCourseUnits(true);
 
-  const courseUnit = courseUnits.find((item) => item.slug === slug);
+  const courseIdentifier = decodeURIComponent(slug ?? "");
+  const visibleCourseUnits = currentUser
+    ? [...accessibleCourseUnits, ...publishedCourseUnits]
+    : publishedCourseUnits;
+  const courseUnit = visibleCourseUnits.find(
+    (item, index, rows) =>
+      rows.findIndex((candidate) => candidate.id === item.id) === index &&
+      (item.id === courseIdentifier || item.slug === courseIdentifier),
+  );
+
+  const courseUnitsLoading = currentUser
+    ? accessibleCourseUnitsLoading
+    : publishedCourseUnitsLoading;
 
   const { modules, loading: modulesLoading } = useModules(courseUnit?.id);
   const contentStats = useCourseUnitContentStats(courseUnit?.id);

@@ -19,6 +19,7 @@ import {
   Menu,
   MessageCircle,
   MonitorCog,
+  Command,
   Settings,
   ShieldCheck,
   Users,
@@ -68,6 +69,7 @@ const groups: Group[] = [
     { label: "System Status", path: "/admin/system-status", icon: Activity },
     { label: "Institution Settings", path: "/admin/settings", icon: Settings },
     { label: "Founder Diagnostics", path: "/founder/diagnostics", icon: MonitorCog },
+    { label: "Platform Console", path: "/platform", icon: Command },
   ] },
 ];
 

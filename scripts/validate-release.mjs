@@ -10,6 +10,11 @@ const requiredFiles = [
   "src/firebase/firestore.indexes.json",
   "src/config/firebase.tsx",
   ".env.example",
+  "storage.rules",
+  "src/firebase/storage.rules",
+  "functions/package.json",
+  "functions/tsconfig.json",
+  "functions/src/index.ts",
 ];
 
 const failures = [];
@@ -21,6 +26,7 @@ for (const file of requiredFiles) {
 const pairs = [
   ["firestore.rules", "src/firebase/firestore.rules"],
   ["firestore.indexes.json", "src/firebase/firestore.indexes.json"],
+  ["storage.rules", "src/firebase/storage.rules"],
 ];
 for (const [canonical, mirror] of pairs) {
   const [a, b] = await Promise.all([readFile(canonical, "utf8"), readFile(mirror, "utf8")]);
@@ -31,6 +37,8 @@ const firebase = JSON.parse(await readFile("firebase.json", "utf8"));
 if (firebase?.firestore?.rules !== "firestore.rules") failures.push("firebase.json must deploy firestore.rules");
 if (firebase?.firestore?.indexes !== "firestore.indexes.json") failures.push("firebase.json must deploy firestore.indexes.json");
 if (firebase?.hosting?.public !== "dist") failures.push("firebase.json hosting.public must be dist");
+if (firebase?.storage?.rules !== "storage.rules") failures.push("firebase.json must deploy storage.rules");
+if (firebase?.functions?.source !== "functions") failures.push("firebase.json functions.source must be functions");
 
 const rules = await readFile("firestore.rules", "utf8");
 const requiredRuleFragments = [

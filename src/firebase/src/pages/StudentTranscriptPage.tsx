@@ -319,7 +319,7 @@ export default function StudentTranscriptPage() {
               </p>
 
               <div className="mt-4 rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500">
-                QR verification coming next
+                Digitally generated academic record
               </div>
             </div>
           </section>

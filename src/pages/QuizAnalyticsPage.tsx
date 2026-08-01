@@ -355,7 +355,7 @@ export default function QuizAnalyticsPage() {
 
               <Button
                 className="bg-white text-blue-700 hover:bg-blue-50"
-                onClick={() => alert("PDF export coming next.")}
+                onClick={() => window.print()}
               >
                 <FileText size={18} />
                 Export PDF

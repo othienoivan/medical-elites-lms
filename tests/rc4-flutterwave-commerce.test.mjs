@@ -1,0 +1,6 @@
+import test from "node:test";import assert from "node:assert/strict";import {readFile} from "node:fs/promises";
+const read=p=>readFile(new URL(`../${p}`,import.meta.url),"utf8");
+test("commerce functions are server controlled and verify transactions",async()=>{const s=await read("functions/src/index.ts");for(const token of ["createCommerceCheckout","flutterwaveCommerceWebhook","verifyFlutterwaveTransaction","reconcileCommercePayment","requestCommerceRefund"])assert.match(s,new RegExp(token));assert.match(s,/transactions\/\$\{encodeURIComponent\(transactionId\)\}\/verify/);});
+test("commerce console route is protected",async()=>{const s=await read("src/routes/AppRouter.tsx");assert.match(s,/platform\/finance\/commerce/);assert.match(s,/PlatformAccessGate/);});
+test("commerce collections are server-write-only",async()=>{const s=await read("firestore.rules");for(const name of ["commerceOrders","commerceEntitlements","receipts","refunds"])assert.match(s,new RegExp(`match \/${name}\/`));assert.match(s,/allow create, update, delete: if false/);});
+test("auditLogs single field composite index is absent",async()=>{const x=JSON.parse(await read("firestore.indexes.json"));assert.equal(x.indexes.some(i=>i.collectionGroup==="auditLogs"&&i.fields.length===1),false);});

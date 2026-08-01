@@ -7,6 +7,7 @@ export interface AppUser {
   fullName: string;
   email: string;
   role: UserRole;
+  platformRole?: "super_admin" | "platform_support" | "platform_finance";
   requestedRole?: UserRole;
   institutionId?: string;
   institutionName?: string;

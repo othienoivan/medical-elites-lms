@@ -3,7 +3,6 @@ import {
   BookOpen,
   ClipboardCheck,
   FileText,
-  GraduationCap,
   LayoutDashboard,
   ListChecks,
   PenTool,
@@ -80,7 +79,7 @@ export default function AssessmentWorkspacePage() {
           icon={ClipboardCheck}
         />
         <StatCard title="Exam Builder" value="Active" icon={FileText} />
-        <StatCard title="OSCE/OSPE" value="Planned" icon={Stethoscope} />
+        <StatCard title="Practical Tasks" value="Builder" icon={Stethoscope} />
       </div>
 
       <WorkspaceSection title="Question Bank">
@@ -98,12 +97,6 @@ export default function AssessmentWorkspacePage() {
           onClick={() => navigate("/tutor/questions/new")}
         />
 
-        <WorkspaceCard
-          title="Question Import"
-          description="Import questions from Word, Excel or CSV."
-          icon={ListChecks}
-          onClick={() => alert("Question import coming next.")}
-        />
       </WorkspaceSection>
 
       <WorkspaceSection title="Assessment Bank">
@@ -151,34 +144,14 @@ export default function AssessmentWorkspacePage() {
           onClick={() => navigate("/tutor/exams/builder")}
         />
 
-        <WorkspaceCard
-          title="Exam Templates"
-          description="UAHEB, university, nursing and OSCE templates."
-          icon={ListChecks}
-          onClick={() => alert("Exam templates coming next.")}
-        />
       </WorkspaceSection>
 
-      <WorkspaceSection title="Clinical Assessment">
+      <WorkspaceSection title="Coursework and Clinical Assessment">
         <WorkspaceCard
-          title="OSCE Builder"
-          description="Create clinical skills stations and checklists."
+          title="Assignments and Practical Tasks"
+          description="Create coursework, homework, clinical cases and practical tasks using the assessment builder."
           icon={Stethoscope}
-          onClick={() => alert("OSCE Builder coming next.")}
-        />
-
-        <WorkspaceCard
-          title="OSPE Builder"
-          description="Create specimen, image and instrument stations."
-          icon={GraduationCap}
-          onClick={() => alert("OSPE Builder coming next.")}
-        />
-
-        <WorkspaceCard
-          title="Assignments"
-          description="Create coursework, homework and practical tasks."
-          icon={ShieldCheck}
-          onClick={() => alert("Assignment centre coming next.")}
+          onClick={() => navigate("/tutor/quizzes/builder?type=assignment")}
         />
       </WorkspaceSection>
 
@@ -194,14 +167,14 @@ export default function AssessmentWorkspacePage() {
           title="AI Assessment Generator"
           description="Generate MCQs, CATs, exams and marking guides."
           icon={Sparkles}
-          onClick={() => alert("AI Assessment Generator coming next.")}
+          onClick={() => navigate("/tutor/questions/new?mode=ai")}
         />
 
         <WorkspaceCard
           title="Export Centre"
           description="Export candidate papers, examiner papers and PDFs."
           icon={FileText}
-          onClick={() => alert("Export centre coming next.")}
+          onClick={() => navigate("/tutor/exams")}
         />
       </WorkspaceSection>
     </TutorLayout>

@@ -9,6 +9,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "../config/firebase";
+import { withTtlCache } from "../performance/ttlCache";
 
 export type PlatformMetrics = {
   users: number;
@@ -56,7 +57,7 @@ async function safelyReadCollection(name: string): Promise<CollectionResult> {
   }
 }
 
-export async function getPlatformMetrics(): Promise<PlatformMetrics> {
+async function loadPlatformMetrics(): Promise<PlatformMetrics> {
   const [
     usersResult,
     studentsResult,
@@ -116,6 +117,10 @@ export async function getPlatformMetrics(): Promise<PlatformMetrics> {
   };
 }
 
+export async function getPlatformMetrics(): Promise<PlatformMetrics> {
+  return withTtlCache("platform:metrics", 60_000, loadPlatformMetrics);
+}
+
 async function safelyReadRecent(
   collectionName: string,
   maxItems = 4
@@ -134,7 +139,7 @@ async function safelyReadRecent(
   }
 }
 
-export async function getPlatformActivity(): Promise<PlatformActivity[]> {
+async function loadPlatformActivity(): Promise<PlatformActivity[]> {
   const [paymentsSnapshot, contactsSnapshot, aiSnapshot] = await Promise.all([
     safelyReadRecent("financePayments"),
     safelyReadRecent("contactRequests"),
@@ -171,4 +176,8 @@ export async function getPlatformActivity(): Promise<PlatformActivity[]> {
   });
 
   return activities.slice(0, 8);
+}
+
+export async function getPlatformActivity(): Promise<PlatformActivity[]> {
+  return withTtlCache("platform:activity", 30_000, loadPlatformActivity);
 }

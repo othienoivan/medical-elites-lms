@@ -14,3 +14,10 @@ firebase deploy --only firestore:rules
 ```
 
 The email used in the student record must exactly match the Firebase Authentication account email.
+
+## 3.0.0-rc.3 — Platform Layer
+- Added isolated Super Admin Platform Console under `/platform`.
+- Added tenant, tutor workspace, plan, feature flag, license, audit, support, announcement, usage, branding, roadmap and platform settings modules.
+- Added Domain-Driven platform bounded context.
+- Added explicit default-deny Firestore rules for RC3 collections.
+- Preserved all existing institution-scoped academic routes and queries.

@@ -26,8 +26,8 @@ export default function CreateQuizPage() {
   const scope = useAccessScope();
 
   const { programmes } = useProgrammes();
-  const { courseUnits } = useCourseUnits();
-  const { modules } = useModules();
+  const { courseUnits } = useCourseUnits(true);
+  const { modules } = useModules(undefined, true);
   const { questions, loading: questionsLoading, refresh: refreshQuestions } = useQuestions();
 
   const [title, setTitle] = useState("");
@@ -69,9 +69,9 @@ export default function CreateQuizPage() {
   const selectedCourseUnit = courseUnits.find((item) => item.id === courseUnitId);
   const selectedModule = modules.find((item) => item.id === moduleId);
 
-  const filteredCourseUnits = courseUnits.filter(
-    (item) => item.programmeId === programmeId
-  );
+  const filteredCourseUnits = programmeId
+    ? courseUnits.filter((item) => item.programmeId === programmeId)
+    : courseUnits;
 
   const filteredModules = modules.filter(
     (item) => item.courseUnitId === courseUnitId
@@ -172,12 +172,12 @@ export default function CreateQuizPage() {
         const optionTexts = Array.isArray(item.options) ? item.options.map(String).slice(0, 4) : [];
         if (optionTexts.length !== 4) throw new Error("AI returned a question without four options.");
         const correctIndex = Math.max(0, Math.min(3, Number(item.correctIndex) || 0));
-        const optionIds = optionTexts.map((_, index) => `opt-${index + 1}`);
+        const optionIds = optionTexts.map((_, index) => String.fromCharCode(65 + index));
         return {
           id: "",
-          programmeId: selectedProgramme?.id,
+          programmeId: selectedProgramme?.id ?? selectedModule.programmeId,
           programmeTitle: selectedProgramme?.title,
-          courseUnitId: selectedCourseUnit?.id,
+          courseUnitId: selectedCourseUnit?.id ?? selectedModule.courseUnitId,
           courseUnitTitle: selectedCourseUnit?.title,
           moduleId: selectedModule.id,
           moduleTitle: selectedModule.title,
@@ -244,10 +244,20 @@ assessmentType: "lesson-quiz",
         moduleId: selectedModule?.id,
         moduleTitle: selectedModule?.title,
 
-        questions: selectedQuestions.map((item, index) => ({
-          ...item,
-          order: index + 1,
-        })),
+        questions: selectedQuestions.map((item, index) => {
+          const sourceQuestion = questions.find(
+            (question) => question.id === item.questionId
+          );
+
+          return {
+            ...item,
+            order: index + 1,
+            question: sourceQuestion?.questionText,
+            options: sourceQuestion?.options.map((option) => option.text),
+            correctAnswer: sourceQuestion?.correctAnswer,
+            explanation: sourceQuestion?.explanation,
+          };
+        }),
 
         totalMarks,
         passMark,
@@ -336,8 +346,9 @@ assessmentType: "lesson-quiz",
                 onChange={(value) => {
                   setCourseUnitId(value);
                   setModuleId("");
+                  const courseUnit = courseUnits.find((item) => item.id === value);
+                  if (courseUnit?.programmeId) setProgrammeId(courseUnit.programmeId);
                 }}
-                disabled={!programmeId}
                 options={[
                   { label: "All Course Units", value: "" },
                   ...filteredCourseUnits.map((courseUnit) => ({

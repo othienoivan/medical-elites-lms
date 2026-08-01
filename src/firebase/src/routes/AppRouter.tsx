@@ -54,6 +54,7 @@ const LessonPreviewPage = lazy(() => import("../pages/LessonPreviewPage"));
 const AssessmentWorkspacePage = lazy(() => import("../pages/AssessmentWorkspacePage"));
 const QuestionBankPage = lazy(() => import("../pages/QuestionBankPage"));
 const CreateQuestionPage = lazy(() => import("../pages/CreateQuestionPage"));
+const QuestionDetailsPage = lazy(() => import("../pages/QuestionDetailsPage"));
 const QuizBankPage = lazy(() => import("../pages/QuizBankPage"));
 const CreateQuizPage = lazy(() => import("../pages/CreateQuizPage"));
 const QuizBuilderPage = lazy(() => import("../pages/QuizBuilderPage"));
@@ -516,7 +517,7 @@ export default function AppRouter() {
           path="/tutor/lessons/builder"
           element={
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
-              <LessonBuilderPage />
+              <Navigate to="/tutor/lessons" replace />
             </ProtectedRoute>
           }
         />
@@ -571,6 +572,15 @@ export default function AppRouter() {
           element={
             <ProtectedRoute allowedRoles={TUTOR_ROLES}>
               <CreateQuestionPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/tutor/questions/:questionId"
+          element={
+            <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+              <QuestionDetailsPage />
             </ProtectedRoute>
           }
         />

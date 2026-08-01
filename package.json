@@ -1,7 +1,7 @@
 {
   "name": "medical-elites-lms",
   "private": true,
-  "version": "2.0.0-beta.1",
+  "version": "3.0.0-rc.5.final",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,8 +12,20 @@
     "test": "node --test tests/*.test.mjs",
     "validate:release": "node scripts/validate-release.mjs",
     "validate:env": "node scripts/check-env.mjs",
-    "release:check": "npm run validate:release && npm test && npm run typecheck && npm run build",
-    "stabilize": "npm run validate:env && npm run validate:release && npm test && npm run typecheck && npm run build"
+    "release:check": "npm run validate:platform && npm run validate:domain && npm run validate:release && npm run validate:performance && npm test && npm run typecheck && npm run build && npm run analyze:bundle",
+    "stabilize": "npm run validate:env && npm run validate:release && npm test && npm run typecheck && npm run build",
+    "validate:platform": "node scripts/validate-platform-baseline.mjs",
+    "test:security-baseline": "node --test tests/v3-platform-security-baseline.test.mjs",
+    "test:platform-layer": "node --test tests/v3-rc3-platform-layer.test.mjs",
+    "validate:domain": "node scripts/validate-domain-boundaries.mjs",
+    "test:finance-core": "node --test tests/rc4-finance-core.test.mjs",
+    "test:security-hardening": "node --test tests/phs1-security-hardening.test.mjs",
+    "analyze:bundle": "node scripts/analyze-bundle.mjs",
+    "validate:performance": "node scripts/validate-performance-budget.mjs",
+    "test:wallet-engine": "node --test tests/rc4-wallet-revenue-sharing.test.mjs",
+    "test:marketplace-foundation": "node --test tests/rc5-marketplace-foundation.test.mjs",
+    "test:marketplace-commerce": "node --test tests/rc5-marketplace-commerce.test.mjs",
+    "test:marketplace-final": "node --test tests/rc5-marketplace-final.test.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

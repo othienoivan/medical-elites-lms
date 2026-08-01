@@ -26,19 +26,45 @@ function dedupe(rows: Question[]): Question[] {
   return [...new Map(rows.map((row) => [row.id, row])).values()];
 }
 
+function removeUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map(removeUndefined) as T;
+  }
+
+  if (value && typeof value === "object") {
+    const prototype = Object.getPrototypeOf(value);
+    const isPlainObject = prototype === Object.prototype || prototype === null;
+    if (!isPlainObject) return value;
+
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, item]) => item !== undefined)
+        .map(([key, item]) => [key, removeUndefined(item)])
+    ) as T;
+  }
+
+  return value;
+}
+
 export async function createQuestion(question: Question) {
   const questionData: Partial<Question> = { ...question };
   delete questionData.id;
-  const document = await addDoc(collection(db, COLLECTION), {
-    ...questionData,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  const document = await addDoc(
+    collection(db, COLLECTION),
+    removeUndefined({
+      ...questionData,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+  );
   return document.id;
 }
 
 export async function updateQuestion(questionId: string, data: Partial<Question>) {
-  await updateDoc(doc(db, COLLECTION, questionId), { ...data, updatedAt: serverTimestamp() });
+  await updateDoc(
+    doc(db, COLLECTION, questionId),
+    removeUndefined({ ...data, updatedAt: serverTimestamp() })
+  );
 }
 
 export async function deleteQuestion(questionId: string, deletedBy?: string) {
@@ -84,11 +110,14 @@ export async function bulkCreateQuestions(questions: Question[]) {
     ids.push(ref.id);
     const data: Partial<Question> = { ...question };
     delete data.id;
-    batch.set(ref, {
-      ...data,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    batch.set(
+      ref,
+      removeUndefined({
+        ...data,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
   });
   await batch.commit();
   return ids;

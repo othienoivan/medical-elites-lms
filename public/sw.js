@@ -1,4 +1,4 @@
-const CACHE = "medical-elites-v1-1-catalogue-visibility";
+const CACHE = "medical-elites-v3-rc2-rollback-20260731";
 const SHELL = ["/", "/index.html", "/manifest.webmanifest", "/favicon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -32,8 +32,15 @@ self.addEventListener("fetch", (event) => {
       .catch(async () => {
         const hit = await caches.match(request);
         if (hit) return hit;
-        if (request.mode === "navigate") return caches.match("/index.html");
-        throw new Error("Network request failed and no cached response is available.");
+        if (request.mode === "navigate") {
+          const shell = await caches.match("/index.html");
+          if (shell) return shell;
+          return new Response(
+            "The application is temporarily offline. Please reconnect and reload.",
+            { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } }
+          );
+        }
+        return new Response("Offline", { status: 503, statusText: "Offline" });
       })
   );
 });

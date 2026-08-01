@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "medical-elites-lms",
+    "staging": "REPLACE_WITH_STAGING_PROJECT_ID"
+  }
+}

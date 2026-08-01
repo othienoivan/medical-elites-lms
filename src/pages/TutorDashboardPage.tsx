@@ -196,7 +196,7 @@ export default function TutorDashboardPage() {
         ]} navigate={navigate} />
         <WorkspaceCard title="Curriculum Builder" icon={LibraryBig} items={[
           ["Curriculum Explorer", "/tutor/curriculum"],
-          ["Lesson Builder", "/tutor/lessons/builder"],
+          ["Lessons", "/tutor/lessons"],
           ["Universal Builder", "/tutor/quizzes/builder"],
           ["Examination Builder", "/tutor/exams/builder"],
         ]} navigate={navigate} />

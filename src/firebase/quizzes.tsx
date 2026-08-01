@@ -11,11 +11,28 @@ import {
   where,
 } from "firebase/firestore";
 
-import { db } from "../config/firebase";
+import { auth, db } from "../config/firebase";
 import type { Quiz, QuizQuestionRef } from "../models/Quiz";
 import { requireAccessScope, type AccessScope } from "./accessScope";
 
 const COLLECTION = "quizzes";
+
+function removeUndefinedValues<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => removeUndefinedValues(item)) as T;
+  }
+
+  if (value && typeof value === "object" && !(value instanceof Date)) {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, item]) => item !== undefined)
+        .map(([key, item]) => [key, removeUndefinedValues(item)])
+    ) as T;
+  }
+
+  return value;
+}
+
 
 function validateQuestionReferences(questions: QuizQuestionRef[] | undefined) {
   const validReferences = (questions || []).filter(
@@ -71,22 +88,35 @@ async function validateQuizQuestions(questions: QuizQuestionRef[] | undefined) {
 export async function createQuiz(quiz: Quiz): Promise<string> {
   await validateQuizQuestions(quiz.questions);
 
-  const docRef = await addDoc(collection(db, COLLECTION), {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error("You must be signed in to create an assessment.");
+  }
+
+  const payload = removeUndefinedValues({
     ...quiz,
     id: "",
+    ownerUserId: user.uid,
+    createdBy: user.uid,
+    createdByUid: user.uid,
+    assignedTutorIds: Array.from(
+      new Set([user.uid, ...((quiz as Quiz & { assignedTutorIds?: string[] }).assignedTutorIds || [])])
+    ),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 
-  await updateDoc(doc(db, COLLECTION, docRef.id), {
-    id: docRef.id,
-  });
-
+  const docRef = await addDoc(collection(db, COLLECTION), payload);
   return docRef.id;
 }
 
 export async function getQuizzes(scope: AccessScope): Promise<Quiz[]> {
   const access = requireAccessScope(scope);
+
+  const toQuiz = (docSnap: { id: string; data: () => unknown }) => ({
+    ...(docSnap.data() as Omit<Quiz, "id">),
+    id: docSnap.id,
+  });
 
   if (access.role === "student") {
     const assignedIds = [...new Set(access.assignedCourseUnitIds ?? [])];
@@ -97,31 +127,33 @@ export async function getQuizzes(scope: AccessScope): Promise<Quiz[]> {
       chunks.push(assignedIds.slice(index, index + 10));
     }
 
-    const results = await Promise.allSettled(
+    const results = await Promise.all(
       chunks.map((ids) =>
-        getDocs(query(collection(db, COLLECTION), where("courseUnitId", "in", ids)))
+        getDocs(
+          query(
+            collection(db, COLLECTION),
+            where("courseUnitId", "in", ids),
+            where("status", "==", "published")
+          )
+        )
       )
     );
 
-    const quizzes = results.flatMap((result) =>
-      result.status === "fulfilled"
-        ? result.value.docs.map((docSnap) => ({
-            ...(docSnap.data() as Omit<Quiz, "id">),
-            id: docSnap.id,
-          }))
-        : []
-    );
-
-    return [...new Map(quizzes.map((quiz) => [quiz.id, quiz])).values()]
+    return [...new Map(results.flatMap((snapshot) => snapshot.docs.map(toQuiz)).map((quiz) => [quiz.id, quiz])).values()]
       .sort((a, b) => a.title.localeCompare(b.title));
   }
 
-  const snapshot = await getDocs(collection(db, COLLECTION));
-  return snapshot.docs
-    .map((docSnap) => ({
-      ...(docSnap.data() as Omit<Quiz, "id">),
-      id: docSnap.id,
-    }))
+  const queries = [
+    query(collection(db, COLLECTION), where("ownerUserId", "==", access.uid)),
+    query(collection(db, COLLECTION), where("assignedTutorIds", "array-contains", access.uid)),
+  ];
+
+  if (access.role === "admin" && access.institutionId) {
+    queries.push(query(collection(db, COLLECTION), where("institutionId", "==", access.institutionId)));
+  }
+
+  const snapshots = await Promise.all(queries.map((quizQuery) => getDocs(quizQuery)));
+  return [...new Map(snapshots.flatMap((snapshot) => snapshot.docs.map(toQuiz)).map((quiz) => [quiz.id, quiz])).values()]
     .sort((a, b) => a.title.localeCompare(b.title));
 }
 
@@ -146,10 +178,13 @@ export async function updateQuiz(
     await validateQuizQuestions(data.questions);
   }
 
-  await updateDoc(doc(db, COLLECTION, id), {
-    ...data,
-    updatedAt: serverTimestamp(),
-  });
+  await updateDoc(
+    doc(db, COLLECTION, id),
+    removeUndefinedValues({
+      ...data,
+      updatedAt: serverTimestamp(),
+    })
+  );
 }
 
 export async function deleteQuiz(id: string): Promise<void> {

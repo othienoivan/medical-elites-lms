@@ -8,6 +8,7 @@ import LearningJourney from "../components/home/LearningJourney";
 import CallToAction from "../components/home/CallToAction";
 import Footer from "../components/layout/Footer";
 import Partners from "../components/home/Partners";
+import PlatformEcosystem from "../components/home/PlatformEcosystem";
 
 export default function HomePage() {
   return (
@@ -16,6 +17,7 @@ export default function HomePage() {
       <main id="main-content">
         <Hero />
         <Stats />
+        <PlatformEcosystem />
         <FeaturedCourses />
         <WhyChooseUS />
         <LearningJourney />

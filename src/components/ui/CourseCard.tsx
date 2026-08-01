@@ -105,7 +105,7 @@ export default function CourseCard({ course }: CourseCardProps) {
           )}
         </div>
 
-        <Link to={`/courses/${course.slug}`}>
+        <Link to={`/courses/${encodeURIComponent(course.id)}`}>
           <Button className="mt-6 w-full">View Course Unit</Button>
         </Link>
       </div>

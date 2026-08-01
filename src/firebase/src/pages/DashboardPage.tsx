@@ -1,5 +1,4 @@
 import {
-  Award,
   Bell,
   BookOpen,
   CalendarCheck,
@@ -216,7 +215,6 @@ export default function DashboardPage() {
             <SnapshotRow icon={CalendarCheck} label="Attendance" value="Open record" onClick={() => navigate("/attendance")} />
             <SnapshotRow icon={Stethoscope} label="Clinical logbook" value="View progress" onClick={() => navigate("/clinical-logbook")} />
             <SnapshotRow icon={ClipboardList} label="Assessment history" value={`${attempts.length} attempts`} onClick={() => navigate("/assessment-history")} />
-            <SnapshotRow icon={Award} label="Achievements" value="Coming soon" />
           </div>
         </DashboardWidget>
       </div>
@@ -233,7 +231,7 @@ export default function DashboardPage() {
                 <button
                   key={courseUnit.id}
                   type="button"
-                  onClick={() => navigate(`/courses/${courseUnit.slug}`)}
+                  onClick={() => navigate(`/courses/${encodeURIComponent(courseUnit.id)}`)}
                   className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm"
                 >
                   <p className="text-xs font-bold uppercase tracking-wider text-blue-700">{courseUnit.code || "Course unit"}</p>

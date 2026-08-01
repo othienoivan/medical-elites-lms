@@ -1,8 +1,19 @@
 import { Link } from "react-router-dom";
-import { BarChart3, CalendarCheck, CalendarDays, ClipboardCheck, FileText, GraduationCap, Megaphone, MessageCircle, ShieldCheck, Sparkles, Stethoscope, WalletCards } from "lucide-react";
 import TutorLayout from "../components/layout/TutorLayout";
 import Card from "../components/ui/Card";
-
+import {
+  BarChart3,
+  CalendarCheck,
+  CalendarDays,
+  ClipboardCheck,
+  FileText,
+  GraduationCap,
+  Megaphone,
+  ShieldCheck,
+  Sparkles,
+  Stethoscope,
+  WalletCards
+} from "lucide-react";
 const modules = [
   ["Attendance", "/tutor/attendance", CalendarCheck, "Class registers, attendance history and exports"],
   ["Clinical Logbook", "/tutor/clinical-logbook", Stethoscope, "Clinical procedures, competencies and supervisor review"],

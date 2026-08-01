@@ -244,10 +244,20 @@ assessmentType: "lesson-quiz",
         moduleId: selectedModule?.id,
         moduleTitle: selectedModule?.title,
 
-        questions: selectedQuestions.map((item, index) => ({
-          ...item,
-          order: index + 1,
-        })),
+        questions: selectedQuestions.map((item, index) => {
+          const sourceQuestion = questions.find(
+            (question) => question.id === item.questionId
+          );
+
+          return {
+            ...item,
+            order: index + 1,
+            question: sourceQuestion?.questionText,
+            options: sourceQuestion?.options.map((option) => option.text),
+            correctAnswer: sourceQuestion?.correctAnswer,
+            explanation: sourceQuestion?.explanation,
+          };
+        }),
 
         totalMarks,
         passMark,

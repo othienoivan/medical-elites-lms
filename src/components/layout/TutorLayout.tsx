@@ -1,9 +1,6 @@
 import { useState, type ReactNode } from "react";
 import {
   BarChart3,
-  Building2,
-  ClipboardCheck,
-  ShieldCheck,
   Bell,
   BookOpen,
   CalendarCheck,
@@ -59,7 +56,7 @@ type NavigationGroup = {
 const navigationGroups: NavigationGroup[] = [
   {
     title: "Overview",
-    items: [{ name: "Dashboard", icon: Home, path: "/tutor", end: true }, { name: "ERP Command Centre", icon: Building2, path: "/tutor/erp" }],
+    items: [{ name: "Dashboard", icon: Home, path: "/tutor", end: true }],
   },
   {
     title: "Academic Management",
@@ -72,7 +69,6 @@ const navigationGroups: NavigationGroup[] = [
       { name: "New Module", icon: PlusCircle, path: "/tutor/modules/new" },
       { name: "Lessons", icon: Presentation, path: "/tutor/lessons" },
       { name: "New Lesson", icon: PlusCircle, path: "/tutor/lessons/new" },
-      { name: "Lesson Builder", icon: FileEdit, path: "/tutor/lessons/builder" },
       { name: "Learning Packages", icon: PackageOpen, path: "/tutor/learning-packages" },
       { name: "AI Curriculum Import", icon: UploadCloud, path: "/tutor/curriculum-import" },
     ],
@@ -96,7 +92,6 @@ const navigationGroups: NavigationGroup[] = [
       { name: "Registration Links", icon: Link2, path: "/tutor/registration-links" },
       { name: "Enrolments", icon: GraduationCap, path: "/tutor/enrollments" },
       { name: "Clinical Logbook", icon: Stethoscope, path: "/tutor/clinical-logbook" },
-      { name: "OSCE / OSPE", icon: ClipboardCheck, path: "/tutor/osce" },
       { name: "Attendance", icon: CalendarCheck, path: "/tutor/attendance" },
       { name: "Timetable", icon: CalendarDays, path: "/tutor/timetable" },
     ],
@@ -109,8 +104,6 @@ const navigationGroups: NavigationGroup[] = [
       { name: "Messages", icon: MessageCircle, path: "/tutor/messages" },
       { name: "Notifications", icon: Bell, path: "/tutor/notifications" },
       { name: "Medi AI", icon: Sparkles, path: "/tutor/ai-assistant" },
-      { name: "Quality Assurance", icon: ShieldCheck, path: "/tutor/quality-assurance" },
-      { name: "Institutional Analytics", icon: BarChart3, path: "/tutor/institutional-analytics" },
       { name: "Donate", icon: HeartHandshake, path: "/donate" },
     ],
   },
@@ -144,10 +137,6 @@ const breadcrumbLabels: Record<string, string> = {
   notifications: "Notifications",
   "ai-assistant": "Medi AI",
   curriculum: "Curriculum Explorer",
-  erp: "ERP Command Centre",
-  osce: "OSCE / OSPE",
-  "quality-assurance": "Quality Assurance",
-  "institutional-analytics": "Institutional Analytics",
   "learning-packages": "Learning Packages",
   new: "New",
   builder: "Builder",

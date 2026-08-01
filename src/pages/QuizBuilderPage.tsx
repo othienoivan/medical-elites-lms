@@ -34,7 +34,7 @@ export default function QuizBuilderPage() {
   const { quizId } = useParams();
   const { currentUser } = useAuth();
   const { programmes } = useProgrammes();
-  const { courseUnits } = useCourseUnits();
+  const { courseUnits } = useCourseUnits(true);
   const { modules } = useModules();
 
   const [title, setTitle] = useState("");

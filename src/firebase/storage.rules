@@ -1,0 +1,104 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDocument() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+
+    function hasProfile() {
+      return signedIn() && userDocument().data != null;
+    }
+
+    function hasRole(role) {
+      return hasProfile() && userDocument().data.role == role;
+    }
+
+    function isTutorOrAdmin() {
+      return hasRole('tutor') || hasRole('admin') || hasRole('super_admin');
+    }
+
+    function currentTenantId() {
+      return hasProfile() && userDocument().data.keys().hasAny(['tenantId'])
+        ? userDocument().data.tenantId
+        : (
+            hasProfile() && userDocument().data.keys().hasAny(['institutionId'])
+              ? userDocument().data.institutionId
+              : null
+          );
+    }
+
+    function belongsToTenant(tenantId) {
+      return signedIn() && currentTenantId() != null && currentTenantId() == tenantId;
+    }
+
+    function validSize(maxBytes) {
+      return request.resource != null && request.resource.size <= maxBytes;
+    }
+
+    function validImage() {
+      return validSize(10 * 1024 * 1024)
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    function validDocument() {
+      return validSize(50 * 1024 * 1024)
+        && request.resource.contentType.matches(
+          '(application/pdf|application/msword|application/vnd\\.openxmlformats-officedocument\\.wordprocessingml\\.document|application/vnd\\.ms-powerpoint|application/vnd\\.openxmlformats-officedocument\\.presentationml\\.presentation|application/vnd\\.ms-excel|application/vnd\\.openxmlformats-officedocument\\.spreadsheetml\\.sheet|text/plain|text/csv)'
+        );
+    }
+
+    function validMedia() {
+      return validSize(250 * 1024 * 1024)
+        && request.resource.contentType.matches('(video/.*|audio/.*)');
+    }
+
+    function validAllowedUpload() {
+      return validImage() || validDocument() || validMedia();
+    }
+
+    function validLegacyUpload(folder) {
+      return folder == 'images' ? validImage()
+        : (folder == 'videos' || folder == 'audio') ? validMedia()
+        : folder == 'lesson-resources' ? validAllowedUpload()
+        : validDocument();
+    }
+
+    // v3 tenant-isolated paths. New uploads should migrate here.
+    match /tenants/{tenantId}/{allPaths=**} {
+      allow read: if belongsToTenant(tenantId);
+      allow create, update: if belongsToTenant(tenantId)
+        && isTutorOrAdmin()
+        && validAllowedUpload();
+      allow delete: if belongsToTenant(tenantId) && isTutorOrAdmin();
+    }
+
+    // User-owned profile images and private evidence.
+    match /users/{userId}/{allPaths=**} {
+      allow read: if signedIn() && (request.auth.uid == userId || isTutorOrAdmin());
+      allow create, update: if signedIn()
+        && request.auth.uid == userId
+        && (validImage() || validDocument());
+      allow delete: if signedIn() && (request.auth.uid == userId || isTutorOrAdmin());
+    }
+
+    // Compatibility paths used by the current upload service.
+    // Reads require authentication; only tutors/admins may write.
+    match /{folder}/{fileName} {
+      allow read: if signedIn();
+      allow create, update: if isTutorOrAdmin()
+        && folder in ['images', 'pdfs', 'powerpoints', 'videos', 'audio', 'documents', 'lesson-resources']
+        && validLegacyUpload(folder);
+      allow delete: if isTutorOrAdmin();
+    }
+
+    // Deny every path not explicitly authorized above.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

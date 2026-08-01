@@ -313,7 +313,7 @@ export default function StudentProfilePage() {
             <ActionButton
               icon={Mail}
               label="Email Report"
-              onClick={() => alert("Email report coming next.")}
+              onClick={() => window.print()}
             />
           </div>
         </Card>

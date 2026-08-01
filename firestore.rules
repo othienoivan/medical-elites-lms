@@ -25,6 +25,16 @@ service cloud.firestore {
       return hasRole('admin');
     }
 
+    function isPlatformAdmin() {
+      return isAdmin()
+        && userDocument().data.keys().hasAny(['platformRole'])
+        && userDocument().data.platformRole in [
+          'super_admin',
+          'platform_support',
+          'platform_finance'
+        ];
+    }
+
 
     function currentInstitutionId() {
       return hasProfile() && userDocument().data.keys().hasAny(['institutionId'])
@@ -209,8 +219,19 @@ service cloud.firestore {
 
     match /quizDraftAttempts/{draftId} {
       allow create: if signedIn()
-        && request.resource.data.studentId == request.auth.uid;
-      allow read, update, delete: if signedIn()
+        && request.resource.data.studentId == request.auth.uid
+        && request.resource.data.quizId is string;
+      allow get: if signedIn() && (
+        (resource != null && resource.data.studentId == request.auth.uid)
+        || draftId.matches('^' + request.auth.uid + '_.*$')
+      );
+      allow list: if signedIn()
+        && resource.data.studentId == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.studentId == request.auth.uid
+        && request.resource.data.studentId == request.auth.uid
+        && request.resource.data.quizId == resource.data.quizId;
+      allow delete: if signedIn()
         && resource.data.studentId == request.auth.uid;
     }
 
@@ -606,11 +627,11 @@ service cloud.firestore {
           );
       }
 
-      allow read: if isAdmin() && (
+      allow read: if isPlatformAdmin() || (isAdmin() && (
         resource.data.institutionId == null
         || sameInstitution(resource.data)
-      );
-      allow create: if validAuditLogCreate();
+      ));
+      allow create: if isPlatformAdmin() || validAuditLogCreate();
       allow update, delete: if false;
     }
 
@@ -632,13 +653,24 @@ service cloud.firestore {
     }
 
     match /courses/{documentId} {
-      allow read: if signedIn() && (
+      allow read: if (
+        resource.data.keys().hasAny(['published'])
+        && resource.data.published == true
+      ) || (signedIn() && (
         ownsRecord(resource.data)
         || assignedTutor(resource.data)
         || (isAdmin() && sameInstitution(resource.data))
         || (hasRole('student') && hasCourseUnitAssignment(documentId))
         || (resource.data.keys().hasAny(['programmeId']) && resource.data.programmeId != null && canReadProgramme(resource.data.programmeId))
-      );
+        || (
+          hasRole('student')
+          && resource.data.keys().hasAny(['isPublished'])
+          && resource.data.isPublished == true
+          && resource.data.keys().hasAny(['courseUnitId'])
+          && resource.data.courseUnitId != null
+          && hasCourseUnitAssignment(resource.data.courseUnitId)
+        )
+      ));
       allow create: if isTutorOrAdmin()
         && request.resource.data.ownerUserId == request.auth.uid
         && request.resource.data.createdByUid == request.auth.uid
@@ -744,19 +776,63 @@ service cloud.firestore {
         && request.resource.data.createdByUid == request.auth.uid
         && request.resource.data.createdBy == request.auth.uid
         && request.auth.uid in request.resource.data.assignedTutorIds
-        && request.resource.data.institutionId == currentInstitutionId();
+        && validCreateInstitution(request.resource.data);
       allow update, delete: if canManageRecord(resource.data);
     }
 
     match /quizzes/{documentId} {
-      allow read: if signedIn() && (ownsRecord(resource.data) || assignedTutor(resource.data) || (isAdmin() && sameInstitution(resource.data)) || (hasRole('student') && resource.data.courseUnitId != null && hasCourseUnitAssignment(resource.data.courseUnitId)));
-      allow create: if isTutorOrAdmin() && request.resource.data.ownerUserId == request.auth.uid;
+      allow read: if signedIn() && (
+        ownsRecord(resource.data)
+        || assignedTutor(resource.data)
+        || (isAdmin() && sameInstitution(resource.data))
+        || (
+          hasRole('student')
+          && resource.data.keys().hasAny(['status'])
+          && resource.data.status == 'published'
+          && resource.data.keys().hasAny(['courseUnitId'])
+          && resource.data.courseUnitId != null
+          && hasCourseUnitAssignment(resource.data.courseUnitId)
+        )
+      );
+      allow create: if isTutorOrAdmin()
+        && request.resource.data.ownerUserId == request.auth.uid
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.createdBy == request.auth.uid
+        && request.auth.uid in request.resource.data.assignedTutorIds
+        && validCreateInstitution(request.resource.data);
       allow update, delete: if canManageRecord(resource.data);
     }
 
     match /examinations/{documentId} {
       allow read: if signedIn() && (ownsRecord(resource.data) || assignedTutor(resource.data) || (isAdmin() && sameInstitution(resource.data)) || (hasRole('student') && resource.data.courseUnitId != null && hasCourseUnitAssignment(resource.data.courseUnitId)));
       allow create: if isTutorOrAdmin() && request.resource.data.ownerUserId == request.auth.uid;
+      allow update, delete: if canManageRecord(resource.data);
+    }
+
+    match /osceStations/{documentId} {
+      allow read: if signedIn() && (
+        ownsRecord(resource.data)
+        || assignedTutor(resource.data)
+        || (isAdmin() && sameInstitution(resource.data))
+        || (hasRole('student')
+          && resource.data.courseUnitId != null
+          && hasCourseUnitAssignment(resource.data.courseUnitId))
+      );
+      allow create: if isTutorOrAdmin()
+        && request.resource.data.ownerUserId == request.auth.uid
+        && validCreateInstitution(request.resource.data);
+      allow update, delete: if canManageRecord(resource.data);
+    }
+
+    match /qualityAssuranceItems/{documentId} {
+      allow read: if isTutorOrAdmin() && (
+        ownsRecord(resource.data)
+        || assignedTutor(resource.data)
+        || (isAdmin() && sameInstitution(resource.data))
+      );
+      allow create: if isTutorOrAdmin()
+        && request.resource.data.ownerUserId == request.auth.uid
+        && validCreateInstitution(request.resource.data);
       allow update, delete: if canManageRecord(resource.data);
     }
 
@@ -769,17 +845,171 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
-    match /osceStations/{documentId} {
-      allow read: if signedIn() && (isTutorOrAdmin() || hasRole('student'));
-      allow create: if isTutorOrAdmin() && request.resource.data.ownerUserId == request.auth.uid;
-      allow update, delete: if isAdmin() || (isTutorOrAdmin() && resource.data.ownerUserId == request.auth.uid);
+
+    // RC3 Platform Layer. These collections are additive and intentionally
+    // isolated from the stable institution-scoped academic LMS collections.
+    match /tenants/{documentId} {
+      allow read, create, update, delete: if isPlatformAdmin();
+    }
+    match /plans/{documentId} {
+      allow read, create, update, delete: if isPlatformAdmin();
+    }
+    match /featureFlags/{documentId} {
+      allow read, create, update, delete: if isPlatformAdmin();
+    }
+    match /supportTickets/{documentId} {
+      allow read, create, update, delete: if isPlatformAdmin();
+    }
+    match /platformAnnouncements/{documentId} {
+      allow read, create, update, delete: if isPlatformAdmin();
+    }
+    match /platformUsage/{documentId} {
+      allow read, create, update, delete: if isPlatformAdmin();
+    }
+    match /roadmapItems/{documentId} {
+      allow read, create, update, delete: if isPlatformAdmin();
+    }
+    match /roadmapVotes/{documentId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isPlatformAdmin();
+    }
+    match /licenseGrants/{documentId} {
+      allow read, create, update, delete: if isPlatformAdmin();
+    }
+    match /platformSettings/{documentId} {
+      allow read, create, update, delete: if isPlatformAdmin();
     }
 
-    match /qualityAssuranceItems/{documentId} {
-      allow read: if isTutorOrAdmin();
-      allow create: if isTutorOrAdmin() && request.resource.data.ownerUserId == request.auth.uid;
-      allow update, delete: if isAdmin() || (isTutorOrAdmin() && resource.data.ownerUserId == request.auth.uid);
+    // RC4 Finance Domain. Reads are limited to platform administrators.
+    // All financial writes are trusted-server only to preserve ledger integrity.
+    match /financePlans/{documentId} { allow read: if isPlatformAdmin(); allow create, update, delete: if false; }
+    match /subscriptions/{documentId} { allow read: if isPlatformAdmin(); allow create, update, delete: if false; }
+    match /wallets/{documentId} {
+      allow read: if isPlatformAdmin() || (signedIn() && resource.data.ownerId == request.auth.uid);
+      allow create, update, delete: if false;
     }
+    match /ledgerAccounts/{documentId} { allow read: if isPlatformAdmin(); allow create, update, delete: if false; }
+    match /journals/{documentId} { allow read: if isPlatformAdmin(); allow create, update, delete: if false; }
+    match /ledgerEntries/{documentId} {
+      allow read: if isPlatformAdmin() || (signedIn() && resource.data.ownerId == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+    match /accountingPeriods/{documentId} { allow read: if isPlatformAdmin(); allow create, update, delete: if false; }
+    match /invoices/{documentId} { allow read: if isPlatformAdmin(); allow create, update, delete: if false; }
+    match /payments/{documentId} { allow read: if isPlatformAdmin(); allow create, update, delete: if false; }
+    match /coupons/{documentId} { allow read: if isPlatformAdmin(); allow create, update, delete: if false; }
+    match /commissionRules/{documentId} { allow read: if isPlatformAdmin(); allow create, update, delete: if false; }
+    match /withdrawals/{documentId} {
+      allow read: if isPlatformAdmin() || (signedIn() && resource.data.ownerId == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+    match /financeEvents/{documentId} { allow read: if isPlatformAdmin(); allow create, update, delete: if false; }
+    match /financeCommands/{documentId} { allow read, create, update, delete: if false; }
+
+    // Server-maintained abuse-prevention and webhook idempotency records.
+    match /functionRateLimits/{documentId} {
+      allow read, create, update, delete: if false;
+    }
+    match /webhookReceipts/{documentId} {
+      allow read, create, update, delete: if false;
+    }
+
+
+
+    // RC5 Marketplace Foundation. Published catalogue records are public.
+    // Sellers may manage only their own draft/submitted records; publication is platform-controlled.
+    match /marketplaceProducts/{productId} {
+      allow read: if resource.data.status == 'published'
+        || isPlatformAdmin()
+        || (signedIn() && resource.data.sellerId == request.auth.uid);
+      allow create: if signedIn()
+        && (hasRole('tutor') || isAdmin())
+        && request.resource.data.sellerId == request.auth.uid
+        && request.resource.data.status in ['draft', 'submitted'];
+      allow update: if isPlatformAdmin() || (
+        signedIn()
+        && resource.data.sellerId == request.auth.uid
+        && request.resource.data.sellerId == resource.data.sellerId
+        && request.resource.data.status in ['draft', 'submitted']
+      );
+      allow delete: if isPlatformAdmin() || (signedIn() && resource.data.sellerId == request.auth.uid && resource.data.status == 'draft');
+    }
+    match /sellerProfiles/{sellerId} {
+      allow read: if resource.data.status == 'active' || isPlatformAdmin() || (signedIn() && sellerId == request.auth.uid);
+      allow create, update: if isPlatformAdmin() || (signedIn() && sellerId == request.auth.uid && request.resource.data.ownerUid == request.auth.uid);
+      allow delete: if isPlatformAdmin();
+    }
+    match /marketplaceCategories/{categoryId} {
+      allow read: if resource.data.active == true || isPlatformAdmin();
+      allow create, update, delete: if isPlatformAdmin();
+    }
+    match /productMedia/{mediaId} {
+      allow read: if resource.data.public == true || isPlatformAdmin() || (signedIn() && resource.data.sellerId == request.auth.uid);
+      allow create: if isPlatformAdmin() || (signedIn() && request.resource.data.sellerId == request.auth.uid);
+      allow update: if isPlatformAdmin() || (signedIn() && resource.data.sellerId == request.auth.uid && request.resource.data.sellerId == resource.data.sellerId);
+      allow delete: if isPlatformAdmin() || (signedIn() && resource.data.sellerId == request.auth.uid);
+    }
+    match /productTags/{tagId} { allow read: if true; allow create, update, delete: if isPlatformAdmin(); }
+    match /productEntitlements/{entitlementId} {
+      allow read: if isPlatformAdmin() || (signedIn() && resource.data.customerUid == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+    match /marketplaceCarts/{customerUid} {
+      allow read, create, update, delete: if signedIn()
+        && customerUid == request.auth.uid
+        && (!request.resource.data.keys().hasAny(['customerUid']) || request.resource.data.customerUid == request.auth.uid);
+    }
+    match /marketplaceWishlists/{customerUid} {
+      allow read, create, update, delete: if signedIn()
+        && customerUid == request.auth.uid
+        && (!request.resource.data.keys().hasAny(['customerUid']) || request.resource.data.customerUid == request.auth.uid);
+    }
+    match /marketplacePurchases/{purchaseId} {
+      allow read: if isPlatformAdmin() || (signedIn() && resource.data.customerUid == request.auth.uid) || (signedIn() && resource.data.sellerId == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+    match /marketplaceEnrollments/{enrollmentId} {
+      allow read: if isPlatformAdmin() || (signedIn() && resource.data.customerUid == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+
+    // RC5 Final marketplace intelligence and operations.
+    match /productReviews/{reviewId} {
+      allow read: if resource.data.status == 'published' || isPlatformAdmin() || (signedIn() && resource.data.reviewerId == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+    match /productReviewVotes/{voteId} {
+      allow read: if isPlatformAdmin() || (signedIn() && resource.data.voterUid == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+    match /productRatingSummaries/{productId} { allow read: if true; allow create, update, delete: if false; }
+    match /recentlyViewed/{viewId} {
+      allow read, delete: if signedIn() && resource.data.customerUid == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.customerUid == request.auth.uid;
+      allow update: if signedIn() && resource.data.customerUid == request.auth.uid && request.resource.data.customerUid == request.auth.uid;
+    }
+    match /sellerAnalytics/{snapshotId} {
+      allow read: if isPlatformAdmin() || (signedIn() && resource.data.sellerId == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+    match /buyerAnalytics/{snapshotId} {
+      allow read: if isPlatformAdmin() || (signedIn() && resource.data.customerUid == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+    match /recommendations/{recommendationId} {
+      allow read: if isPlatformAdmin() || (signedIn() && resource.data.customerUid == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+    match /trendingProducts/{documentId} { allow read: if true; allow create, update, delete: if false; }
+    match /marketplacePromotions/{documentId} { allow read: if resource.data.status == 'active' || isPlatformAdmin(); allow create, update, delete: if false; }
+    match /marketplaceCoupons/{documentId} { allow read: if resource.data.status == 'active' || isPlatformAdmin(); allow create, update, delete: if false; }
+    match /couponRedemptions/{documentId} { allow read: if isPlatformAdmin() || (signedIn() && resource.data.customerUid == request.auth.uid); allow create, update, delete: if false; }
+    match /sellerVerifications/{sellerId} { allow read: if resource.data.status == 'verified' || isPlatformAdmin() || (signedIn() && sellerId == request.auth.uid); allow create, update, delete: if false; }
+    match /marketplaceModeration/{documentId} { allow read: if isPlatformAdmin(); allow create, update, delete: if false; }
+    match /fraudSignals/{documentId} { allow read: if isPlatformAdmin(); allow create, update, delete: if false; }
+    match /marketingCampaigns/{documentId} { allow read: if isPlatformAdmin(); allow create, update, delete: if false; }
+    match /featuredContent/{documentId} { allow read: if resource.data.active == true || isPlatformAdmin(); allow create, update, delete: if false; }
 
     // Secure default: collections not explicitly listed above are inaccessible.
 
@@ -808,6 +1038,13 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+
+    // RC4 Batch 3 commerce records. Trusted Functions own all writes.
+    match /commerceOrders/{documentId} { allow read: if isPlatformAdmin() || (signedIn() && resource.data.customerUid == request.auth.uid); allow create, update, delete: if false; }
+    match /commerceProducts/{documentId} { allow read: if resource.data.status == 'published' || isPlatformAdmin(); allow create, update, delete: if false; }
+    match /commerceEntitlements/{documentId} { allow read: if isPlatformAdmin() || (signedIn() && resource.data.customerUid == request.auth.uid); allow create, update, delete: if false; }
+    match /receipts/{documentId} { allow read: if isPlatformAdmin() || (signedIn() && resource.data.customerUid == request.auth.uid); allow create, update, delete: if false; }
+    match /refunds/{documentId} { allow read: if isPlatformAdmin() || (signedIn() && resource.data.customerUid == request.auth.uid); allow create, update, delete: if false; }
     match /{document=**} {
       allow read, write: if false;
     }

@@ -33,8 +33,8 @@ export default function CreateQuestionPage() {
   const { currentUser, userProfile } = useAuth();
 
   const { programmes } = useProgrammes();
-  const { courseUnits } = useCourseUnits();
-  const { modules } = useModules();
+  const { courseUnits } = useCourseUnits(true);
+  const { modules } = useModules(undefined, true);
 
   const [programmeId, setProgrammeId] = useState("");
   const [courseUnitId, setCourseUnitId] = useState("");
@@ -63,9 +63,9 @@ export default function CreateQuestionPage() {
   const [tagsText, setTagsText] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const filteredCourseUnits = courseUnits.filter(
-    (courseUnit) => courseUnit.programmeId === programmeId
-  );
+  const filteredCourseUnits = programmeId
+    ? courseUnits.filter((courseUnit) => courseUnit.programmeId === programmeId)
+    : courseUnits;
 
   const filteredModules = modules.filter(
     (module) => module.courseUnitId === courseUnitId
@@ -263,15 +263,14 @@ export default function CreateQuestionPage() {
                   onChange={(value) => {
                     setCourseUnitId(value);
                     setModuleId("");
+                    const courseUnit = courseUnits.find((item) => item.id === value);
+                    if (courseUnit?.programmeId) setProgrammeId(courseUnit.programmeId);
                   }}
-                  disabled={!programmeId}
                   options={[
                     {
-                      label: programmeId
-                        ? filteredCourseUnits.length > 0
-                          ? "Select Course Unit"
-                          : "No course units found"
-                        : "Select Programme first",
+                      label: filteredCourseUnits.length > 0
+                        ? "Select Course Unit"
+                        : "No course units found",
                       value: "",
                     },
                     ...filteredCourseUnits.map((courseUnit) => ({

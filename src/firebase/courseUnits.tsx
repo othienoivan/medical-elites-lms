@@ -23,7 +23,29 @@ const STUDENTS_COLLECTION = "students";
 const USERS_COLLECTION = "users";
 
 function fromDoc(id: string, data: Record<string, unknown>): CourseUnit {
-  return { ...(data as unknown as Omit<CourseUnit, "id">), id };
+  const record = data as Partial<CourseUnit> & Record<string, unknown>;
+  const title = String(record.title ?? "Untitled course unit");
+  return {
+    ...(record as Omit<CourseUnit, "id">),
+    id,
+    title,
+    slug: String(record.slug ?? title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "")),
+    programmeId: String(record.programmeId ?? ""),
+    programmeTitle: String(record.programmeTitle ?? "Health Sciences"),
+    category: String(record.category ?? "Health Sciences"),
+    description: String(record.description ?? "Explore this Medical Elites course unit."),
+    image: String(record.image ?? "https://placehold.co/900x600/1D4ED8/FFFFFF?text=Medical+Elites"),
+    tutor: String(record.tutor ?? "Medical Elites Tutor"),
+    duration: String(record.duration ?? "Self-paced"),
+    modules: Number(record.modules ?? 0),
+    lessons: Number(record.lessons ?? 0),
+    level: (record.level ?? "Diploma") as CourseUnit["level"],
+    rating: Number(record.rating ?? 0),
+    students: String(record.students ?? "0"),
+    certificate: record.certificate !== false,
+    isFeatured: record.isFeatured === true,
+    published: record.published === true,
+  };
 }
 
 function dedupe(rows: CourseUnit[]): CourseUnit[] {
@@ -238,6 +260,16 @@ export async function getAllCourseUnits(scope: AccessScope): Promise<CourseUnit[
   }
 
   return dedupe(rows);
+}
+
+export async function getPublishedCourseUnits(): Promise<CourseUnit[]> {
+  // The canonical public publication field is `published`. New and edited
+  // course units already persist this field through the administration pages.
+  // Keeping the public query explicit also satisfies Firestore's rule/query model.
+  const snapshot = await getDocs(
+    query(collection(db, COLLECTION), where("published", "==", true))
+  );
+  return dedupe(snapshot.docs.map((item) => fromDoc(item.id, item.data())));
 }
 
 export async function getCourseUnits(scope: AccessScope): Promise<CourseUnit[]> {

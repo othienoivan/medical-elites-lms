@@ -5,6 +5,9 @@ import "./index.css";
 import App from "./App";
 import AppErrorBoundary from "./components/AppErrorBoundary";
 import { AuthProvider } from "./contexts/AuthContext";
+import { startPerformanceMonitoring } from "./performance/metrics";
+
+startPerformanceMonitoring();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
