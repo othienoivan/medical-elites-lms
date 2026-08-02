@@ -1,0 +1,12 @@
+import { useEffect, useMemo, useState } from "react";
+import PlatformLayout from "../../../components/platform/PlatformLayout";
+import { FinanceService, type CommissionRule } from "../../../domains/finance";
+export default function RevenueSharingPage(){
+ const [rules,setRules]=useState<CommissionRule[]>([]); const [amount,setAmount]=useState(100000); const [error,setError]=useState("");
+ useEffect(()=>{void FinanceService.list<CommissionRule>("commissionRules").then(setRules).catch((e:unknown)=>setError(e instanceof Error?e.message:"Unable to load commission rules."))},[]);
+ const selected=rules.find(r=>r.active)??null; const preview=useMemo(()=>selected?FinanceService.calculateSplit(amount,selected):null,[amount,selected]);
+ return <PlatformLayout title="Revenue Sharing" subtitle="Configure and preview automatic platform, institution and tutor revenue allocation.">
+  {error&&<p className="mb-4 rounded-xl bg-red-50 p-4 text-red-700">{error}</p>}
+  <div className="grid gap-6 xl:grid-cols-[1fr_1.2fr]"><section className="rounded-2xl bg-white p-6 shadow-sm"><label className="text-sm font-bold text-slate-700">Preview sale amount (UGX)</label><input type="number" min={1} value={amount} onChange={e=>setAmount(Number(e.target.value)||0)} className="mt-2 w-full rounded-xl border px-4 py-3"/>{selected&&preview?<div className="mt-6 space-y-3">{Object.entries(preview).map(([key,value])=><div key={key} className="flex justify-between rounded-xl bg-slate-50 p-3"><span className="capitalize">{key}</span><strong>UGX {value.toLocaleString()}</strong></div>)}</div>:<p className="mt-5 text-slate-500">Create an active commission rule to preview a split.</p>}</section>
+  <section className="rounded-2xl bg-white p-6 shadow-sm"><h2 className="text-lg font-black">Commission hierarchy</h2><p className="mt-1 text-sm text-slate-500">Course → Tutor → Institution → Global. The most specific active rule wins.</p><div className="mt-5 space-y-3">{rules.map(rule=><article key={rule.id} className="rounded-xl border p-4"><div className="flex justify-between"><strong>{rule.name}</strong><span className="text-xs font-bold uppercase text-cyan-700">{rule.scope??"global"}</span></div><p className="mt-2 text-sm text-slate-600">Platform {rule.platformPercent}% · Institution {rule.institutionPercent}% · Tutor {rule.tutorPercent}%</p></article>)}{rules.length===0&&<p className="text-slate-500">No commission rules yet.</p>}</div></section></div>
+ </PlatformLayout>}

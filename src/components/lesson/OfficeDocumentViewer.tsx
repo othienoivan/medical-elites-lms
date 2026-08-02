@@ -1,0 +1,44 @@
+import { Download, FileText, Maximize2 } from "lucide-react";
+import { useRef } from "react";
+
+import Button from "../ui/Button";
+
+type Props = {
+  originalUrl: string;
+  filePath?: string;
+  title?: string;
+  originalLabel?: string;
+};
+
+export default function OfficeDocumentViewer({
+  originalUrl,
+  title = "Office document",
+  originalLabel = "Download Original",
+}: Props) {
+  const frameRef = useRef<HTMLDivElement | null>(null);
+
+  async function enterFullscreen() {
+    await frameRef.current?.requestFullscreen?.();
+  }
+
+  const officePreviewUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(originalUrl)}`;
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="flex flex-col gap-4 border-b border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-blue-100 p-2 text-blue-700"><FileText size={22} /></div>
+          <div><p className="font-bold text-slate-950">{title}</p><p className="mt-1 text-sm text-slate-600">View the presentation in your browser or download the original file.</p></div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => void enterFullscreen()}><Maximize2 size={17} /> Fullscreen</Button>
+          <a href={originalUrl} target="_blank" rel="noreferrer" download className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800"><Download size={17} /> {originalLabel}</a>
+        </div>
+      </div>
+      <div ref={frameRef} className="h-[72vh] min-h-[520px] bg-slate-100 p-2 sm:p-4">
+        <iframe src={officePreviewUrl} title={`${title} browser preview`} className="h-full w-full rounded-xl border border-slate-200 bg-white" allowFullScreen />
+      </div>
+      <p className="border-t border-slate-200 px-4 py-3 text-xs text-slate-500">Preview requires an internet connection and a publicly accessible file URL. Use Download Original if the online viewer is unavailable.</p>
+    </div>
+  );
+}

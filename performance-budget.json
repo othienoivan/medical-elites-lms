@@ -1,0 +1,7 @@
+{
+  "initialJsGzipKb": 350,
+  "singleChunkRawKb": 900,
+  "totalJsRawKb": 5000,
+  "totalCssRawKb": 500,
+  "warningOnly": true
+}

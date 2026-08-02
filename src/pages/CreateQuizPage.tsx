@@ -1,11 +1,17 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Loader2, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import TutorLayout from "../components/layout/TutorLayout";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import { createQuiz } from "../firebase/quizzes";
+import { generateAiResponse } from "../firebase/aiAssistant";
+import { bulkCreateQuestions } from "../firebase/questions";
+import { getLessons } from "../firebase/lessons";
+import useAccessScope from "../hooks/useAccessScope";
+import type { Question } from "../models/Question";
 import useAuth from "../hooks/useAuth";
 import useCourseUnits from "../hooks/useCourseUnits";
 import useModules from "../hooks/useModules";
@@ -15,12 +21,14 @@ import type { QuizQuestionRef, QuizStatus } from "../models/Quiz";
 
 export default function CreateQuizPage() {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { currentUser, userProfile } = useAuth();
+  const scope = useAccessScope();
 
   const { programmes } = useProgrammes();
-  const { courseUnits } = useCourseUnits();
-  const { modules } = useModules();
-  const { questions, loading: questionsLoading } = useQuestions();
+  const { courseUnits } = useCourseUnits(true);
+  const { modules } = useModules(undefined, true);
+  const { questions, loading: questionsLoading, refresh: refreshQuestions } = useQuestions();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -43,14 +51,27 @@ export default function CreateQuizPage() {
   );
 
   const [saving, setSaving] = useState(false);
+  const [aiGenerating, setAiGenerating] = useState(false);
+
+  useEffect(() => {
+    const requestedModuleId = searchParams.get("moduleId") || "";
+    const requestedCourseUnitId = searchParams.get("courseUnitId") || "";
+    const requestedPassMark = Number(searchParams.get("passMark") || "");
+    if (requestedCourseUnitId) setCourseUnitId(requestedCourseUnitId);
+    if (requestedModuleId) setModuleId(requestedModuleId);
+    if (Number.isFinite(requestedPassMark) && requestedPassMark > 0) setPassMark(requestedPassMark);
+    const requestedModule = modules.find(item => item.id === requestedModuleId);
+    if (requestedModule?.programmeId) setProgrammeId(requestedModule.programmeId);
+    if (requestedModule && !title) setTitle(`${requestedModule.title} Quiz`);
+  }, [modules, searchParams, title]);
 
   const selectedProgramme = programmes.find((item) => item.id === programmeId);
   const selectedCourseUnit = courseUnits.find((item) => item.id === courseUnitId);
   const selectedModule = modules.find((item) => item.id === moduleId);
 
-  const filteredCourseUnits = courseUnits.filter(
-    (item) => item.programmeId === programmeId
-  );
+  const filteredCourseUnits = programmeId
+    ? courseUnits.filter((item) => item.programmeId === programmeId)
+    : courseUnits;
 
   const filteredModules = modules.filter(
     (item) => item.courseUnitId === courseUnitId
@@ -113,6 +134,83 @@ export default function CreateQuizPage() {
     return selectedQuestions.some((item) => item.questionId === questionId);
   }
 
+
+  async function generateQuestionsWithAi() {
+    if (!selectedModule || !scope || !currentUser) {
+      alert("Select a module before asking AI to create questions.");
+      return;
+    }
+    try {
+      setAiGenerating(true);
+      const lessonRows = await getLessons(selectedModule.id, scope, true);
+      const context = lessonRows.map((lesson) => {
+        const blockText = (lesson.blocks || [])
+          .map((block) =>
+            [block.title, block.content, block.metadata?.fileName]
+              .filter(Boolean)
+              .join(" "),
+          )
+          .join("\n");
+
+        return `${lesson.title}\n${lesson.description ?? ""}\n${blockText}`;
+      })
+      .join("\n\n")
+      .slice(0, 40000);
+      if (context.trim().length < 80) {
+        alert("This module has insufficient lesson text for reliable AI question generation. Add lesson content or extracted document text first.");
+        return;
+      }
+      const response = await generateAiResponse({
+        mode: "tutor_questions",
+        prompt: "Create exactly 10 single-best-answer MCQs strictly from the supplied module content. Return ONLY valid JSON as an array. Each object must contain questionText, options (exactly 4 strings), correctIndex (0-3), explanation, difficulty (easy|medium|hard), bloomLevel (remember|understand|apply|analyze), topic, and marks.",
+        context,
+      });
+      const cleaned = response.text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+      const parsed = JSON.parse(cleaned) as Array<Record<string, unknown>>;
+      if (!Array.isArray(parsed) || parsed.length === 0) throw new Error("AI returned no usable questions.");
+      const generated = parsed.slice(0, 20).map<Question>((item) => {
+        const optionTexts = Array.isArray(item.options) ? item.options.map(String).slice(0, 4) : [];
+        if (optionTexts.length !== 4) throw new Error("AI returned a question without four options.");
+        const correctIndex = Math.max(0, Math.min(3, Number(item.correctIndex) || 0));
+        const optionIds = optionTexts.map((_, index) => String.fromCharCode(65 + index));
+        return {
+          id: "",
+          programmeId: selectedProgramme?.id ?? selectedModule.programmeId,
+          programmeTitle: selectedProgramme?.title,
+          courseUnitId: selectedCourseUnit?.id ?? selectedModule.courseUnitId,
+          courseUnitTitle: selectedCourseUnit?.title,
+          moduleId: selectedModule.id,
+          moduleTitle: selectedModule.title,
+          topic: String(item.topic || selectedModule.title),
+          type: "mcq",
+          difficulty: (["easy","medium","hard"].includes(String(item.difficulty)) ? String(item.difficulty) : "medium") as Question["difficulty"],
+          bloomLevel: (["remember","understand","apply","analyze","evaluate","create"].includes(String(item.bloomLevel)) ? String(item.bloomLevel) : "understand") as Question["bloomLevel"],
+          questionText: String(item.questionText || "").trim(),
+          options: optionTexts.map((text, index) => ({ id: optionIds[index], label: String.fromCharCode(65 + index), text })),
+          correctAnswer: optionIds[correctIndex],
+          explanation: String(item.explanation || ""),
+          marks: Math.max(1, Number(item.marks) || 1),
+          tags: [selectedModule.title, "AI-generated"],
+          isPublished: true,
+          ownerUserId: currentUser.uid,
+          createdBy: currentUser.uid,
+          createdByUid: currentUser.uid,
+          institutionId: userProfile?.institutionId,
+          assignedTutorIds: [currentUser.uid],
+        };
+      }).filter(item => item.questionText.length > 10);
+      const ids = await bulkCreateQuestions(generated);
+      setSelectedQuestions(ids.map((questionId, index) => ({ id: crypto.randomUUID(), questionId, order: index + 1, marks: generated[index]?.marks || 1 })));
+      await refreshQuestions();
+      alert(`${ids.length} AI-generated questions were added to the Question Bank and selected for this quiz.`);
+    } catch (error) {
+      console.error("AI quiz generation failed", error);
+      alert(error instanceof Error ? error.message : "AI could not generate the quiz questions.");
+    } finally {
+      setAiGenerating(false);
+    }
+  }
+
   async function handleSave(status: QuizStatus) {
     if (!currentUser) {
       navigate("/login?redirect=/tutor/quizzes/new");
@@ -146,10 +244,20 @@ assessmentType: "lesson-quiz",
         moduleId: selectedModule?.id,
         moduleTitle: selectedModule?.title,
 
-        questions: selectedQuestions.map((item, index) => ({
-          ...item,
-          order: index + 1,
-        })),
+        questions: selectedQuestions.map((item, index) => {
+          const sourceQuestion = questions.find(
+            (question) => question.id === item.questionId
+          );
+
+          return {
+            ...item,
+            order: index + 1,
+            question: sourceQuestion?.questionText,
+            options: sourceQuestion?.options.map((option) => option.text),
+            correctAnswer: sourceQuestion?.correctAnswer,
+            explanation: sourceQuestion?.explanation,
+          };
+        }),
 
         totalMarks,
         passMark,
@@ -170,7 +278,7 @@ assessmentType: "lesson-quiz",
       navigate("/tutor/quizzes");
     } catch (error) {
       console.error("Failed to create quiz:", error);
-      alert("Failed to create quiz.");
+      alert(error instanceof Error ? error.message : "Failed to create quiz.");
     } finally {
       setSaving(false);
     }
@@ -181,6 +289,13 @@ assessmentType: "lesson-quiz",
       title="Create Quiz"
       subtitle="Build a medical quiz using reusable questions from the Question Bank."
     >
+      <div className="mb-6 flex flex-wrap gap-3">
+        <Button type="button" variant="outline" disabled={aiGenerating || !moduleId} onClick={() => void generateQuestionsWithAi()}>
+          {aiGenerating ? <Loader2 size={18} className="animate-spin"/> : <Sparkles size={18}/>} {aiGenerating ? "Generating from lesson content..." : "Generate Quiz with AI"}
+        </Button>
+        <p className="self-center text-sm text-slate-600">AI uses the selected module's saved lesson text and extracted document content.</p>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <div className="space-y-6">
@@ -231,8 +346,9 @@ assessmentType: "lesson-quiz",
                 onChange={(value) => {
                   setCourseUnitId(value);
                   setModuleId("");
+                  const courseUnit = courseUnits.find((item) => item.id === value);
+                  if (courseUnit?.programmeId) setProgrammeId(courseUnit.programmeId);
                 }}
-                disabled={!programmeId}
                 options={[
                   { label: "All Course Units", value: "" },
                   ...filteredCourseUnits.map((courseUnit) => ({

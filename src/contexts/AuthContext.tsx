@@ -8,7 +8,7 @@ import {
   onAuthStateChanged,
   type User as FirebaseUser,
 } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 
 import { auth, db } from "../config/firebase";
 import type { AppUser, UserRole } from "../models/User";
@@ -51,6 +51,22 @@ async function loadUserProfile(user: FirebaseUser): Promise<AppUser> {
     email:
       typeof data.email === "string" ? data.email : user.email || "",
     role: isUserRole(data.role) ? data.role : "student",
+    platformRole: data.platformRole === "super_admin" || data.platformRole === "platform_support" || data.platformRole === "platform_finance" ? data.platformRole : undefined,
+    requestedRole: isUserRole(data.requestedRole) ? data.requestedRole : undefined,
+    tenantId: typeof data.tenantId === "string" ? data.tenantId : undefined,
+    tenantIds: Array.isArray(data.tenantIds) ? data.tenantIds.filter((id): id is string => typeof id === "string") : [],
+    activeTenantId: typeof data.activeTenantId === "string" ? data.activeTenantId : undefined,
+    institutionId: typeof data.institutionId === "string" ? data.institutionId : undefined,
+    institutionName: typeof data.institutionName === "string" ? data.institutionName : undefined,
+    linkedTutorIds: Array.isArray(data.linkedTutorIds) ? data.linkedTutorIds.filter((id): id is string => typeof id === "string") : [],
+    programmeIds: Array.isArray(data.programmeIds) ? data.programmeIds.filter((id): id is string => typeof id === "string") : [],
+    assignedCourseUnitIds: Array.isArray(data.assignedCourseUnitIds) ? data.assignedCourseUnitIds.filter((id): id is string => typeof id === "string") : [],
+    academicYear: typeof data.academicYear === "string" ? data.academicYear : undefined,
+    yearOfStudy: typeof data.yearOfStudy === "string" ? data.yearOfStudy : undefined,
+    semester: typeof data.semester === "string" ? data.semester : undefined,
+    studentGroupId: typeof data.studentGroupId === "string" ? data.studentGroupId : undefined,
+    onboardingSource: data.onboardingSource,
+    registrationLinkId: typeof data.registrationLinkId === "string" ? data.registrationLinkId : undefined,
     profilePhoto:
       typeof data.profilePhoto === "string" ? data.profilePhoto : "",
     enrolledCourses: Array.isArray(data.enrolledCourses)
@@ -73,7 +89,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [profileError, setProfileError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    let unsubscribeProfile: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      unsubscribeProfile?.();
+      unsubscribeProfile = null;
       setCurrentUser(user);
       setUserProfile(null);
       setProfileError(null);
@@ -86,26 +106,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setLoading(true);
 
       try {
-        const profile = await loadUserProfile(user);
+        let profile = await loadUserProfile(user);
 
         if (profile.role === "student") {
           try {
             await synchronizeStudentIdentity(user.uid, user.email);
+            profile = await loadUserProfile(user);
           } catch (identityError) {
             console.error("Failed to synchronize student identity:", identityError);
           }
         }
 
         setUserProfile(profile);
+        setLoading(false);
+
+        // Keep academic access fields current after registration-link claims,
+        // tutor assignments and administrative changes. Without this listener,
+        // the app retained the pre-claim profile until the next sign-in.
+        unsubscribeProfile = onSnapshot(
+          doc(db, "users", user.uid),
+          async () => {
+            try {
+              setUserProfile(await loadUserProfile(user));
+              setProfileError(null);
+            } catch (profileLoadError) {
+              console.error("Failed to refresh user profile:", profileLoadError);
+            }
+          },
+          (snapshotError) => {
+            console.error("Failed to observe user profile:", snapshotError);
+          }
+        );
       } catch (error) {
         console.error("Failed to load user profile:", error);
         setProfileError("Your account profile could not be loaded.");
-      } finally {
         setLoading(false);
       }
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribeProfile?.();
+      unsubscribeAuth();
+    };
   }, []);
 
   const value = useMemo<AuthContextValue>(

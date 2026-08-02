@@ -1,0 +1,52 @@
+import type { Timestamp } from "firebase/firestore";
+
+export type PlanAudience = "institution" | "tutor" | "student";
+export type BillingInterval = "monthly" | "annual" | "none";
+
+export const ENTITLEMENT_KEYS = [
+  "AI_QUESTION_GENERATION",
+  "AI_LESSON_GENERATION",
+  "PROFESSIONAL_EXAM_BUILDER",
+  "MARKETPLACE_SELLING",
+  "ERP_MODULES",
+  "ADVANCED_ANALYTICS",
+  "CERTIFICATE_ISSUANCE",
+  "WHITE_LABEL",
+] as const;
+
+export type EntitlementKey = (typeof ENTITLEMENT_KEYS)[number];
+
+export interface PlanLimits {
+  maxStudents: number;
+  maxTutors: number;
+  maxCourseUnits: number;
+  storageBytes: number;
+  monthlyAiCredits: number;
+}
+
+export interface Plan {
+  id: string;
+  name: string;
+  code: string;
+  audience: PlanAudience;
+  billingInterval: BillingInterval;
+  priceMinor: number;
+  currency: string;
+  commissionBasisPoints: number;
+  enabledEntitlements: EntitlementKey[];
+  limits: PlanLimits;
+  isActive: boolean;
+  createdAt?: Date | Timestamp | null;
+  updatedAt?: Date | Timestamp | null;
+}
+
+export interface TenantSubscription {
+  id: string;
+  tenantId: string;
+  planId: string;
+  status: "trialing" | "active" | "past_due" | "cancelled" | "expired";
+  currentPeriodStart?: Date | Timestamp | null;
+  currentPeriodEnd?: Date | Timestamp | null;
+  trialEndsAt?: Date | Timestamp | null;
+  cancelAtPeriodEnd?: boolean;
+}

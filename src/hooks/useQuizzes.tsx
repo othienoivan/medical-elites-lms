@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { getQuizzes } from "../firebase/quizzes";
 import type { Quiz } from "../models/Quiz";
+import useAccessScope from "./useAccessScope";
 
 export default function useQuizzes() {
+  const scope = useAccessScope();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadQuizzes = useCallback(async () => {
+    if (!scope) return;
+
     try {
       setLoading(true);
 
-      const data = await getQuizzes();
+      const data = await getQuizzes(scope);
 
       setQuizzes(data);
     } catch (error) {
@@ -18,7 +22,7 @@ export default function useQuizzes() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

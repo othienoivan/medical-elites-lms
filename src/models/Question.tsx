@@ -52,8 +52,17 @@ export interface Question {
   tags: string[];
 
   isPublished: boolean;
+  isDeleted?: boolean;
+  deletedAt?: Date;
+  deletedBy?: string;
+  estimatedTimeMinutes?: number;
+  usageCount?: number;
 
   createdBy?: string;
+  ownerUserId?: string;
+  createdByUid?: string;
+  institutionId?: string;
+  assignedTutorIds?: string[];
   createdAt?: Date;
   updatedAt?: Date;
 }

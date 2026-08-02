@@ -16,3 +16,17 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
   table { font-size: .875rem; }
   button, [role="button"] { min-height: 44px; }
 }
+
+/* Rich editor and rendered lesson content */
+.medical-rich-text ul, .prose ul { list-style-type: disc !important; padding-left: 1.75rem !important; }
+.medical-rich-text ol, .prose ol { list-style-type: decimal !important; padding-left: 1.75rem !important; }
+.medical-rich-text ul ul, .prose ul ul { list-style-type: circle !important; }
+.medical-rich-text ul ul ul, .prose ul ul ul { list-style-type: square !important; }
+.medical-rich-text li, .prose li { margin: .25rem 0; }
+.medical-rich-text blockquote, .prose blockquote { border-left: 4px solid #94a3b8; margin: 1rem 0; padding-left: 1rem; font-style: italic; }
+.medical-rich-text table, .prose table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+.medical-rich-text th, .medical-rich-text td, .prose th, .prose td { border: 1px solid #cbd5e1; padding: .6rem; vertical-align: top; }
+.medical-rich-text th, .prose th { background: #f1f5f9; font-weight: 700; }
+.medical-rich-text p.is-editor-empty:first-child::before { color: #94a3b8; content: attr(data-placeholder); float: left; height: 0; pointer-events: none; }
+.editor-text-button { border-radius: .5rem; padding: .45rem .65rem; font-size: .75rem; font-weight: 700; color: #334155; }
+.editor-text-button:hover { background: white; color: #1d4ed8; }

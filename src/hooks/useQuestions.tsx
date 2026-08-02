@@ -1,37 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
-
 import { getQuestions } from "../firebase/questions";
 import type { Question } from "../models/Question";
+import useAccessScope from "./useAccessScope";
 
 export default function useQuestions() {
+  const scope = useAccessScope();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadQuestions = useCallback(async () => {
+  const refresh = useCallback(async () => {
+    if (!scope) return;
+    setLoading(true);
     try {
-      setLoading(true);
-
-      const data = await getQuestions();
-
-      setQuestions(data);
+      setQuestions(await getQuestions(scope));
     } catch (error) {
       console.error("Failed to load questions:", error);
+      setQuestions([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [scope]);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadQuestions();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, [loadQuestions]);
-
-  return {
-    questions,
-    loading,
-    reload: loadQuestions,
-  };
+  useEffect(() => { void refresh(); }, [refresh]);
+  return { questions, loading, refresh };
 }
