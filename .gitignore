@@ -1,10 +1,16 @@
+node_modules/
+dist/
+functions/lib/
+functions/node_modules/
 .env
 .env.*
 !.env.example
-node_modules/
-functions/node_modules/
-dist/
+!.env.staging.example
+.firebaserc
+!.firebaserc.example
+firebase-debug.log*
+*.local
+.DS_Store
+coverage/
+# Firebase local state
 .firebase/
-*.log
-
-functions/lib/

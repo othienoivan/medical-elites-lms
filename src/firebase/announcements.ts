@@ -3,16 +3,14 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDocs,
-  orderBy,
-  query,
   serverTimestamp,
   updateDoc,
-  where,
 } from "firebase/firestore";
 
 import { db } from "../config/firebase";
 import type { Announcement } from "../models/Announcement";
+import type { AccessScope } from "./accessScope";
+import { listScopedRecords, tenantAuditFields } from "./repositoryScope";
 
 const COLLECTION = "announcements";
 type NewAnnouncement = Omit<Announcement, "id" | "createdAt" | "updatedAt">;
@@ -48,19 +46,22 @@ function fromSnapshot(id: string, data: Record<string, unknown>): Announcement {
   };
 }
 
-export async function getAnnouncements(options?: { role?: string; uid?: string }): Promise<Announcement[]> {
-  const source = options?.role === "tutor" && options.uid
-    ? query(collection(db, COLLECTION), where("createdByUid", "==", options.uid), orderBy("createdAt", "desc"))
-    : query(collection(db, COLLECTION), orderBy("createdAt", "desc"));
-  const snapshot = await getDocs(source);
-  return snapshot.docs.map((item) => fromSnapshot(item.id, item.data()));
+export async function getAnnouncements(scope: AccessScope): Promise<Announcement[]> {
+  const records = await listScopedRecords(COLLECTION, scope, {
+    ownerFields: ["createdByUid", "ownerUserId"],
+  });
+  return records
+    .map((item) => fromSnapshot(item.id, item.data))
+    .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
 }
 
 export async function createAnnouncement(
-  announcement: NewAnnouncement
+  announcement: NewAnnouncement,
+  scope?: AccessScope,
 ): Promise<string> {
   const reference = await addDoc(collection(db, COLLECTION), clean({
     ...announcement,
+    ...(scope ? tenantAuditFields(scope) : {}),
     publishedAt: announcement.isPublished ? serverTimestamp() : null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

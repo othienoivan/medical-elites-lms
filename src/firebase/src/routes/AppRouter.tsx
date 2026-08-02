@@ -83,6 +83,7 @@ const NewClinicalEntryPage = lazy(() => import("../pages/NewClinicalEntryPage"))
 const TutorClinicalLogbookPage = lazy(() => import("../pages/TutorClinicalLogbookPage"));
 const ClinicalReviewPage = lazy(() => import("../pages/ClinicalReviewPage"));
 const FinanceManagerPage = lazy(() => import("../pages/FinanceManagerPage"));
+const TutorWalletPage = lazy(() => import("../pages/TutorWalletPage"));
 const StudentFinancePage = lazy(() => import("../pages/StudentFinancePage"));
 const AiAssistantPage = lazy(() => import("../pages/AiAssistantPage"));
 const AboutPage = lazy(() => import("../pages/AboutPage"));
@@ -154,6 +155,7 @@ export default function AppRouter() {
         <Route path="/admin/tutors" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminTutorsPage /></ProtectedRoute>} />
         <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminSettingsPage /></ProtectedRoute>} />
         <Route path="/admin/system-status" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><AdminSystemStatusPage /></ProtectedRoute>} />
+        <Route path="/admin/finance" element={<ProtectedRoute allowedRoles={ADMIN_ROLES}><FinanceManagerPage /></ProtectedRoute>} />
         <Route
           path="/founder"
           element={
@@ -401,8 +403,8 @@ export default function AppRouter() {
         <Route
           path="/tutor/finance"
           element={
-            <ProtectedRoute allowedRoles={TUTOR_ROLES}>
-              <FinanceManagerPage />
+            <ProtectedRoute allowedRoles={["tutor"]}>
+              <TutorWalletPage />
             </ProtectedRoute>
           }
         />

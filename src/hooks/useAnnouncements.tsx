@@ -6,31 +6,32 @@ import {
   getAnnouncements,
   updateAnnouncement,
 } from "../firebase/announcements";
-import useAuth from "./useAuth";
+import useAccessScope from "./useAccessScope";
 import type { Announcement } from "../models/Announcement";
 
 type NewAnnouncement = Omit<Announcement, "id" | "createdAt" | "updatedAt">;
 
 export default function useAnnouncements() {
-  const { currentUser, role } = useAuth();
+  const accessScope = useAccessScope();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadAnnouncements = useCallback(async () => {
     try {
       setLoading(true);
-      setAnnouncements(await getAnnouncements({ role: role ?? undefined, uid: currentUser?.uid }));
+      if (!accessScope) return;
+      setAnnouncements(await getAnnouncements(accessScope));
     } finally {
       setLoading(false);
     }
-  }, [currentUser?.uid, role]);
+  }, [accessScope]);
 
   useEffect(() => {
     void loadAnnouncements();
   }, [loadAnnouncements]);
 
   async function create(data: NewAnnouncement) {
-    await createAnnouncement(data);
+    await createAnnouncement(data, accessScope ?? undefined);
     await loadAnnouncements();
   }
 

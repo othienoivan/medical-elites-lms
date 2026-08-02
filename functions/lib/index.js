@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateTenantSubscriptionStatus = exports.assignTenantSubscription = exports.saveSubscriptionPlan = exports.assignTenantOwner = exports.updateTenantStatus = exports.updateTenantProfile = exports.createTenant = exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.submitQuizAttempt = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = void 0;
+exports.updateTenantSubscriptionStatus = exports.assignTenantSubscription = exports.saveSubscriptionPlan = exports.assignTenantOwner = exports.updateTenantStatus = exports.updateTenantProfile = exports.createTenant = exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.submitQuizAttempt = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.completeFinanceWithdrawal = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = void 0;
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
@@ -540,13 +540,21 @@ async function claimFinanceCommand(uid, operation, idempotencyKey) {
 exports.createFinanceWallet = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
     if (!request.auth)
         throw new https_1.HttpsError("unauthenticated", "Please sign in.");
-    await assertFinancePlatformAdmin(request.auth.uid);
+    const profile = await financeProfile(request.auth.uid);
     const data = (request.data ?? {});
     const ownerType = financeText(data.ownerType, 20);
     const ownerId = financeText(data.ownerId, 128);
     const currency = financeCurrency(data.currency);
     if (!new Set(["platform", "institution", "tutor"]).has(ownerType) || !ownerId)
         throw new https_1.HttpsError("invalid-argument", "Valid wallet ownership is required.");
+    const isPlatformFinance = profile.get("role") === "admin"
+        && ["super_admin", "platform_finance"].includes(String(profile.get("platformRole") ?? ""));
+    const isTutorSelfService = profile.get("role") === "tutor"
+        && ownerType === "tutor"
+        && ownerId === request.auth.uid;
+    if (!isPlatformFinance && !isTutorSelfService) {
+        throw new https_1.HttpsError("permission-denied", "You may only create your own tutor wallet.");
+    }
     const command = await claimFinanceCommand(request.auth.uid, "create_wallet", data.idempotencyKey);
     const walletId = safeFinanceId(`${ownerType}_${ownerId}_${currency}`);
     const walletRef = db.collection("wallets").doc(walletId);
@@ -692,6 +700,95 @@ exports.reviewFinanceWithdrawal = (0, https_1.onCall)({ region: "us-central1", t
         transaction.update(command, { status: "completed", withdrawalId, completedAt: firestore_1.FieldValue.serverTimestamp() });
     });
     return { status };
+});
+exports.completeFinanceWithdrawal = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    await assertFinancePlatformAdmin(request.auth.uid);
+    const data = (request.data ?? {});
+    const withdrawalId = financeText(data.withdrawalId, 160);
+    const externalReference = financeText(data.externalReference, 180);
+    if (!withdrawalId || !externalReference) {
+        throw new https_1.HttpsError("invalid-argument", "Withdrawal and external payment reference are required.");
+    }
+    const command = await claimFinanceCommand(request.auth.uid, "complete_withdrawal", data.idempotencyKey);
+    const withdrawalRef = db.collection("withdrawals").doc(withdrawalId);
+    try {
+        await db.runTransaction(async (transaction) => {
+            const withdrawal = await transaction.get(withdrawalRef);
+            if (!withdrawal.exists || !["approved", "processing"].includes(String(withdrawal.get("status") ?? ""))) {
+                throw new https_1.HttpsError("failed-precondition", "Withdrawal must be approved before it can be marked paid.");
+            }
+            const walletRef = db.collection("wallets").doc(String(withdrawal.get("walletId") ?? ""));
+            const wallet = await transaction.get(walletRef);
+            if (!wallet.exists)
+                throw new https_1.HttpsError("not-found", "Wallet was not found.");
+            const amount = Number(withdrawal.get("amount.amount") ?? 0);
+            const currency = String(withdrawal.get("amount.currency") ?? wallet.get("currency") ?? "UGX");
+            const frozen = Number(wallet.get("frozenBalance") ?? 0);
+            const lifetimeDebits = Number(wallet.get("lifetimeDebits") ?? 0);
+            if (!Number.isSafeInteger(amount) || amount <= 0 || frozen < amount) {
+                throw new https_1.HttpsError("failed-precondition", "Reserved wallet funds are insufficient for this payout.");
+            }
+            const journalRef = db.collection("journals").doc();
+            const period = financePeriod();
+            const ownerId = String(withdrawal.get("ownerId") ?? wallet.get("ownerId") ?? "");
+            const lines = [
+                { accountId: `wallet_liability_${walletRef.id}`, walletId: walletRef.id, ownerId, direction: "debit", amount, memo: `Payout ${externalReference}` },
+                { accountId: "platform_cash_clearing", direction: "credit", amount, memo: `Payout ${externalReference}` },
+            ];
+            transaction.update(walletRef, {
+                frozenBalance: frozen - amount,
+                lifetimeDebits: lifetimeDebits + amount,
+                updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            });
+            transaction.update(withdrawalRef, {
+                status: "paid",
+                externalReference,
+                paidAt: firestore_1.FieldValue.serverTimestamp(),
+                paidBy: request.auth.uid,
+                updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            });
+            transaction.create(journalRef, {
+                reference: `payout:${withdrawalId}`,
+                idempotencyKey: financeText(data.idempotencyKey, 140),
+                eventType: "withdrawal.paid",
+                currency,
+                accountingPeriod: period,
+                lines,
+                status: "posted",
+                createdBy: request.auth.uid,
+                createdAt: firestore_1.FieldValue.serverTimestamp(),
+            });
+            lines.forEach((line) => transaction.create(db.collection("ledgerEntries").doc(), {
+                ...line,
+                journalId: journalRef.id,
+                reference: `payout:${withdrawalId}`,
+                currency,
+                accountingPeriod: period,
+                createdAt: firestore_1.FieldValue.serverTimestamp(),
+            }));
+            transaction.create(db.collection("platformAuditLogs").doc(), {
+                action: "finance.withdrawal.paid",
+                actorUserId: request.auth.uid,
+                targetType: "withdrawal",
+                targetId: withdrawalId,
+                metadata: { walletId: walletRef.id, amount, currency, externalReference },
+                createdAt: firestore_1.FieldValue.serverTimestamp(),
+            });
+            transaction.update(command, {
+                status: "completed",
+                withdrawalId,
+                journalId: journalRef.id,
+                completedAt: firestore_1.FieldValue.serverTimestamp(),
+            });
+        });
+        return { status: "paid" };
+    }
+    catch (error) {
+        await command.set({ status: "failed", updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+        throw error;
+    }
 });
 exports.upsertFinanceCommissionRule = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
     if (!request.auth)
@@ -1323,6 +1420,11 @@ exports.submitQuizAttempt = (0, https_1.onCall)({ region: "us-central1", timeout
             courseUnitTitle: asText(quiz.courseUnitTitle ?? data.courseUnitTitle, 500) || null,
             moduleId: moduleId || null,
             moduleTitle: asText(quiz.moduleTitle ?? data.moduleTitle, 500) || null,
+            tutorUid: asText(quiz.ownerUserId ?? quiz.createdByUid ?? quiz.tutorUid, 200) || null,
+            ownerUserId: asText(quiz.ownerUserId ?? quiz.createdByUid ?? quiz.tutorUid, 200) || null,
+            createdByUid: asText(quiz.createdByUid ?? quiz.ownerUserId ?? quiz.tutorUid, 200) || null,
+            tenantId: asText(quiz.tenantId ?? quiz.institutionId, 200) || null,
+            institutionId: asText(quiz.institutionId, 200) || null,
             startedAt: callableDate(data.startedAt),
             submittedAt: firestore_1.FieldValue.serverTimestamp(),
             durationSeconds: Math.max(0, Math.floor(finiteNumber(data.durationSeconds))),

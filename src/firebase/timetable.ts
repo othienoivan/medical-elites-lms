@@ -3,16 +3,14 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDocs,
-  orderBy,
-  query,
   serverTimestamp,
   updateDoc,
-  where,
 } from "firebase/firestore";
 
 import { db } from "../config/firebase";
 import type { TimetableEntry } from "../models/Timetable";
+import type { AccessScope } from "./accessScope";
+import { listScopedRecords, tenantAuditFields } from "./repositoryScope";
 
 const COLLECTION = "timetableEntries";
 type NewEntry = Omit<TimetableEntry, "id" | "createdAt" | "updatedAt">;
@@ -51,17 +49,19 @@ function fromSnapshot(id: string, data: Record<string, unknown>): TimetableEntry
   };
 }
 
-export async function getTimetableEntries(options?: { role?: string; uid?: string }): Promise<TimetableEntry[]> {
-  const source = options?.role === "tutor" && options.uid
-    ? query(collection(db, COLLECTION), where("tutorUid", "==", options.uid), orderBy("dayOfWeek", "asc"))
-    : query(collection(db, COLLECTION), orderBy("dayOfWeek", "asc"));
-  const snapshot = await getDocs(source);
-  return snapshot.docs.map((item) => fromSnapshot(item.id, item.data()));
+export async function getTimetableEntries(scope: AccessScope): Promise<TimetableEntry[]> {
+  const records = await listScopedRecords(COLLECTION, scope, {
+    ownerFields: ["tutorUid", "ownerUserId", "createdByUid"],
+  });
+  return records
+    .map((item) => fromSnapshot(item.id, item.data))
+    .sort((a, b) => a.dayOfWeek.localeCompare(b.dayOfWeek));
 }
 
-export async function saveTimetableEntry(entry: NewEntry, entryId?: string) {
+export async function saveTimetableEntry(entry: NewEntry, entryId?: string, scope?: AccessScope) {
   const payload = removeUndefinedValues({
     ...entry,
+    ...(scope ? tenantAuditFields(scope) : {}),
     courseUnitCode: entry.courseUnitCode ?? "",
     updatedAt: serverTimestamp(),
   });

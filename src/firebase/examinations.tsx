@@ -4,7 +4,6 @@ import {
   deleteDoc,
   doc,
   getDoc,
-  getDocs,
   serverTimestamp,
   updateDoc,
 } from "firebase/firestore";
@@ -12,14 +11,18 @@ import {
 import { db } from "../config/firebase";
 import type { Examination } from "../models/Examination";
 import { writeAuditLog } from "./auditLogs";
+import type { AccessScope } from "./accessScope";
+import { listScopedRecords, tenantAuditFields } from "./repositoryScope";
 
 const COLLECTION = "examinations";
 
 export async function createExamination(
-  examination: Examination
+  examination: Examination,
+  scope?: AccessScope,
 ): Promise<string> {
   const docRef = await addDoc(collection(db, COLLECTION), {
     ...examination,
+    ...(scope ? tenantAuditFields(scope) : {}),
     id: "",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -45,13 +48,16 @@ export async function createExamination(
   return docRef.id;
 }
 
-export async function getExaminations(): Promise<Examination[]> {
-  const snapshot = await getDocs(collection(db, COLLECTION));
+export async function getExaminations(scope: AccessScope): Promise<Examination[]> {
+  const records = await listScopedRecords(COLLECTION, scope, {
+    ownerFields: ["createdByUid", "createdBy", "ownerUserId"],
+    assignedTutorField: "assignedTutorIds",
+  });
 
-  return snapshot.docs
-    .map((docSnap) => ({
-      ...(docSnap.data() as Omit<Examination, "id">),
-      id: docSnap.id,
+  return records
+    .map((record) => ({
+      ...(record.data as Omit<Examination, "id">),
+      id: record.id,
     }))
     .sort((a, b) => a.title.localeCompare(b.title));
 }

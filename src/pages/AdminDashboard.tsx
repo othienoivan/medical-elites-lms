@@ -78,7 +78,7 @@ export default function AdminDashboard() {
               { label: "Student Directory", description: "Manage learner records", icon: Users, onClick: () => navigate("/tutor/students") },
               { label: "Programmes", description: "Academic programme catalogue", icon: Landmark, onClick: () => navigate("/admin/programmes") },
               { label: "Course Units", description: "Manage teaching structure", icon: BookOpen, onClick: () => navigate("/admin/course-units") },
-              { label: "Finance", description: "Billing, payments and clearance", icon: WalletCards, onClick: () => navigate("/tutor/finance") },
+              { label: "Finance", description: "Billing, payments and clearance", icon: WalletCards, onClick: () => navigate("/admin/finance") },
               { label: "Analytics", description: "Institution performance", icon: Activity, onClick: () => navigate("/tutor/class-analytics") },
               { label: "Announcements", description: "Publish institution updates", icon: MessageSquareText, onClick: () => navigate("/tutor/announcements") },
             ]}

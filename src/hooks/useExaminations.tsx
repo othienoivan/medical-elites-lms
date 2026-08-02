@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getExaminations } from "../firebase/examinations";
 import type { Examination } from "../models/Examination";
+import useAccessScope from "./useAccessScope";
 
 export default function useExaminations() {
+  const accessScope = useAccessScope();
   const [examinations, setExaminations] = useState<Examination[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -11,7 +13,8 @@ export default function useExaminations() {
     try {
       setLoading(true);
 
-      const data = await getExaminations();
+      if (!accessScope) return;
+      const data = await getExaminations(accessScope);
 
       setExaminations(data);
     } catch (error) {
@@ -19,7 +22,7 @@ export default function useExaminations() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [accessScope]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

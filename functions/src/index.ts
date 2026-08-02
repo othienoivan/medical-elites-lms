@@ -603,12 +603,22 @@ async function claimFinanceCommand(uid: string, operation: string, idempotencyKe
 
 export const createFinanceWallet = onCall({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Please sign in.");
-  await assertFinancePlatformAdmin(request.auth.uid);
+  const profile = await financeProfile(request.auth.uid);
   const data = (request.data ?? {}) as Record<string, unknown>;
   const ownerType = financeText(data.ownerType, 20) as FinanceOwnerType;
   const ownerId = financeText(data.ownerId, 128);
   const currency = financeCurrency(data.currency);
   if (!new Set(["platform", "institution", "tutor"]).has(ownerType) || !ownerId) throw new HttpsError("invalid-argument", "Valid wallet ownership is required.");
+
+  const isPlatformFinance = profile.get("role") === "admin"
+    && ["super_admin", "platform_finance"].includes(String(profile.get("platformRole") ?? ""));
+  const isTutorSelfService = profile.get("role") === "tutor"
+    && ownerType === "tutor"
+    && ownerId === request.auth.uid;
+
+  if (!isPlatformFinance && !isTutorSelfService) {
+    throw new HttpsError("permission-denied", "You may only create your own tutor wallet.");
+  }
   const command = await claimFinanceCommand(request.auth.uid, "create_wallet", data.idempotencyKey);
   const walletId = safeFinanceId(`${ownerType}_${ownerId}_${currency}`);
   const walletRef = db.collection("wallets").doc(walletId);

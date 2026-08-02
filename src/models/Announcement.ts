@@ -4,6 +4,8 @@ export type AnnouncementTargetType = "all" | "programme" | "courseUnit";
 
 export interface Announcement {
   id: string;
+  tenantId?: string;
+  institutionId?: string;
   title: string;
   message: string;
   priority: AnnouncementPriority;

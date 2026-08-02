@@ -2,6 +2,8 @@ export type TimetableEntryStatus = "scheduled" | "cancelled" | "completed";
 
 export interface TimetableEntry {
   id: string;
+  tenantId?: string;
+  institutionId?: string;
   programmeId?: string;
   programmeTitle?: string;
   courseUnitId: string;

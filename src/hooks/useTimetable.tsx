@@ -4,13 +4,13 @@ import {
   getTimetableEntries,
   saveTimetableEntry,
 } from "../firebase/timetable";
-import useAuth from "./useAuth";
+import useAccessScope from "./useAccessScope";
 import type { TimetableEntry } from "../models/Timetable";
 
 type NewEntry = Omit<TimetableEntry, "id" | "createdAt" | "updatedAt">;
 
 export default function useTimetable() {
-  const { currentUser, role } = useAuth();
+  const accessScope = useAccessScope();
   const [entries, setEntries] = useState<TimetableEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,14 +19,15 @@ export default function useTimetable() {
     try {
       setLoading(true);
       setError(null);
-      setEntries(await getTimetableEntries({ role: role ?? undefined, uid: currentUser?.uid }));
+      if (!accessScope) return;
+      setEntries(await getTimetableEntries(accessScope));
     } catch (caughtError) {
       console.error("Failed to load timetable:", caughtError);
       setError(caughtError instanceof Error ? caughtError.message : "Failed to load timetable.");
     } finally {
       setLoading(false);
     }
-  }, [currentUser?.uid, role]);
+  }, [accessScope]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -37,7 +38,7 @@ export default function useTimetable() {
   }, [loadEntries]);
 
   async function saveEntry(entry: NewEntry, entryId?: string) {
-    await saveTimetableEntry(entry, entryId);
+    await saveTimetableEntry(entry, entryId, accessScope ?? undefined);
     await loadEntries();
   }
 
