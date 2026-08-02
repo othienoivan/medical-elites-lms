@@ -712,6 +712,105 @@ export const reviewFinanceWithdrawal = onCall({ region: "us-central1", timeoutSe
   return { status };
 });
 
+
+export const completeFinanceWithdrawal = onCall({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Please sign in.");
+  await assertFinancePlatformAdmin(request.auth.uid);
+
+  const data = (request.data ?? {}) as Record<string, unknown>;
+  const withdrawalId = financeText(data.withdrawalId, 160);
+  const externalReference = financeText(data.externalReference, 180);
+  if (!withdrawalId || !externalReference) {
+    throw new HttpsError("invalid-argument", "Withdrawal and external payment reference are required.");
+  }
+
+  const command = await claimFinanceCommand(
+    request.auth.uid,
+    "complete_withdrawal",
+    data.idempotencyKey
+  );
+  const withdrawalRef = db.collection("withdrawals").doc(withdrawalId);
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const withdrawal = await transaction.get(withdrawalRef);
+      if (!withdrawal.exists || !["approved", "processing"].includes(String(withdrawal.get("status") ?? ""))) {
+        throw new HttpsError("failed-precondition", "Withdrawal must be approved before it can be marked paid.");
+      }
+
+      const walletRef = db.collection("wallets").doc(String(withdrawal.get("walletId") ?? ""));
+      const wallet = await transaction.get(walletRef);
+      if (!wallet.exists) throw new HttpsError("not-found", "Wallet was not found.");
+
+      const amount = Number(withdrawal.get("amount.amount") ?? 0);
+      const currency = String(withdrawal.get("amount.currency") ?? wallet.get("currency") ?? "UGX");
+      const frozen = Number(wallet.get("frozenBalance") ?? 0);
+      const lifetimeDebits = Number(wallet.get("lifetimeDebits") ?? 0);
+      if (!Number.isSafeInteger(amount) || amount <= 0 || frozen < amount) {
+        throw new HttpsError("failed-precondition", "Reserved wallet funds are insufficient for this payout.");
+      }
+
+      const journalRef = db.collection("journals").doc();
+      const period = financePeriod();
+      const ownerId = String(withdrawal.get("ownerId") ?? wallet.get("ownerId") ?? "");
+      const lines = [
+        { accountId: `wallet_liability_${walletRef.id}`, walletId: walletRef.id, ownerId, direction: "debit", amount, memo: `Payout ${externalReference}` },
+        { accountId: "platform_cash_clearing", direction: "credit", amount, memo: `Payout ${externalReference}` },
+      ];
+
+      transaction.update(walletRef, {
+        frozenBalance: frozen - amount,
+        lifetimeDebits: lifetimeDebits + amount,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      transaction.update(withdrawalRef, {
+        status: "paid",
+        externalReference,
+        paidAt: FieldValue.serverTimestamp(),
+        paidBy: request.auth!.uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      transaction.create(journalRef, {
+        reference: `payout:${withdrawalId}`,
+        idempotencyKey: financeText(data.idempotencyKey, 140),
+        eventType: "withdrawal.paid",
+        currency,
+        accountingPeriod: period,
+        lines,
+        status: "posted",
+        createdBy: request.auth!.uid,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      lines.forEach((line) => transaction.create(db.collection("ledgerEntries").doc(), {
+        ...line,
+        journalId: journalRef.id,
+        reference: `payout:${withdrawalId}`,
+        currency,
+        accountingPeriod: period,
+        createdAt: FieldValue.serverTimestamp(),
+      }));
+      transaction.create(db.collection("platformAuditLogs").doc(), {
+        action: "finance.withdrawal.paid",
+        actorUserId: request.auth!.uid,
+        targetType: "withdrawal",
+        targetId: withdrawalId,
+        metadata: { walletId: walletRef.id, amount, currency, externalReference },
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      transaction.update(command, {
+        status: "completed",
+        withdrawalId,
+        journalId: journalRef.id,
+        completedAt: FieldValue.serverTimestamp(),
+      });
+    });
+    return { status: "paid" };
+  } catch (error) {
+    await command.set({ status: "failed", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    throw error;
+  }
+});
+
 export const upsertFinanceCommissionRule = onCall({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Please sign in."); await assertFinancePlatformAdmin(request.auth.uid);
   const data = (request.data ?? {}) as { rule?: Record<string, unknown>; idempotencyKey?: unknown }; const rule = data.rule ?? {}; const scope = financeText(rule.scope, 20) || "global"; const scopeId = financeText(rule.scopeId, 128) || (scope === "global" ? "global" : "");

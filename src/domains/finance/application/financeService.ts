@@ -1,5 +1,5 @@
 import { accountingPeriodFor, assertBalancedJournal, selectCommissionRule, splitRevenue, type CommissionRule, type CurrencyCode, type JournalLine } from "../domain/finance";
-import { createWallet, distributeRevenue, listFinanceRecords, listOwnerWallets, listOwnerWithdrawals, requestWithdrawal, reviewWithdrawal, upsertCommissionRule, type FinanceCollection } from "../infrastructure/financeRepository";
+import { completeWithdrawal, createWallet, distributeRevenue, listFinanceRecords, listOwnerWallets, listOwnerWithdrawals, requestWithdrawal, reviewWithdrawal, upsertCommissionRule, type FinanceCollection } from "../infrastructure/financeRepository";
 export const FinanceService = {
   list: <T extends { id: string }>(collection: FinanceCollection) => listFinanceRecords<T>(collection),
   listOwnerWallets,
@@ -8,6 +8,7 @@ export const FinanceService = {
   distributeRevenue,
   requestWithdrawal,
   reviewWithdrawal,
+  completeWithdrawal,
   upsertCommissionRule,
   validateJournal: (lines: JournalLine[]) => assertBalancedJournal(lines),
   calculateSplit: (amount: number, rule: CommissionRule) => splitRevenue(amount, rule),
