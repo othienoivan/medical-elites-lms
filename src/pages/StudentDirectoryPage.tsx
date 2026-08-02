@@ -5,6 +5,7 @@ import {
   Search,
   User,
   UserPlus,
+  Upload,
   Users,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -79,13 +80,23 @@ export default function StudentDirectoryPage() {
             </p>
           </div>
 
-          <Button
-            className="bg-white text-blue-700 hover:bg-blue-50"
-            onClick={() => navigate("/tutor/students/register")}
-          >
-            <UserPlus size={18} />
-            Register Student
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              variant="outline"
+              className="border-white text-white hover:bg-white/10"
+              onClick={() => navigate("/tutor/students/import")}
+            >
+              <Upload size={18} />
+              Bulk Import
+            </Button>
+            <Button
+              className="bg-white text-blue-700 hover:bg-blue-50"
+              onClick={() => navigate("/tutor/students/register")}
+            >
+              <UserPlus size={18} />
+              Register Student
+            </Button>
+          </div>
         </div>
       </section>
 
@@ -205,20 +216,23 @@ export default function StudentDirectoryPage() {
                   </p>
                 </div>
 
-                <div className="mt-5 grid gap-3 md:grid-cols-2">
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
                   <Button
                     variant="outline"
-                    onClick={() =>
-                      navigate(`/tutor/student-profile/${student.id}`)
-                    }
+                    onClick={() => navigate(`/tutor/student-profile/${student.id}`)}
                   >
                     View Profile
                   </Button>
 
                   <Button
-                    onClick={() =>
-                      navigate(`/tutor/student-transcript/${student.id}`)
-                    }
+                    variant="outline"
+                    onClick={() => navigate(`/tutor/students/${student.id}/edit`)}
+                  >
+                    Edit Profile
+                  </Button>
+
+                  <Button
+                    onClick={() => navigate(`/tutor/student-transcript/${student.id}`)}
                   >
                     Transcript
                   </Button>

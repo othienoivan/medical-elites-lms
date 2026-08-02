@@ -26,12 +26,15 @@ export default function ClinicalLogbookPage() {
     const count = (status: ClinicalEntryStatus) =>
       entries.filter((entry) => entry.status === status).length;
 
+    const approvedEntries = entries.filter((entry) => entry.status === "approved");
     return {
       total: entries.length,
       approved: count("approved"),
       pending: count("submitted"),
       returned: count("returned"),
       rejected: count("rejected"),
+      approvedHours: approvedEntries.reduce((sum, entry) => sum + (Number(entry.clinicalHours) || 0), 0),
+      competent: approvedEntries.filter((entry) => entry.competencyLevel === "competent" || entry.competencyLevel === "proficient").length,
     };
   }, [entries]);
 
@@ -56,12 +59,12 @@ export default function ClinicalLogbookPage() {
           </div>
         </section>
 
-        <section className="mt-8 grid gap-4 md:grid-cols-5">
+        <section className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-7">
           <StatCard title="Total" value={stats.total} icon={Activity} />
           <StatCard title="Approved" value={stats.approved} icon={CheckCircle2} />
           <StatCard title="Pending" value={stats.pending} icon={Clock3} />
           <StatCard title="Returned" value={stats.returned} icon={RotateCcw} />
-          <StatCard title="Rejected" value={stats.rejected} icon={XCircle} />
+          <StatCard title="Rejected" value={stats.rejected} icon={XCircle} /><StatCard title="Approved Hours" value={stats.approvedHours} icon={Clock3} /><StatCard title="Competent" value={stats.competent} icon={CheckCircle2} />
         </section>
 
         {error && (
@@ -84,7 +87,7 @@ export default function ClinicalLogbookPage() {
                   <th className="px-5 py-4">Date</th>
                   <th className="px-5 py-4">Procedure</th>
                   <th className="px-5 py-4">Site / Department</th>
-                  <th className="px-5 py-4">Supervisor</th>
+                  <th className="px-5 py-4">Supervisor</th><th className="px-5 py-4">Participation / Hours</th>
                   <th className="px-5 py-4">Status</th>
                   <th className="px-5 py-4">Tutor Comment</th>
                 </tr>
@@ -114,8 +117,8 @@ function EntryRow({ entry }: { entry: ClinicalLogbookEntry }) {
         {entry.clinicalSite}
         <span className="block text-sm">{entry.department}</span>
       </td>
-      <td className="px-5 py-4 text-slate-600">{entry.supervisorName || "Not recorded"}</td>
-      <td className="px-5 py-4"><StatusBadge status={entry.status} /></td>
+      <td className="px-5 py-4 text-slate-600">{entry.supervisorName || "Not recorded"}</td><td className="px-5 py-4 text-slate-600 capitalize">{(entry.participationLevel || "not set").replaceAll("-", " ")}<span className="block text-sm">{entry.clinicalHours || 0} hour(s)</span></td>
+      <td className="px-5 py-4"><StatusBadge status={entry.status} /><span className="mt-2 block text-xs capitalize text-slate-500">{(entry.competencyLevel || "not-assessed").replaceAll("-", " ")}</span></td>
       <td className="max-w-sm px-5 py-4 text-sm text-slate-600">
         {entry.tutorComment || "—"}
       </td>

@@ -1,0 +1,17 @@
+import { CreditCard, ShoppingCart, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import useAuth from "../../hooks/useAuth";
+import { MarketplaceCommerceService, type MarketplaceCart } from "../../domains/marketplace";
+
+function money(amount:number,currency:string){return new Intl.NumberFormat("en-UG",{style:"currency",currency,maximumFractionDigits:0}).format(amount)}
+
+export default function MarketplaceCartPage(){
+  const {currentUser}=useAuth(); const navigate=useNavigate(); const [cart,setCart]=useState<MarketplaceCart|null>(null); const [loading,setLoading]=useState(true); const [error,setError]=useState<string|null>(null);
+  async function reload(){if(!currentUser)return;setLoading(true);try{setCart(await MarketplaceCommerceService.getCart(currentUser.uid));}catch(cause){console.error(cause);setError("Unable to load your cart.");}finally{setLoading(false)}}
+  useEffect(()=>{void reload()},[currentUser]);
+  const total=useMemo(()=>cart?.items.reduce((sum,item)=>sum+(item.price.amount*item.quantity),0)??0,[cart]);
+  async function remove(productId:string){if(!currentUser)return;await MarketplaceCommerceService.removeFromCart(currentUser.uid,productId);await reload()}
+  if(loading)return <div className="p-12 text-center">Loading cart…</div>;
+  return <div className="min-h-screen bg-slate-50"><main className="mx-auto max-w-6xl px-4 py-10"><div className="flex items-center gap-3"><ShoppingCart className="text-cyan-700"/><h1 className="text-3xl font-black">Shopping cart</h1></div>{error&&<p className="mt-4 rounded-xl bg-red-50 p-4 text-red-700">{error}</p>}{!cart||cart.items.length===0?<div className="mt-8 rounded-3xl border bg-white p-12 text-center"><h2 className="text-2xl font-black">Your cart is empty</h2><Link className="mt-4 inline-block font-bold text-cyan-700" to="/marketplace">Browse marketplace</Link></div>:<div className="mt-8 grid gap-8 lg:grid-cols-[1fr_340px]"><section className="space-y-4">{cart.items.map(item=><article key={item.productId} className="flex gap-4 rounded-2xl border bg-white p-5"><div className="h-24 w-32 overflow-hidden rounded-xl bg-cyan-50">{item.thumbnailUrl&&<img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover"/>}</div><div className="min-w-0 flex-1"><Link to={`/marketplace/products/${item.productId}`} className="text-lg font-black hover:text-cyan-700">{item.title}</Link><p className="mt-1 text-sm text-slate-600">Sold by {item.sellerName}</p><p className="mt-3 font-black">{money(item.price.amount,item.price.currency)}</p></div><button aria-label="Remove item" onClick={()=>void remove(item.productId)} className="self-start rounded-lg p-2 text-red-600 hover:bg-red-50"><Trash2/></button></article>)}</section><aside className="h-fit rounded-3xl border bg-white p-6 shadow-sm"><h2 className="text-xl font-black">Order summary</h2><div className="mt-5 flex justify-between text-slate-600"><span>{cart.items.length} item(s)</span><span>{money(total,cart.items[0].price.currency)}</span></div><div className="mt-4 border-t pt-4 flex justify-between text-xl font-black"><span>Total</span><span>{money(total,cart.items[0].price.currency)}</span></div><button onClick={()=>navigate("/marketplace/checkout")} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-700 px-5 py-4 font-black text-white"><CreditCard/>Proceed to checkout</button></aside></div>}</main></div>
+}

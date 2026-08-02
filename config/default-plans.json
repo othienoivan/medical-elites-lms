@@ -1,0 +1,80 @@
+[
+  {
+    "id": "institution-starter",
+    "name": "Institution Starter",
+    "code": "INSTITUTION_STARTER",
+    "audience": "institution",
+    "billingInterval": "monthly",
+    "priceMinor": 15000000,
+    "currency": "UGX",
+    "commissionBasisPoints": 0,
+    "enabledEntitlements": ["PROFESSIONAL_EXAM_BUILDER"],
+    "limits": {"maxStudents": 100, "maxTutors": 10, "maxCourseUnits": 40, "storageBytes": 21474836480, "monthlyAiCredits": 0},
+    "isActive": true
+  },
+  {
+    "id": "institution-professional",
+    "name": "Institution Professional",
+    "code": "INSTITUTION_PROFESSIONAL",
+    "audience": "institution",
+    "billingInterval": "monthly",
+    "priceMinor": 35000000,
+    "currency": "UGX",
+    "commissionBasisPoints": 0,
+    "enabledEntitlements": ["AI_QUESTION_GENERATION", "AI_LESSON_GENERATION", "PROFESSIONAL_EXAM_BUILDER", "ERP_MODULES", "ADVANCED_ANALYTICS", "CERTIFICATE_ISSUANCE"],
+    "limits": {"maxStudents": -1, "maxTutors": -1, "maxCourseUnits": -1, "storageBytes": 107374182400, "monthlyAiCredits": 5000},
+    "isActive": true
+  },
+  {
+    "id": "tutor-free",
+    "name": "Tutor Free",
+    "code": "TUTOR_FREE",
+    "audience": "tutor",
+    "billingInterval": "none",
+    "priceMinor": 0,
+    "currency": "UGX",
+    "commissionBasisPoints": 5000,
+    "enabledEntitlements": [],
+    "limits": {"maxStudents": 30, "maxTutors": 1, "maxCourseUnits": 1, "storageBytes": 536870912, "monthlyAiCredits": 0},
+    "isActive": true
+  },
+  {
+    "id": "tutor-growth",
+    "name": "Tutor Growth",
+    "code": "TUTOR_GROWTH",
+    "audience": "tutor",
+    "billingInterval": "monthly",
+    "priceMinor": 3000000,
+    "currency": "UGX",
+    "commissionBasisPoints": 3000,
+    "enabledEntitlements": ["AI_QUESTION_GENERATION", "PROFESSIONAL_EXAM_BUILDER", "MARKETPLACE_SELLING"],
+    "limits": {"maxStudents": 250, "maxTutors": 1, "maxCourseUnits": 10, "storageBytes": 10737418240, "monthlyAiCredits": 750},
+    "isActive": true
+  },
+  {
+    "id": "tutor-professional",
+    "name": "Tutor Professional",
+    "code": "TUTOR_PROFESSIONAL",
+    "audience": "tutor",
+    "billingInterval": "monthly",
+    "priceMinor": 8000000,
+    "currency": "UGX",
+    "commissionBasisPoints": 1500,
+    "enabledEntitlements": ["AI_QUESTION_GENERATION", "AI_LESSON_GENERATION", "PROFESSIONAL_EXAM_BUILDER", "MARKETPLACE_SELLING", "ADVANCED_ANALYTICS", "CERTIFICATE_ISSUANCE"],
+    "limits": {"maxStudents": -1, "maxTutors": 1, "maxCourseUnits": -1, "storageBytes": 53687091200, "monthlyAiCredits": 3000},
+    "isActive": true
+  },
+  {
+    "id": "tutor-elite",
+    "name": "Tutor Elite",
+    "code": "TUTOR_ELITE",
+    "audience": "tutor",
+    "billingInterval": "monthly",
+    "priceMinor": 15000000,
+    "currency": "UGX",
+    "commissionBasisPoints": 0,
+    "enabledEntitlements": ["AI_QUESTION_GENERATION", "AI_LESSON_GENERATION", "PROFESSIONAL_EXAM_BUILDER", "MARKETPLACE_SELLING", "ERP_MODULES", "ADVANCED_ANALYTICS", "CERTIFICATE_ISSUANCE", "WHITE_LABEL"],
+    "limits": {"maxStudents": -1, "maxTutors": 1, "maxCourseUnits": -1, "storageBytes": 107374182400, "monthlyAiCredits": 10000},
+    "isActive": true
+  }
+]

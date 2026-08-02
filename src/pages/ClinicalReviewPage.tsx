@@ -8,7 +8,7 @@ import Card from "../components/ui/Card";
 import { createNotification } from "../firebase/notifications";
 import { getClinicalEntryById, reviewClinicalEntry } from "../firebase/clinicalLogbook";
 import useAuth from "../hooks/useAuth";
-import type { ClinicalLogbookEntry } from "../models/ClinicalLogbook";
+import type { ClinicalLogbookEntry, CompetencyLevel } from "../models/ClinicalLogbook";
 
 export default function ClinicalReviewPage() {
   const { entryId = "" } = useParams();
@@ -18,6 +18,8 @@ export default function ClinicalReviewPage() {
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [competencyLevel, setCompetencyLevel] = useState<CompetencyLevel>("competent");
+  const [scores, setScores] = useState({ communication: 3, reasoning: 3, professionalism: 3, procedural: 3 });
 
   useEffect(() => {
     void getClinicalEntryById(entryId).then((result) => {
@@ -41,6 +43,11 @@ export default function ClinicalReviewPage() {
         tutorComment: comment,
         reviewedByUid: currentUser.uid,
         reviewedByName: userProfile?.fullName || currentUser.email || "Tutor",
+        competencyLevel,
+        communicationScore: scores.communication,
+        clinicalReasoningScore: scores.reasoning,
+        professionalismScore: scores.professionalism,
+        proceduralSkillScore: scores.procedural,
       });
       await createNotification({
         userUid: entry.studentAuthUid,
@@ -74,17 +81,19 @@ export default function ClinicalReviewPage() {
             <div className="mt-6 grid gap-4 md:grid-cols-2">
               <Info label="Date" value={entry.procedureDate} /><Info label="Clinical Site" value={entry.clinicalSite} />
               <Info label="Department" value={entry.department || "Not set"} /><Info label="Supervisor" value={entry.supervisorName || "Not set"} />
-              <Info label="Patient Age Group" value={entry.patientAgeGroup} /><Info label="Patient Sex" value={entry.patientSex} />
+              <Info label="Patient Age Group" value={entry.patientAgeGroup} /><Info label="Patient Sex" value={entry.patientSex} /><Info label="Participation" value={entry.participationLevel || "Not set"} /><Info label="Clinical Hours" value={String(entry.clinicalHours || 0)} />
             </div>
           </Card>
           <DetailCard title="Indication / Clinical Reason" value={entry.indication} />
           <DetailCard title="Outcome" value={entry.outcome} />
-          <DetailCard title="Student Reflection" value={entry.reflection} />
+          <DetailCard title="Learning Outcomes" value={(entry.learningOutcomes || []).join("\n")} /><DetailCard title="Student Reflection" value={entry.reflection} />
         </div>
 
         <Card className="h-fit">
           <h2 className="text-xl font-bold text-slate-950">Tutor Verification</h2>
           <p className="mt-2 text-sm text-slate-600">Provide constructive feedback without adding patient-identifying information.</p>
+          <label className="mt-5 block text-sm font-semibold text-slate-700">Competency Level<select value={competencyLevel} onChange={(e) => setCompetencyLevel(e.target.value as CompetencyLevel)} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3"><option value="needs-improvement">Needs improvement</option><option value="developing">Developing</option><option value="competent">Competent</option><option value="proficient">Proficient</option></select></label>
+          <div className="mt-4 grid gap-3">{[["Communication","communication"],["Clinical reasoning","reasoning"],["Professionalism","professionalism"],["Procedural skill","procedural"]].map(([label,key]) => <label key={key} className="text-sm font-semibold text-slate-700">{label} (1–5)<input type="number" min="1" max="5" value={scores[key as keyof typeof scores]} onChange={(e)=>setScores(current=>({...current,[key]:Math.max(1,Math.min(5,Number(e.target.value)||1))}))} className="mt-1 w-full rounded-xl border border-slate-300 px-4 py-2"/></label>)}</div>
           <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={8} placeholder="Tutor comments..." className="mt-5 w-full rounded-xl border border-slate-300 px-4 py-3" />
           <div className="mt-5 grid gap-3">
             <Button disabled={saving} variant="success" onClick={() => handleReview("approved")}><CheckCircle2 size={18} /> Approve Entry</Button>

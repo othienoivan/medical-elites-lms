@@ -1,14 +1,31 @@
 {
   "name": "medical-elites-lms",
   "private": true,
-  "version": "1.0.0-rc.3",
+  "version": "3.0.0-rc.5.final",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false",
+    "test": "node --test tests/*.test.mjs",
+    "validate:release": "node scripts/validate-release.mjs",
+    "validate:env": "node scripts/check-env.mjs",
+    "release:check": "npm run validate:platform && npm run validate:domain && npm run validate:release && npm run validate:performance && npm test && npm run typecheck && npm run build && npm run analyze:bundle",
+    "stabilize": "npm run validate:env && npm run validate:release && npm test && npm run typecheck && npm run build",
+    "validate:platform": "node scripts/validate-platform-baseline.mjs",
+    "test:security-baseline": "node --test tests/v3-platform-security-baseline.test.mjs",
+    "test:platform-layer": "node --test tests/v3-rc3-platform-layer.test.mjs",
+    "validate:domain": "node scripts/validate-domain-boundaries.mjs",
+    "test:finance-core": "node --test tests/rc4-finance-core.test.mjs",
+    "test:security-hardening": "node --test tests/phs1-security-hardening.test.mjs",
+    "analyze:bundle": "node scripts/analyze-bundle.mjs",
+    "validate:performance": "node scripts/validate-performance-budget.mjs",
+    "test:wallet-engine": "node --test tests/rc4-wallet-revenue-sharing.test.mjs",
+    "test:marketplace-foundation": "node --test tests/rc5-marketplace-foundation.test.mjs",
+    "test:marketplace-commerce": "node --test tests/rc5-marketplace-commerce.test.mjs",
+    "test:marketplace-final": "node --test tests/rc5-marketplace-final.test.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -21,14 +38,17 @@
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.23.0",
-    "pptx-preview": "^1.0.7",
+    "mammoth": "^1.12.0",
+    "pdfjs-dist": "^6.1.200",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-icons": "^5.7.0",
     "react-router-dom": "^7.18.1",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.2",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "@tiptap/extension-link": "^3.27.1",
+    "@tiptap/extension-underline": "^3.27.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
