@@ -171,10 +171,17 @@ export async function deleteQuizDraftAttempt({
  * Get every completed quiz attempt.
  * Intended for tutor and administrator dashboards.
  */
-export async function getAllQuizAttempts(): Promise<QuizAttempt[]> {
-  const snapshot = await getDocs(collection(db, COLLECTION));
+export async function getAllQuizAttempts(tutorUid: string): Promise<QuizAttempt[]> {
+  if (!tutorUid) return [];
+  const snapshots = await Promise.allSettled([
+    getDocs(query(collection(db, COLLECTION), where("tutorUid", "==", tutorUid))),
+    getDocs(query(collection(db, COLLECTION), where("createdByUid", "==", tutorUid))),
+    getDocs(query(collection(db, COLLECTION), where("ownerUserId", "==", tutorUid))),
+  ]);
+  const documents = snapshots.flatMap((result) => result.status === "fulfilled" ? result.value.docs : []);
+  const unique = [...new Map(documents.map((item) => [item.id, item])).values()];
 
-  return snapshot.docs
+  return unique
     .map((docSnap) => ({
       ...(docSnap.data() as QuizAttempt),
       id: docSnap.id,

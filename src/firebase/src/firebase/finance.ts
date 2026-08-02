@@ -82,9 +82,10 @@ export async function createFeeStructure(
   return reference.id;
 }
 
-export async function getFeeStructures(): Promise<FeeStructure[]> {
+export async function getFeeStructures(tutorUid: string): Promise<FeeStructure[]> {
+  if (!tutorUid) return [];
   const snapshot = await getDocs(
-    query(collection(db, FEE_STRUCTURES), orderBy("createdAt", "desc"))
+    query(collection(db, FEE_STRUCTURES), where("createdByUid", "==", tutorUid), orderBy("createdAt", "desc"))
   );
   return snapshot.docs.map((item) => feeFromSnapshot(item.id, item.data()));
 }
@@ -117,9 +118,10 @@ export async function createStudentInvoice(
   return reference.id;
 }
 
-export async function getStudentInvoices(): Promise<StudentInvoice[]> {
+export async function getStudentInvoices(tutorUid: string): Promise<StudentInvoice[]> {
+  if (!tutorUid) return [];
   const snapshot = await getDocs(
-    query(collection(db, INVOICES), orderBy("issuedAt", "desc"))
+    query(collection(db, INVOICES), where("issuedByUid", "==", tutorUid), orderBy("issuedAt", "desc"))
   );
   return snapshot.docs.map((item) => invoiceFromSnapshot(item.id, item.data()));
 }
@@ -202,9 +204,10 @@ export async function recordFinancePayment(
   return paymentRef.id;
 }
 
-export async function getFinancePayments(): Promise<FinancePayment[]> {
+export async function getFinancePayments(tutorUid: string): Promise<FinancePayment[]> {
+  if (!tutorUid) return [];
   const snapshot = await getDocs(
-    query(collection(db, PAYMENTS), orderBy("createdAt", "desc"))
+    query(collection(db, PAYMENTS), where("receivedByUid", "==", tutorUid), orderBy("createdAt", "desc"))
   );
   return snapshot.docs.map((item) => paymentFromSnapshot(item.id, item.data()));
 }

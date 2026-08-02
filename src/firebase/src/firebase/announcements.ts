@@ -8,6 +8,7 @@ import {
   query,
   serverTimestamp,
   updateDoc,
+  where,
 } from "firebase/firestore";
 
 import { db } from "../config/firebase";
@@ -47,10 +48,11 @@ function fromSnapshot(id: string, data: Record<string, unknown>): Announcement {
   };
 }
 
-export async function getAnnouncements(): Promise<Announcement[]> {
-  const snapshot = await getDocs(
-    query(collection(db, COLLECTION), orderBy("createdAt", "desc"))
-  );
+export async function getAnnouncements(options?: { role?: string; uid?: string }): Promise<Announcement[]> {
+  const source = options?.role === "tutor" && options.uid
+    ? query(collection(db, COLLECTION), where("createdByUid", "==", options.uid), orderBy("createdAt", "desc"))
+    : query(collection(db, COLLECTION), orderBy("createdAt", "desc"));
+  const snapshot = await getDocs(source);
   return snapshot.docs.map((item) => fromSnapshot(item.id, item.data()));
 }
 

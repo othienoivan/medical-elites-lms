@@ -28,7 +28,7 @@ export const platformCollections = {
   announcements: "platformAnnouncements",
   usage: "platformUsage",
   roadmap: "roadmapItems",
-  licenses: "licenseGrants",
+  licenses: "subscriptions",
   settings: "platformSettings",
 } as const satisfies Record<string, PlatformCollectionName>;
 

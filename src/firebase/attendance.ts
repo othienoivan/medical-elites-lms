@@ -83,9 +83,10 @@ function recordFromSnapshot(
   };
 }
 
-export async function getAttendanceSessions(): Promise<AttendanceSession[]> {
+export async function getAttendanceSessions(tutorUid: string): Promise<AttendanceSession[]> {
+  if (!tutorUid) return [];
   const snapshot = await getDocs(
-    query(collection(db, SESSION_COLLECTION), orderBy("sessionDate", "desc"))
+    query(collection(db, SESSION_COLLECTION), where("markedByUid", "==", tutorUid), orderBy("sessionDate", "desc"))
   );
 
   return snapshot.docs.map((item) =>

@@ -2,6 +2,7 @@ import type { Timestamp } from "firebase/firestore";
 
 export type PlanAudience = "institution" | "tutor" | "student";
 export type BillingInterval = "monthly" | "annual" | "none";
+export type PlanStatus = "draft" | "active" | "retired";
 
 export const ENTITLEMENT_KEYS = [
   "AI_QUESTION_GENERATION",
@@ -36,6 +37,9 @@ export interface Plan {
   enabledEntitlements: EntitlementKey[];
   limits: PlanLimits;
   isActive: boolean;
+  status?: PlanStatus;
+  trialDays?: number;
+  description?: string;
   createdAt?: Date | Timestamp | null;
   updatedAt?: Date | Timestamp | null;
 }
@@ -44,7 +48,7 @@ export interface TenantSubscription {
   id: string;
   tenantId: string;
   planId: string;
-  status: "trialing" | "active" | "past_due" | "cancelled" | "expired";
+  status: "trialing" | "active" | "past_due" | "cancelled" | "expired" | "suspended";
   currentPeriodStart?: Date | Timestamp | null;
   currentPeriodEnd?: Date | Timestamp | null;
   trialEndsAt?: Date | Timestamp | null;

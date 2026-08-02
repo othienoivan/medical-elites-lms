@@ -4,11 +4,13 @@ import {
   getTimetableEntries,
   saveTimetableEntry,
 } from "../firebase/timetable";
+import useAuth from "./useAuth";
 import type { TimetableEntry } from "../models/Timetable";
 
 type NewEntry = Omit<TimetableEntry, "id" | "createdAt" | "updatedAt">;
 
 export default function useTimetable() {
+  const { currentUser, role } = useAuth();
   const [entries, setEntries] = useState<TimetableEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,14 +19,14 @@ export default function useTimetable() {
     try {
       setLoading(true);
       setError(null);
-      setEntries(await getTimetableEntries());
+      setEntries(await getTimetableEntries({ role: role ?? undefined, uid: currentUser?.uid }));
     } catch (caughtError) {
       console.error("Failed to load timetable:", caughtError);
       setError(caughtError instanceof Error ? caughtError.message : "Failed to load timetable.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser?.uid, role]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

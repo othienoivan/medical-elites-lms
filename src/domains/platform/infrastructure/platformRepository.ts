@@ -25,6 +25,7 @@ export type PlatformCollectionName =
   | "platformUsage"
   | "roadmapItems"
   | "licenseGrants"
+  | "subscriptions"
   | "platformSettings";
 
 function clean<T extends Record<string, unknown>>(value: T): T {

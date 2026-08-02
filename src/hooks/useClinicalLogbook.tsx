@@ -45,6 +45,7 @@ export function useStudentClinicalLogbook() {
 }
 
 export function useTutorClinicalLogbook() {
+  const { currentUser } = useAuth();
   const [entries, setEntries] = useState<ClinicalLogbookEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,13 +54,13 @@ export function useTutorClinicalLogbook() {
     try {
       setLoading(true);
       setError(null);
-      setEntries(await getAllClinicalEntries());
+      setEntries(currentUser ? await getAllClinicalEntries(currentUser.uid) : []);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Failed to load clinical entries.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

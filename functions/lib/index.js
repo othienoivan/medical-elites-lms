@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.assignTenantOwner = exports.updateTenantStatus = exports.updateTenantProfile = exports.createTenant = exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.submitQuizAttempt = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = void 0;
+exports.updateTenantSubscriptionStatus = exports.assignTenantSubscription = exports.saveSubscriptionPlan = exports.assignTenantOwner = exports.updateTenantStatus = exports.updateTenantProfile = exports.createTenant = exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.submitQuizAttempt = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = void 0;
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
@@ -1666,5 +1666,125 @@ exports.assignTenantOwner = (0, https_1.onCall)({ region: "us-central1", timeout
     await batch.commit();
     await writePlatformAudit(actor, "tenant.owner_assigned", tenantId, "Assigned tenant owner.", { ownerUserId });
     return { tenantId, ownerUserId };
+});
+const PLAN_AUDIENCES = new Set(["institution", "tutor", "student"]);
+const PLAN_STATUSES = new Set(["draft", "active", "retired"]);
+const BILLING_INTERVALS = new Set(["monthly", "annual", "none"]);
+const SUBSCRIPTION_STATUSES = new Set(["trialing", "active", "past_due", "cancelled", "expired", "suspended"]);
+const PLAN_ENTITLEMENTS = new Set([
+    "AI_QUESTION_GENERATION", "AI_LESSON_GENERATION", "PROFESSIONAL_EXAM_BUILDER",
+    "MARKETPLACE_SELLING", "ERP_MODULES", "ADVANCED_ANALYTICS", "CERTIFICATE_ISSUANCE", "WHITE_LABEL",
+]);
+function validatedFiniteNumber(value, field, minimum = 0, maximum = Number.MAX_SAFE_INTEGER) {
+    const number = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(number) || number < minimum || number > maximum) {
+        throw new https_1.HttpsError("invalid-argument", `${field} must be between ${minimum} and ${maximum}.`);
+    }
+    return Math.round(number);
+}
+function stringArray(value, allowed, field) {
+    if (!Array.isArray(value))
+        throw new https_1.HttpsError("invalid-argument", `${field} must be an array.`);
+    const clean = [...new Set(value.map((item) => String(item).trim()).filter(Boolean))];
+    if (clean.some((item) => !allowed.has(item)))
+        throw new https_1.HttpsError("invalid-argument", `${field} contains an unsupported value.`);
+    return clean;
+}
+exports.saveSubscriptionPlan = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+    const actor = await assertPlatformSuperAdmin(request);
+    const data = (request.data ?? {});
+    const name = requiredString(data.name, "Plan name", 160);
+    const code = requiredString(data.code, "Plan code", 80).toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_|_$/g, "");
+    const audience = requiredString(data.audience, "Audience", 40);
+    const status = requiredString(data.status, "Status", 40);
+    const billingInterval = requiredString(data.billingInterval, "Billing interval", 40);
+    if (!PLAN_AUDIENCES.has(audience) || !PLAN_STATUSES.has(status) || !BILLING_INTERVALS.has(billingInterval)) {
+        throw new https_1.HttpsError("invalid-argument", "Unsupported plan configuration.");
+    }
+    const limitsData = typeof data.limits === "object" && data.limits ? data.limits : {};
+    const limits = {
+        maxStudents: validatedFiniteNumber(limitsData.maxStudents, "Maximum students", 0, 1_000_000),
+        maxTutors: validatedFiniteNumber(limitsData.maxTutors, "Maximum tutors", 0, 100_000),
+        maxCourseUnits: validatedFiniteNumber(limitsData.maxCourseUnits, "Maximum course units", 0, 100_000),
+        storageBytes: validatedFiniteNumber(limitsData.storageBytes, "Storage bytes", 0, 10 * 1024 ** 4),
+        monthlyAiCredits: validatedFiniteNumber(limitsData.monthlyAiCredits, "Monthly AI credits", 0, 100_000_000),
+    };
+    const payload = {
+        name, code, audience, status, billingInterval,
+        priceMinor: validatedFiniteNumber(data.priceMinor, "Price", 0, 10_000_000_000),
+        currency: requiredString(data.currency, "Currency", 10).toUpperCase(),
+        commissionBasisPoints: validatedFiniteNumber(data.commissionBasisPoints, "Commission", 0, 10_000),
+        enabledEntitlements: stringArray(data.enabledEntitlements, PLAN_ENTITLEMENTS, "Entitlements"),
+        limits, trialDays: validatedFiniteNumber(data.trialDays ?? 0, "Trial days", 0, 365),
+        description: optionalString(data.description, 1000), isActive: status === "active",
+        updatedAt: firestore_1.FieldValue.serverTimestamp(), updatedByUid: actor.uid,
+    };
+    const requestedId = optionalString(data.planId, 128);
+    const planRef = requestedId ? db.collection("plans").doc(requestedId) : db.collection("plans").doc(code);
+    const duplicate = await db.collection("plans").where("code", "==", code).limit(2).get();
+    if (duplicate.docs.some((item) => item.id !== planRef.id))
+        throw new https_1.HttpsError("already-exists", "A plan with this code already exists.");
+    await planRef.set({ ...payload, createdAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    await db.collection("platformAuditLogs").add({ actorUid: actor.uid, actorName: actor.name, action: "plan.saved", entityType: "plan", entityId: planRef.id, summary: `Saved subscription plan ${name}.`, metadata: { code, audience, status }, createdAt: firestore_1.FieldValue.serverTimestamp() });
+    return { planId: planRef.id };
+});
+function subscriptionPeriod(interval, trialDays) {
+    const start = new Date();
+    const end = new Date(start);
+    if (trialDays > 0)
+        end.setUTCDate(end.getUTCDate() + trialDays);
+    else if (interval === "annual")
+        end.setUTCFullYear(end.getUTCFullYear() + 1);
+    else if (interval === "monthly")
+        end.setUTCMonth(end.getUTCMonth() + 1);
+    else
+        end.setUTCFullYear(end.getUTCFullYear() + 100);
+    return { start, end };
+}
+exports.assignTenantSubscription = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+    const actor = await assertPlatformSuperAdmin(request);
+    const data = (request.data ?? {});
+    const tenantId = requiredString(data.tenantId, "Tenant ID", 128);
+    const planId = requiredString(data.planId, "Plan ID", 128);
+    const requestedStatus = optionalString(data.status, 40) ?? "trialing";
+    if (!new Set(["trialing", "active"]).has(requestedStatus))
+        throw new https_1.HttpsError("invalid-argument", "Subscription must start as trialing or active.");
+    const [tenant, plan] = await Promise.all([db.collection("tenants").doc(tenantId).get(), db.collection("plans").doc(planId).get()]);
+    if (!tenant.exists)
+        throw new https_1.HttpsError("not-found", "Tenant not found.");
+    if (!plan.exists || plan.get("status") !== "active")
+        throw new https_1.HttpsError("failed-precondition", "Choose an active subscription plan.");
+    const trialDays = requestedStatus === "trialing" ? validatedFiniteNumber(data.trialDays ?? plan.get("trialDays") ?? 0, "Trial days", 0, 365) : 0;
+    const period = subscriptionPeriod(String(plan.get("billingInterval") ?? "monthly"), trialDays);
+    const subscriptionId = tenantId;
+    const batch = db.batch();
+    const subscriptionRef = db.collection("subscriptions").doc(subscriptionId);
+    batch.set(subscriptionRef, { tenantId, planId, status: requestedStatus, currentPeriodStart: period.start.toISOString(), currentPeriodEnd: period.end.toISOString(), trialEndsAt: trialDays > 0 ? period.end.toISOString() : null, cancelAtPeriodEnd: false, source: "manual", updatedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    batch.update(tenant.ref, { planId, subscriptionStatus: requestedStatus, trialEndsAt: trialDays > 0 ? period.end.toISOString() : null, status: requestedStatus === "trialing" ? "trial" : "active", updatedAt: firestore_1.FieldValue.serverTimestamp(), updatedByUid: actor.uid });
+    batch.set(db.collection("licenseGrants").doc(subscriptionId), { tenantId, planId, status: requestedStatus === "trialing" ? "trial" : "active", source: requestedStatus === "trialing" ? "trial" : "manual", startsAt: period.start.toISOString(), endsAt: period.end.toISOString(), updatedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    await batch.commit();
+    await writePlatformAudit(actor, "subscription.assigned", tenantId, `Assigned plan ${planId}.`, { planId, status: requestedStatus, trialDays });
+    return { subscriptionId, status: requestedStatus };
+});
+exports.updateTenantSubscriptionStatus = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+    const actor = await assertPlatformSuperAdmin(request);
+    const data = (request.data ?? {});
+    const tenantId = requiredString(data.tenantId, "Tenant ID", 128);
+    const status = requiredString(data.status, "Subscription status", 40);
+    if (!SUBSCRIPTION_STATUSES.has(status) || status === "trialing")
+        throw new https_1.HttpsError("invalid-argument", "Unsupported subscription status.");
+    const subscriptionRef = db.collection("subscriptions").doc(tenantId);
+    const tenantRef = db.collection("tenants").doc(tenantId);
+    const [subscription, tenant] = await Promise.all([subscriptionRef.get(), tenantRef.get()]);
+    if (!subscription.exists || !tenant.exists)
+        throw new https_1.HttpsError("not-found", "Tenant subscription not found.");
+    const tenantStatus = status === "active" ? "active" : status === "past_due" ? "past_due" : status === "suspended" ? "suspended" : "cancelled";
+    const batch = db.batch();
+    batch.update(subscriptionRef, { status, statusReason: optionalString(data.reason, 500), updatedAt: firestore_1.FieldValue.serverTimestamp(), updatedByUid: actor.uid });
+    batch.update(tenantRef, { subscriptionStatus: status, status: tenantStatus, updatedAt: firestore_1.FieldValue.serverTimestamp(), updatedByUid: actor.uid });
+    batch.set(db.collection("licenseGrants").doc(tenantId), { status: status === "active" ? "active" : "suspended", updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    await batch.commit();
+    await writePlatformAudit(actor, "subscription.status_updated", tenantId, `Changed subscription status to ${status}.`, { status, reason: optionalString(data.reason, 500) });
+    return { subscriptionId: tenantId, status };
 });
 //# sourceMappingURL=index.js.map

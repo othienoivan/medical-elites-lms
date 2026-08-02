@@ -8,6 +8,7 @@ import {
   query,
   serverTimestamp,
   updateDoc,
+  where,
 } from "firebase/firestore";
 
 import { db } from "../config/firebase";
@@ -50,10 +51,11 @@ function fromSnapshot(id: string, data: Record<string, unknown>): TimetableEntry
   };
 }
 
-export async function getTimetableEntries(): Promise<TimetableEntry[]> {
-  const snapshot = await getDocs(
-    query(collection(db, COLLECTION), orderBy("dayOfWeek", "asc"))
-  );
+export async function getTimetableEntries(options?: { role?: string; uid?: string }): Promise<TimetableEntry[]> {
+  const source = options?.role === "tutor" && options.uid
+    ? query(collection(db, COLLECTION), where("tutorUid", "==", options.uid), orderBy("dayOfWeek", "asc"))
+    : query(collection(db, COLLECTION), orderBy("dayOfWeek", "asc"));
+  const snapshot = await getDocs(source);
   return snapshot.docs.map((item) => fromSnapshot(item.id, item.data()));
 }
 

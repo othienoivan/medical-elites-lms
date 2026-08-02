@@ -9,9 +9,11 @@ import {
   recordFinancePayment,
   updateFeeStructure,
 } from "../firebase/finance";
+import useAuth from "./useAuth";
 import type { FeeStructure, FinancePayment, StudentInvoice } from "../models/Finance";
 
 export default function useFinance() {
+  const { currentUser } = useAuth();
   const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
   const [invoices, setInvoices] = useState<StudentInvoice[]>([]);
   const [payments, setPayments] = useState<FinancePayment[]>([]);
@@ -23,9 +25,9 @@ export default function useFinance() {
       setLoading(true);
       setError(null);
       const [fees, bills, receipts] = await Promise.all([
-        getFeeStructures(),
-        getStudentInvoices(),
-        getFinancePayments(),
+        currentUser ? getFeeStructures(currentUser.uid) : Promise.resolve([]),
+        currentUser ? getStudentInvoices(currentUser.uid) : Promise.resolve([]),
+        currentUser ? getFinancePayments(currentUser.uid) : Promise.resolve([]),
       ]);
       setFeeStructures(fees);
       setInvoices(bills);
@@ -36,7 +38,7 @@ export default function useFinance() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadFinance(), 0);

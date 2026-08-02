@@ -105,9 +105,14 @@ export async function getClinicalEntriesByStudent(
     .sort((a, b) => b.procedureDate.localeCompare(a.procedureDate));
 }
 
-export async function getAllClinicalEntries(): Promise<ClinicalLogbookEntry[]> {
-  const snapshot = await getDocs(collection(db, COLLECTION));
-  return snapshot.docs
+export async function getAllClinicalEntries(tutorUid: string): Promise<ClinicalLogbookEntry[]> {
+  if (!tutorUid) return [];
+  const results = await Promise.allSettled([
+    getDocs(query(collection(db, COLLECTION), where("reviewedByUid", "==", tutorUid))),
+    getDocs(query(collection(db, COLLECTION), where("assignedTutorIds", "array-contains", tutorUid))),
+  ]);
+  const documents = results.flatMap((result) => result.status === "fulfilled" ? result.value.docs : []);
+  return [...new Map(documents.map((item) => [item.id, item])).values()]
     .map((item) => fromSnapshot(item.id, item.data()))
     .sort(
       (a, b) =>

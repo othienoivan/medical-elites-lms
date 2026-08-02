@@ -4,6 +4,7 @@ import {
   getAttendanceSessions,
   saveAttendanceSession,
 } from "../firebase/attendance";
+import useAuth from "./useAuth";
 import type { AttendanceSession } from "../models/Attendance";
 
 type NewAttendanceSession = Omit<
@@ -12,6 +13,7 @@ type NewAttendanceSession = Omit<
 >;
 
 export default function useAttendance() {
+  const { currentUser } = useAuth();
   const [sessions, setSessions] = useState<AttendanceSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +22,7 @@ export default function useAttendance() {
     try {
       setLoading(true);
       setError(null);
-      setSessions(await getAttendanceSessions());
+      setSessions(currentUser ? await getAttendanceSessions(currentUser.uid) : []);
     } catch (caughtError) {
       console.error("Failed to load attendance:", caughtError);
       setError(
@@ -31,7 +33,7 @@ export default function useAttendance() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser]);
 
   async function saveSession(
     session: NewAttendanceSession,

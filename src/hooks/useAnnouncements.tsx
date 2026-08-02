@@ -6,22 +6,24 @@ import {
   getAnnouncements,
   updateAnnouncement,
 } from "../firebase/announcements";
+import useAuth from "./useAuth";
 import type { Announcement } from "../models/Announcement";
 
 type NewAnnouncement = Omit<Announcement, "id" | "createdAt" | "updatedAt">;
 
 export default function useAnnouncements() {
+  const { currentUser, role } = useAuth();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadAnnouncements = useCallback(async () => {
     try {
       setLoading(true);
-      setAnnouncements(await getAnnouncements());
+      setAnnouncements(await getAnnouncements({ role: role ?? undefined, uid: currentUser?.uid }));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser?.uid, role]);
 
   useEffect(() => {
     void loadAnnouncements();
