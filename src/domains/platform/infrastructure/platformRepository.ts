@@ -4,6 +4,7 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  getDoc,
   limit,
   orderBy,
   query,
@@ -42,6 +43,11 @@ export async function listPlatformRecords<T extends { id: string }>(
     snapshot = await getDocs(query(base, limit(maximum)));
   }
   return snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as T));
+}
+
+export async function getPlatformRecord<T extends { id: string }>(collectionName: PlatformCollectionName, id: string): Promise<T | null> {
+  const snapshot = await getDoc(doc(db, collectionName, id));
+  return snapshot.exists() ? ({ id: snapshot.id, ...snapshot.data() } as T) : null;
 }
 
 export async function createPlatformRecord<T extends Record<string, unknown>>(

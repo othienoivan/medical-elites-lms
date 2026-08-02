@@ -1594,3 +1594,116 @@ export const bootstrapTenantWorkspace = onCall(
     });
   },
 );
+
+type TenantLifecycleStatus = "trial" | "active" | "suspended" | "past_due" | "cancelled" | "archived";
+const TENANT_STATUSES = new Set<TenantLifecycleStatus>(["trial", "active", "suspended", "past_due", "cancelled", "archived"]);
+const TENANT_TYPES = new Set(["institution", "independent_tutor"]);
+
+function requiredString(value: unknown, field: string, maxLength = 200): string {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) throw new HttpsError("invalid-argument", `${field} is required.`);
+  return text.slice(0, maxLength);
+}
+
+function optionalString(value: unknown, maxLength = 500): string | null {
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, maxLength) : null;
+}
+
+function tenantSlug(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
+}
+
+async function assertPlatformSuperAdmin(request: { auth?: { uid: string; token: Record<string, unknown> } | null }): Promise<{ uid: string; name: string }> {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in before managing tenants.");
+  const profile = await db.collection("users").doc(request.auth.uid).get();
+  const platformRole = String(profile.get("platformRole") ?? "");
+  const role = String(profile.get("role") ?? "");
+  const email = String(request.auth.token.email ?? profile.get("email") ?? "").toLowerCase();
+  if (role !== "admin" || (platformRole !== "super_admin" && email !== "othienoivan@gmail.com")) {
+    throw new HttpsError("permission-denied", "Platform Super Admin access is required.");
+  }
+  return { uid: request.auth.uid, name: String(profile.get("fullName") ?? email ?? request.auth.uid) };
+}
+
+async function writePlatformAudit(actor: { uid: string; name: string }, action: string, tenantId: string, summary: string, metadata: Record<string, unknown> = {}): Promise<void> {
+  await db.collection("platformAuditLogs").add({
+    actorUid: actor.uid,
+    actorName: actor.name,
+    action,
+    entityType: "tenant",
+    entityId: tenantId,
+    tenantId,
+    summary,
+    metadata,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
+
+export const createTenant = onCall({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+  const actor = await assertPlatformSuperAdmin(request);
+  const data = (request.data ?? {}) as Record<string, unknown>;
+  const name = requiredString(data.name, "Tenant name", 160);
+  const type = requiredString(data.type, "Tenant type", 40);
+  if (!TENANT_TYPES.has(type)) throw new HttpsError("invalid-argument", "Unsupported tenant type.");
+  const slug = tenantSlug(name);
+  if (!slug) throw new HttpsError("invalid-argument", "Tenant name cannot produce a valid slug.");
+  const duplicate = await db.collection("tenants").where("slug", "==", slug).limit(1).get();
+  if (!duplicate.empty) throw new HttpsError("already-exists", "A tenant with this name or slug already exists.");
+  const tenantRef = db.collection("tenants").doc();
+  const ownerUserId = optionalString(data.ownerUserId, 128);
+  const batch = db.batch();
+  batch.create(tenantRef, {
+    name, slug, type, status: "trial", ownerUserId,
+    country: optionalString(data.country, 100), currency: optionalString(data.currency, 10) ?? "UGX",
+    contactEmail: optionalString(data.contactEmail, 200), contactPhone: optionalString(data.contactPhone, 50),
+    planId: optionalString(data.planId, 100), branding: typeof data.branding === "object" && data.branding ? data.branding : {},
+    createdByUid: actor.uid, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+  });
+  if (ownerUserId) {
+    batch.set(db.collection("tenantMemberships").doc(`${tenantRef.id}_${ownerUserId}`), {
+      tenantId: tenantRef.id, userId: ownerUserId, roles: ["owner"], status: "active", isDefault: true,
+      joinedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    batch.set(db.collection("users").doc(ownerUserId), {
+      tenantId: tenantRef.id, activeTenantId: tenantRef.id, tenantIds: FieldValue.arrayUnion(tenantRef.id), updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }
+  await batch.commit();
+  await writePlatformAudit(actor, "tenant.created", tenantRef.id, `Created tenant ${name}.`, { type, ownerUserId });
+  return { tenantId: tenantRef.id };
+});
+
+export const updateTenantProfile = onCall({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+  const actor = await assertPlatformSuperAdmin(request); const data = (request.data ?? {}) as Record<string, unknown>;
+  const tenantId = requiredString(data.tenantId, "Tenant ID", 128); const ref = db.collection("tenants").doc(tenantId); const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Tenant not found.");
+  const update: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp(), updatedByUid: actor.uid };
+  for (const key of ["name","country","currency","contactEmail","contactPhone","planId"] as const) if (key in data) update[key] = optionalString(data[key], key === "name" ? 160 : 200);
+  if (typeof update.name === "string" && update.name) update.slug = tenantSlug(update.name);
+  if (typeof data.branding === "object" && data.branding) update.branding = data.branding;
+  await ref.update(update); await writePlatformAudit(actor, "tenant.profile_updated", tenantId, "Updated tenant profile.", { fields: Object.keys(update) });
+  return { tenantId };
+});
+
+export const updateTenantStatus = onCall({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+  const actor = await assertPlatformSuperAdmin(request); const data = (request.data ?? {}) as Record<string, unknown>;
+  const tenantId = requiredString(data.tenantId, "Tenant ID", 128); const status = requiredString(data.status, "Status", 40) as TenantLifecycleStatus;
+  if (!TENANT_STATUSES.has(status)) throw new HttpsError("invalid-argument", "Unsupported tenant status.");
+  const ref = db.collection("tenants").doc(tenantId); const snap = await ref.get(); if (!snap.exists) throw new HttpsError("not-found", "Tenant not found.");
+  if (snap.get("type") === "platform" || tenantId === "medical-elites-platform") throw new HttpsError("failed-precondition", "The protected platform tenant cannot be changed.");
+  const previousStatus = String(snap.get("status") ?? ""); const reason = optionalString(data.reason, 500);
+  await ref.update({ status, suspensionReason: status === "suspended" ? reason ?? "Suspended by platform administrator" : null, suspendedAt: status === "suspended" ? FieldValue.serverTimestamp() : null, updatedAt: FieldValue.serverTimestamp(), updatedByUid: actor.uid });
+  await writePlatformAudit(actor, "tenant.status_updated", tenantId, `Changed tenant status from ${previousStatus} to ${status}.`, { previousStatus, status, reason });
+  return { tenantId, status };
+});
+
+export const assignTenantOwner = onCall({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+  const actor = await assertPlatformSuperAdmin(request); const data = (request.data ?? {}) as Record<string, unknown>;
+  const tenantId = requiredString(data.tenantId, "Tenant ID", 128); const ownerUserId = requiredString(data.ownerUserId, "Owner user ID", 128);
+  const tenantRef = db.collection("tenants").doc(tenantId); const userRef = db.collection("users").doc(ownerUserId); const [tenant,user] = await Promise.all([tenantRef.get(),userRef.get()]);
+  if (!tenant.exists) throw new HttpsError("not-found", "Tenant not found."); if (!user.exists) throw new HttpsError("not-found", "Owner user profile not found.");
+  const batch = db.batch(); batch.update(tenantRef,{ ownerUserId, updatedAt: FieldValue.serverTimestamp(), updatedByUid: actor.uid });
+  batch.set(db.collection("tenantMemberships").doc(`${tenantId}_${ownerUserId}`),{ tenantId,userId:ownerUserId,roles:["owner"],status:"active",isDefault:true,joinedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()},{merge:true});
+  batch.set(userRef,{tenantId,activeTenantId:tenantId,tenantIds:FieldValue.arrayUnion(tenantId),updatedAt:FieldValue.serverTimestamp()},{merge:true}); await batch.commit();
+  await writePlatformAudit(actor,"tenant.owner_assigned",tenantId,"Assigned tenant owner.",{ownerUserId}); return {tenantId,ownerUserId};
+});

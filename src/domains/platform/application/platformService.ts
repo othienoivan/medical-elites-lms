@@ -11,6 +11,7 @@ import type {
 } from "../domain/platformTypes";
 import {
   createPlatformRecord,
+  getPlatformRecord,
   listPlatformRecords,
   removePlatformRecord,
   savePlatformRecord,
@@ -33,6 +34,7 @@ export const platformCollections = {
 
 export const PlatformService = {
   listTenants: () => listPlatformRecords<PlatformTenant>(platformCollections.tenants),
+  getTenant: (id: string) => getPlatformRecord<PlatformTenant>(platformCollections.tenants, id),
   listPlans: () => listPlatformRecords<PlatformPlan>(platformCollections.plans),
   listFlags: () => listPlatformRecords<PlatformFeatureFlag>(platformCollections.flags),
   listAudits: () => listPlatformRecords<PlatformAuditLog>(platformCollections.audits),

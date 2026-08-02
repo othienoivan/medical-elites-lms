@@ -134,6 +134,7 @@ const MarketplaceOperationsPage = lazy(() => import("../pages/platform/marketpla
 
 const PlatformDashboardPage = lazy(() => import("../pages/platform/PlatformDashboardPage"));
 const PlatformTenantsPage = lazy(() => import("../pages/platform/PlatformTenantsPage"));
+const PlatformTenantDetailsPage = lazy(() => import("../pages/platform/PlatformTenantDetailsPage"));
 const PlatformTutorsPage = lazy(() => import("../pages/platform/PlatformTutorsPage"));
 const PlatformPlansPage = lazy(() => import("../pages/platform/PlatformPlansPage"));
 const PlatformFeatureFlagsPage = lazy(() => import("../pages/platform/PlatformFeatureFlagsPage"));
@@ -173,6 +174,7 @@ export default function AppRouter() {
         {/* Platform Console — additive SaaS layer, isolated from academic LMS routes. */}
         <Route path="/platform" element={<PlatformAccessGate><PlatformDashboardPage /></PlatformAccessGate>} />
         <Route path="/platform/tenants" element={<PlatformAccessGate><PlatformTenantsPage /></PlatformAccessGate>} />
+        <Route path="/platform/tenants/:tenantId" element={<PlatformAccessGate><PlatformTenantDetailsPage /></PlatformAccessGate>} />
         <Route path="/platform/tutors" element={<PlatformAccessGate><PlatformTutorsPage /></PlatformAccessGate>} />
         <Route path="/platform/plans" element={<PlatformAccessGate><PlatformPlansPage /></PlatformAccessGate>} />
         <Route path="/platform/feature-flags" element={<PlatformAccessGate><PlatformFeatureFlagsPage /></PlatformAccessGate>} />

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.submitQuizAttempt = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = void 0;
+exports.assignTenantOwner = exports.updateTenantStatus = exports.updateTenantProfile = exports.createTenant = exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.submitQuizAttempt = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = void 0;
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
@@ -1532,5 +1532,139 @@ exports.bootstrapTenantWorkspace = (0, https_1.onCall)({
             createdMembership: !membershipSnapshot.exists,
         };
     });
+});
+const TENANT_STATUSES = new Set(["trial", "active", "suspended", "past_due", "cancelled", "archived"]);
+const TENANT_TYPES = new Set(["institution", "independent_tutor"]);
+function requiredString(value, field, maxLength = 200) {
+    const text = typeof value === "string" ? value.trim() : "";
+    if (!text)
+        throw new https_1.HttpsError("invalid-argument", `${field} is required.`);
+    return text.slice(0, maxLength);
+}
+function optionalString(value, maxLength = 500) {
+    return typeof value === "string" && value.trim() ? value.trim().slice(0, maxLength) : null;
+}
+function tenantSlug(value) {
+    return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
+}
+async function assertPlatformSuperAdmin(request) {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Sign in before managing tenants.");
+    const profile = await db.collection("users").doc(request.auth.uid).get();
+    const platformRole = String(profile.get("platformRole") ?? "");
+    const role = String(profile.get("role") ?? "");
+    const email = String(request.auth.token.email ?? profile.get("email") ?? "").toLowerCase();
+    if (role !== "admin" || (platformRole !== "super_admin" && email !== "othienoivan@gmail.com")) {
+        throw new https_1.HttpsError("permission-denied", "Platform Super Admin access is required.");
+    }
+    return { uid: request.auth.uid, name: String(profile.get("fullName") ?? email ?? request.auth.uid) };
+}
+async function writePlatformAudit(actor, action, tenantId, summary, metadata = {}) {
+    await db.collection("platformAuditLogs").add({
+        actorUid: actor.uid,
+        actorName: actor.name,
+        action,
+        entityType: "tenant",
+        entityId: tenantId,
+        tenantId,
+        summary,
+        metadata,
+        createdAt: firestore_1.FieldValue.serverTimestamp(),
+    });
+}
+exports.createTenant = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+    const actor = await assertPlatformSuperAdmin(request);
+    const data = (request.data ?? {});
+    const name = requiredString(data.name, "Tenant name", 160);
+    const type = requiredString(data.type, "Tenant type", 40);
+    if (!TENANT_TYPES.has(type))
+        throw new https_1.HttpsError("invalid-argument", "Unsupported tenant type.");
+    const slug = tenantSlug(name);
+    if (!slug)
+        throw new https_1.HttpsError("invalid-argument", "Tenant name cannot produce a valid slug.");
+    const duplicate = await db.collection("tenants").where("slug", "==", slug).limit(1).get();
+    if (!duplicate.empty)
+        throw new https_1.HttpsError("already-exists", "A tenant with this name or slug already exists.");
+    const tenantRef = db.collection("tenants").doc();
+    const ownerUserId = optionalString(data.ownerUserId, 128);
+    const batch = db.batch();
+    batch.create(tenantRef, {
+        name, slug, type, status: "trial", ownerUserId,
+        country: optionalString(data.country, 100), currency: optionalString(data.currency, 10) ?? "UGX",
+        contactEmail: optionalString(data.contactEmail, 200), contactPhone: optionalString(data.contactPhone, 50),
+        planId: optionalString(data.planId, 100), branding: typeof data.branding === "object" && data.branding ? data.branding : {},
+        createdByUid: actor.uid, createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp(),
+    });
+    if (ownerUserId) {
+        batch.set(db.collection("tenantMemberships").doc(`${tenantRef.id}_${ownerUserId}`), {
+            tenantId: tenantRef.id, userId: ownerUserId, roles: ["owner"], status: "active", isDefault: true,
+            joinedAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        batch.set(db.collection("users").doc(ownerUserId), {
+            tenantId: tenantRef.id, activeTenantId: tenantRef.id, tenantIds: firestore_1.FieldValue.arrayUnion(tenantRef.id), updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        }, { merge: true });
+    }
+    await batch.commit();
+    await writePlatformAudit(actor, "tenant.created", tenantRef.id, `Created tenant ${name}.`, { type, ownerUserId });
+    return { tenantId: tenantRef.id };
+});
+exports.updateTenantProfile = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+    const actor = await assertPlatformSuperAdmin(request);
+    const data = (request.data ?? {});
+    const tenantId = requiredString(data.tenantId, "Tenant ID", 128);
+    const ref = db.collection("tenants").doc(tenantId);
+    const snap = await ref.get();
+    if (!snap.exists)
+        throw new https_1.HttpsError("not-found", "Tenant not found.");
+    const update = { updatedAt: firestore_1.FieldValue.serverTimestamp(), updatedByUid: actor.uid };
+    for (const key of ["name", "country", "currency", "contactEmail", "contactPhone", "planId"])
+        if (key in data)
+            update[key] = optionalString(data[key], key === "name" ? 160 : 200);
+    if (typeof update.name === "string" && update.name)
+        update.slug = tenantSlug(update.name);
+    if (typeof data.branding === "object" && data.branding)
+        update.branding = data.branding;
+    await ref.update(update);
+    await writePlatformAudit(actor, "tenant.profile_updated", tenantId, "Updated tenant profile.", { fields: Object.keys(update) });
+    return { tenantId };
+});
+exports.updateTenantStatus = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+    const actor = await assertPlatformSuperAdmin(request);
+    const data = (request.data ?? {});
+    const tenantId = requiredString(data.tenantId, "Tenant ID", 128);
+    const status = requiredString(data.status, "Status", 40);
+    if (!TENANT_STATUSES.has(status))
+        throw new https_1.HttpsError("invalid-argument", "Unsupported tenant status.");
+    const ref = db.collection("tenants").doc(tenantId);
+    const snap = await ref.get();
+    if (!snap.exists)
+        throw new https_1.HttpsError("not-found", "Tenant not found.");
+    if (snap.get("type") === "platform" || tenantId === "medical-elites-platform")
+        throw new https_1.HttpsError("failed-precondition", "The protected platform tenant cannot be changed.");
+    const previousStatus = String(snap.get("status") ?? "");
+    const reason = optionalString(data.reason, 500);
+    await ref.update({ status, suspensionReason: status === "suspended" ? reason ?? "Suspended by platform administrator" : null, suspendedAt: status === "suspended" ? firestore_1.FieldValue.serverTimestamp() : null, updatedAt: firestore_1.FieldValue.serverTimestamp(), updatedByUid: actor.uid });
+    await writePlatformAudit(actor, "tenant.status_updated", tenantId, `Changed tenant status from ${previousStatus} to ${status}.`, { previousStatus, status, reason });
+    return { tenantId, status };
+});
+exports.assignTenantOwner = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+    const actor = await assertPlatformSuperAdmin(request);
+    const data = (request.data ?? {});
+    const tenantId = requiredString(data.tenantId, "Tenant ID", 128);
+    const ownerUserId = requiredString(data.ownerUserId, "Owner user ID", 128);
+    const tenantRef = db.collection("tenants").doc(tenantId);
+    const userRef = db.collection("users").doc(ownerUserId);
+    const [tenant, user] = await Promise.all([tenantRef.get(), userRef.get()]);
+    if (!tenant.exists)
+        throw new https_1.HttpsError("not-found", "Tenant not found.");
+    if (!user.exists)
+        throw new https_1.HttpsError("not-found", "Owner user profile not found.");
+    const batch = db.batch();
+    batch.update(tenantRef, { ownerUserId, updatedAt: firestore_1.FieldValue.serverTimestamp(), updatedByUid: actor.uid });
+    batch.set(db.collection("tenantMemberships").doc(`${tenantId}_${ownerUserId}`), { tenantId, userId: ownerUserId, roles: ["owner"], status: "active", isDefault: true, joinedAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    batch.set(userRef, { tenantId, activeTenantId: tenantId, tenantIds: firestore_1.FieldValue.arrayUnion(tenantId), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    await batch.commit();
+    await writePlatformAudit(actor, "tenant.owner_assigned", tenantId, "Assigned tenant owner.", { ownerUserId });
+    return { tenantId, ownerUserId };
 });
 //# sourceMappingURL=index.js.map

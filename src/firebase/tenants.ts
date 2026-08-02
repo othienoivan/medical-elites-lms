@@ -60,7 +60,17 @@ export async function getPlan(planId: string): Promise<Plan | null> {
     : null;
 }
 
-export async function resolveTenantWorkspace(userId: string, preferredTenantId?: string | null) {
+export type TenantWorkspaceResolution = {
+  memberships: TenantMembership[];
+  selected: TenantMembership | null;
+  tenant: Tenant | null;
+  plan: Plan | null;
+};
+
+export async function resolveTenantWorkspace(
+  userId: string,
+  preferredTenantId?: string | null,
+): Promise<TenantWorkspaceResolution> {
   const memberships = await getUserTenantMemberships(userId);
   const preferred = preferredTenantId?.trim() || null;
   const selected =
