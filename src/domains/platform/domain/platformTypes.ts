@@ -4,7 +4,7 @@ export interface DomainTimestamp {
 
 export type DomainDate = Date | DomainTimestamp | null;
 
-export type PlatformStatus = "active" | "trial" | "suspended" | "archived";
+export type PlatformStatus = "active" | "trial" | "suspended" | "past_due" | "cancelled" | "archived";
 export type TenantType = "institution" | "independent_tutor" | "platform";
 export type BillingCycle = "monthly" | "annual" | "custom";
 export type SupportStatus = "open" | "in_progress" | "resolved" | "closed";
@@ -22,10 +22,20 @@ export interface PlatformTenant extends PlatformRecord {
   type: TenantType;
   status: PlatformStatus;
   ownerUid?: string;
+  ownerUserId?: string;
   institutionId?: string;
   country?: string;
   currency?: string;
   planId?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  userCount?: number;
+  studentCount?: number;
+  tutorCount?: number;
+  storageBytes?: number;
+  lastActivityAt?: DomainDate;
+  suspendedAt?: DomainDate;
+  suspensionReason?: string;
   trialEndsAt?: DomainDate;
   licenseEndsAt?: DomainDate;
   branding?: {

@@ -84,6 +84,13 @@ service firebase.storage {
         && resource.metadata.uploaderUid == userId;
     }
 
+    // Tenant namespace: deny unknown tenant paths by default.
+    // Explicit approved paths below remain available because matching allow
+    // expressions are evaluated using logical OR.
+    match /tenants/{tenantId}/{allPaths=**} {
+      allow read, write: if false;
+    }
+
     // New tenant-isolated upload layout:
     // tenants/{tenantId}/uploads/{uploaderUid}/{folder}/{fileName}
     match /tenants/{tenantId}/uploads/{uploaderUid}/{folder}/{fileName} {
@@ -101,6 +108,11 @@ service firebase.storage {
       allow delete: if belongsToTenant(tenantId)
         && (request.auth.uid == uploaderUid || isAdmin())
         && (resourceOwnedBy(uploaderUid) || isAdmin());
+    }
+
+    // User namespace: deny unknown user paths by default.
+    match /users/{userId}/{allPaths=**} {
+      allow read, write: if false;
     }
 
     // Independent tutor/user upload layout:

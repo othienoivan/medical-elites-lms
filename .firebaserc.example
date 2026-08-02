@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "medical-elites-lms",
+    "staging": "medical-elites-lms"
+  }
+}

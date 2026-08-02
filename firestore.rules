@@ -59,7 +59,9 @@ service cloud.firestore {
         && tenantId is string
         && tenantId.size() > 0
         && exists(/databases/$(database)/documents/tenantMemberships/$(tenantMembershipId(tenantId)))
-        && get(/databases/$(database)/documents/tenantMemberships/$(tenantMembershipId(tenantId))).data.status == 'active';
+        && get(/databases/$(database)/documents/tenantMemberships/$(tenantMembershipId(tenantId))).data.status == 'active'
+        && exists(/databases/$(database)/documents/tenants/$(tenantId))
+        && get(/databases/$(database)/documents/tenants/$(tenantId)).data.status in ['trial', 'active'];
     }
 
     function tenantMembership(tenantId) {
@@ -933,6 +935,11 @@ service cloud.firestore {
 
     // RC3 Platform Layer. These collections are additive and intentionally
     // isolated from the stable institution-scoped academic LMS collections.
+    match /platformAuditLogs/{logId} {
+      allow read: if isPlatformAdmin();
+      allow create, update, delete: if false;
+    }
+
     match /tenants/{tenantId} {
       allow read: if isPlatformAdmin() || hasTenantMembership(tenantId);
       allow create, update, delete: if isPlatformAdmin();
