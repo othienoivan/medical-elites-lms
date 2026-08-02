@@ -27,6 +27,7 @@ export interface Enrollment {
   courseTitle?: string;
   progress?: number;
   completedModules?: string[];
+  startedModules?: string[];
   unlockedModules?: string[];
   enrolledAt?: Date;
 

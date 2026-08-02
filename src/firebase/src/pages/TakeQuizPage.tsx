@@ -12,6 +12,7 @@ import {
   createQuizAttempt,
   deleteQuizDraftAttempt,
   getQuizDraftAttempt,
+  getQuizAttemptUsage,
   saveQuizDraftAttempt,
 } from "../firebase/quizAttempts";
 import { getQuizById } from "../firebase/quizzes";
@@ -20,6 +21,7 @@ import useAuth from "../hooks/useAuth";
 import type { Question } from "../models/Question";
 import type { Quiz } from "../models/Quiz";
 import type { QuizAnswer } from "../models/QuizAttempt";
+import type { QuizAttemptUsage } from "../firebase/quizAttempts";
 
 type StudentAnswer = {
   questionId: string;
@@ -48,6 +50,8 @@ export default function TakeQuizPage() {
   const [reviewMode, setReviewMode] = useState(false);
   const [savingAttempt, setSavingAttempt] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
+  const [attemptUsage, setAttemptUsage] = useState<QuizAttemptUsage | null>(null);
+  const [attemptUsageLoading, setAttemptUsageLoading] = useState(true);
   const submitHandlerRef = useRef<(autoSubmit?: boolean) => Promise<void>>(
     async () => undefined
   );
@@ -97,7 +101,34 @@ export default function TakeQuizPage() {
   }, [quizId]);
 
   useEffect(() => {
-    if (!quiz || submitted || secondsRemaining <= 0) return;
+    async function loadAttemptUsage() {
+      if (!quiz || !currentUser) {
+        setAttemptUsageLoading(false);
+        return;
+      }
+
+      try {
+        setAttemptUsageLoading(true);
+        const maximumAttempts = Math.max(1, Math.floor(quiz.attemptsAllowed ?? 1));
+        setAttemptUsage(await getQuizAttemptUsage({
+          quizId: quiz.id,
+          studentId: currentUser.uid,
+          maximumAttempts,
+        }));
+      } catch (error) {
+        console.error("Failed to load quiz attempt usage:", error);
+      } finally {
+        setAttemptUsageLoading(false);
+      }
+    }
+
+    void loadAttemptUsage();
+  }, [quiz, currentUser]);
+
+  const attemptsExhausted = Boolean(attemptUsage && attemptUsage.attemptsRemaining <= 0);
+
+  useEffect(() => {
+    if (!quiz || submitted || attemptsExhausted || secondsRemaining <= 0) return;
 
     const interval = window.setInterval(() => {
       setSecondsRemaining((current) => {
@@ -112,7 +143,7 @@ export default function TakeQuizPage() {
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [quiz, submitted, secondsRemaining]);
+  }, [quiz, submitted, attemptsExhausted, secondsRemaining]);
 
   useEffect(() => {
     if (submitted) return;
@@ -128,7 +159,7 @@ export default function TakeQuizPage() {
   }, [submitted]);
 
   useEffect(() => {
-    if (!quiz || submitted) return;
+    if (!quiz || submitted || attemptsExhausted) return;
 
     async function enterFullscreen() {
       try {
@@ -141,11 +172,11 @@ export default function TakeQuizPage() {
     }
 
     enterFullscreen();
-  }, [quiz, submitted]);
+  }, [quiz, submitted, attemptsExhausted]);
 
   useEffect(() => {
     async function loadDraftAttempt() {
-      if (!quiz || !currentUser || draftLoaded) return;
+      if (!quiz || !currentUser || draftLoaded || attemptsExhausted) return;
 
       try {
         const draft = await getQuizDraftAttempt({
@@ -184,9 +215,10 @@ export default function TakeQuizPage() {
     }
 
     loadDraftAttempt();
-  }, [quiz, currentUser, draftLoaded]);
-    useEffect(() => {
-    if (!quiz || !currentUser || submitted || !draftLoaded) return;
+  }, [quiz, currentUser, draftLoaded, attemptsExhausted]);
+
+  useEffect(() => {
+    if (!quiz || !currentUser || submitted || !draftLoaded || attemptsExhausted) return;
 
     const interval = window.setInterval(async () => {
       try {
@@ -220,6 +252,7 @@ export default function TakeQuizPage() {
     currentIndex,
     secondsRemaining,
     startedAt,
+    attemptsExhausted,
   ]);
   
   const quizQuestions = useMemo(() => {
@@ -351,8 +384,8 @@ export default function TakeQuizPage() {
     );
   }
 
-    async function handleSubmit(autoSubmit = false) {
-    if (!quiz || submitted) return;
+  async function handleSubmit(autoSubmit = false) {
+    if (!quiz || submitted || attemptsExhausted) return;
 
     const unanswered = quizQuestions.length - answers.length;
 
@@ -371,12 +404,16 @@ export default function TakeQuizPage() {
         throw new Error("You must be signed in to submit this assessment.");
       }
 
+      if (attemptUsage && attemptUsage.attemptsRemaining <= 0) {
+        throw new Error("You have used all the attempts allowed for this quiz.");
+      }
+
       const durationSeconds = Math.max(
         0,
         Math.floor((new Date().getTime() - startedAt.getTime()) / 1000)
       );
 
-      await createQuizAttempt({
+      const submissionResult = await createQuizAttempt({
         id: "",
         quizId: quiz.id,
         quizTitle: quiz.title,
@@ -392,6 +429,8 @@ export default function TakeQuizPage() {
         passed,
         completed: true,
       });
+
+      setAttemptUsage(submissionResult);
 
       // The completed attempt is already safely stored at this point.
       // Draft cleanup and fullscreen exit are non-critical and must not
@@ -428,7 +467,7 @@ export default function TakeQuizPage() {
 
   submitHandlerRef.current = handleSubmit;
 
-  if (loadingQuiz || questionsLoading) {
+  if (loadingQuiz || questionsLoading || attemptUsageLoading) {
     return (
       <main className="min-h-screen bg-slate-100 p-8">
         <div className="mx-auto max-w-5xl">
@@ -443,6 +482,25 @@ export default function TakeQuizPage() {
       <main className="min-h-screen bg-slate-100 p-8">
         <div className="mx-auto max-w-5xl">
           <Card>Quiz not found.</Card>
+        </div>
+      </main>
+    );
+  }
+
+  if (attemptsExhausted && !submitted) {
+    return (
+      <main className="min-h-screen bg-slate-100 p-8">
+        <div className="mx-auto max-w-3xl">
+          <Card className="text-center">
+            <h1 className="text-3xl font-bold text-slate-950">Quiz Attempt Limit Reached</h1>
+            <p className="mt-4 text-lg text-slate-700">You have used all the attempts allowed for this quiz.</p>
+            <div className="mx-auto mt-6 grid max-w-xl gap-3 rounded-2xl bg-slate-50 p-5 text-left md:grid-cols-3">
+              <p><span className="block text-sm text-slate-500">Attempts used</span><strong>{attemptUsage?.attemptsUsed ?? 0}</strong></p>
+              <p><span className="block text-sm text-slate-500">Maximum attempts</span><strong>{attemptUsage?.maximumAttempts ?? Math.max(1, quiz.attemptsAllowed ?? 1)}</strong></p>
+              <p><span className="block text-sm text-slate-500">Attempts remaining</span><strong>0</strong></p>
+            </div>
+            <Button className="mt-8" onClick={() => navigate("/assessments")}>Back to Assessments</Button>
+          </Card>
         </div>
       </main>
     );
@@ -510,6 +568,16 @@ export default function TakeQuizPage() {
   return (
     <main className="min-h-screen bg-slate-100 p-8">
       <div className="mx-auto max-w-7xl space-y-6">
+        {attemptUsage && (
+          <Card>
+            <div className="grid gap-3 text-sm text-slate-700 md:grid-cols-3">
+              <p><span className="block text-slate-500">Attempts used</span><strong>{attemptUsage.attemptsUsed}</strong></p>
+              <p><span className="block text-slate-500">Maximum attempts</span><strong>{attemptUsage.maximumAttempts}</strong></p>
+              <p><span className="block text-slate-500">Attempts remaining</span><strong>{attemptUsage.attemptsRemaining}</strong></p>
+            </div>
+          </Card>
+        )}
+
         <QuizHeader
           title={quiz.title}
           totalQuestions={quizQuestions.length}
@@ -649,7 +717,7 @@ export default function TakeQuizPage() {
             {!submitted ? (
               <Button
                 className="mt-3 w-full"
-                disabled={savingAttempt}
+                disabled={savingAttempt || attemptsExhausted}
                 onClick={() => handleSubmit(false)}
               >
                 {savingAttempt ? "Submitting..." : "Submit Quiz"}

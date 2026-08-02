@@ -55,6 +55,8 @@ export interface QuizAttempt {
 
   passed: boolean;
   completed: boolean;
+  attemptNumber?: number;
+  maximumAttempts?: number;
 
   released?: boolean;
   releasedAt?: Date | null;

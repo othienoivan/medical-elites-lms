@@ -1,6 +1,6 @@
+import type React from "react";
 import type { LessonBlock } from "../../models/LessonBlock";
 import InteractiveQuestion from "./InteractiveQuestion";
-import DocumentViewer from "./DocumentViewer";
 import OfficeDocumentViewer from "./OfficeDocumentViewer";
 
 type Props = {
@@ -93,7 +93,6 @@ export default function LessonViewer({ blocks }: Props) {
             <OfficeDocumentViewer
               originalUrl={block.url}
               filePath={block.metadata?.filePath as string | undefined}
-              manualPreviewPdfUrl={block.metadata?.previewPdfUrl as string | undefined}
               title={block.title || "PowerPoint presentation"}
               originalLabel="Download PowerPoint"
             />
@@ -103,7 +102,6 @@ export default function LessonViewer({ blocks }: Props) {
             <OfficeDocumentViewer
               originalUrl={block.url}
               filePath={block.metadata?.filePath as string | undefined}
-              manualPreviewPdfUrl={block.metadata?.previewPdfUrl as string | undefined}
               title={block.title || "Word document"}
               originalLabel="Download Word document"
             />
@@ -363,6 +361,71 @@ function OsceField({ label, value }: { label: string; value?: string }) {
       <p className="mt-2 whitespace-pre-line leading-7 text-slate-700">
         {value}
       </p>
+    </div>
+  );
+}
+
+function formatFileSize(size?: number): string | null {
+  if (!size || size <= 0) return null;
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function downloadFile(url: string, fileName: string): Promise<void> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Unable to download this file.");
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
+function DownloadAttachment({
+  url,
+  title,
+  fileName,
+  fileType,
+  fileSize,
+  icon,
+  buttonLabel = "Download",
+  note,
+}: {
+  url: string;
+  title: string;
+  fileName?: string;
+  fileType: string;
+  fileSize?: number;
+  icon: React.ReactNode;
+  buttonLabel?: string;
+  note?: string;
+}) {
+  const resolvedName = fileName || title;
+  const sizeLabel = formatFileSize(fileSize);
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
+      <div className="mx-auto w-fit">{icon}</div>
+      <h3 className="mt-4 text-xl font-bold text-slate-950">{title}</h3>
+      <div className="mt-2 space-y-1 text-sm text-slate-600">
+        <p>{resolvedName}</p>
+        <p>{fileType}{sizeLabel ? ` • ${sizeLabel}` : ""}</p>
+        {note && <p>{note}</p>}
+      </div>
+      <Button
+        className="mt-5"
+        onClick={() => void downloadFile(url, resolvedName).catch((error) => {
+          console.error("File download failed:", error);
+          window.alert(error instanceof Error ? error.message : "Unable to download this file.");
+        })}
+      >
+        <Download size={17} /> {buttonLabel}
+      </Button>
     </div>
   );
 }

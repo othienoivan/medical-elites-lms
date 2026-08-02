@@ -123,6 +123,33 @@ async function resolveCourseUnit(courseId: string): Promise<CourseUnit | null> {
   return null;
 }
 
+/**
+ * Resolves a course unit from a route identifier.
+ *
+ * The current application contains both canonical Firestore document IDs and
+ * legacy values stored in `courseId`, `id`, or `slug`. This resolver keeps old
+ * links working while new links continue to use the canonical document ID.
+ */
+export async function getCourseUnitByIdentifier(
+  identifier: string
+): Promise<CourseUnit | null> {
+  const cleanIdentifier = decodeURIComponent(identifier).trim();
+  if (!cleanIdentifier) return null;
+
+  const direct = await resolveCourseUnit(cleanIdentifier);
+  if (direct) return direct;
+
+  const bySlugSnapshot = await getDocs(
+    query(collection(db, COLLECTION), where("slug", "==", cleanIdentifier))
+  );
+  if (!bySlugSnapshot.empty) {
+    const match = bySlugSnapshot.docs[0];
+    return fromDoc(match.id, match.data());
+  }
+
+  return null;
+}
+
 export async function createCourseUnit(courseUnit: CourseUnit): Promise<string> {
   const { id: _id, ...payload } = courseUnit;
   void _id;

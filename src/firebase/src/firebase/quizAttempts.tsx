@@ -1,5 +1,4 @@
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
@@ -14,41 +13,64 @@ import {
 } from "firebase/firestore";
 
 import type { ManualMark } from "../models/QuizAttempt";
-import { db } from "../config/firebase";
+import { httpsCallable } from "firebase/functions";
+
+import { db, functions } from "../config/firebase";
 import type { QuizAttempt } from "../models/QuizAttempt";
 
 const COLLECTION = "quizAttempts";
 const DRAFT_COLLECTION = "quizDraftAttempts";
 
+/** Quiz attempt usage returned by the backend. */
+export type QuizAttemptUsage = {
+  attemptsUsed: number;
+  maximumAttempts: number;
+  attemptsRemaining: number;
+};
+
+type SubmitQuizAttemptResponse = QuizAttemptUsage & { attemptId: string };
+
 /**
- * Save a completed quiz attempt
+ * Save a completed quiz attempt through the trusted backend. The callable
+ * enforces the tutor-defined attempt limit atomically before writing.
  */
 export async function createQuizAttempt(
   attempt: QuizAttempt
-): Promise<void> {
-  const payload = removeUndefinedValues({
-    ...attempt,
+): Promise<SubmitQuizAttemptResponse> {
+  const callable = httpsCallable<QuizAttempt, SubmitQuizAttemptResponse>(
+    functions,
+    "submitQuizAttempt",
+  );
+  const result = await callable(removeUndefinedValues(attempt));
+  return result.data;
+}
 
-    // Manual marking defaults
-    manualMarks: [],
-    manualScore: 0,
-
-    // Initial final result equals objective score
-    finalScore: attempt.score,
-    finalPercentage: attempt.percentage,
-
-    // Tutor workflow
-    tutorRemarks: "",
-    released: false,
-    releasedAt: null,
-
-    completed: true,
-
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  await addDoc(collection(db, COLLECTION), payload);
+/** Read completed-attempt usage for one learner and quiz. */
+export async function getQuizAttemptUsage({
+  quizId,
+  studentId,
+  maximumAttempts,
+}: {
+  quizId: string;
+  studentId: string;
+  maximumAttempts: number;
+}): Promise<QuizAttemptUsage> {
+  const snapshot = await getDocs(
+    query(
+      collection(db, COLLECTION),
+      where("studentId", "==", studentId),
+      where("quizId", "==", quizId),
+    ),
+  );
+  const attemptsUsed = snapshot.docs.filter((item) => {
+    const data = item.data();
+    return data.completed !== false;
+  }).length;
+  return {
+    attemptsUsed,
+    maximumAttempts,
+    attemptsRemaining: Math.max(maximumAttempts - attemptsUsed, 0),
+  };
 }
 
 /**

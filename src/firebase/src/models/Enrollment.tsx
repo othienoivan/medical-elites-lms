@@ -13,6 +13,8 @@ export interface Enrollment {
   programmeId?: string;
   programmeTitle?: string;
   courseUnitIds?: string[];
+  moduleIds?: string[];
+  approvalStatus?: "approved" | "pending" | "rejected";
   academicYear?: string;
   semester?: string;
   intake?: string;
@@ -25,6 +27,7 @@ export interface Enrollment {
   courseTitle?: string;
   progress?: number;
   completedModules?: string[];
+  startedModules?: string[];
   unlockedModules?: string[];
   enrolledAt?: Date;
 

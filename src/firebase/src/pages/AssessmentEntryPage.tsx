@@ -66,7 +66,7 @@ export default function AssessmentEntryPage() {
     return attempts.filter((attempt) => attempt.completed);
   }, [attempts]);
 
-  const attemptsAllowed = quiz?.attemptsAllowed || 1;
+  const attemptsAllowed = Math.max(1, Math.floor(quiz?.attemptsAllowed ?? 1));
 
   const attemptsRemaining = Math.max(
     attemptsAllowed - completedAttempts.length,
@@ -103,7 +103,7 @@ export default function AssessmentEntryPage() {
     }
 
     if (completedAttempts.length >= attemptsAllowed) {
-      setError("Maximum attempts reached.");
+      setError("You have used all the attempts allowed for this quiz.");
       return;
     }
 
@@ -161,7 +161,7 @@ export default function AssessmentEntryPage() {
                 )}
 
                 {completedAttempts.length >= attemptsAllowed && (
-                  <WarningBadge>Maximum Attempts Reached</WarningBadge>
+                  <WarningBadge>All Attempts Used</WarningBadge>
                 )}
               </div>
 
@@ -309,7 +309,9 @@ export default function AssessmentEntryPage() {
                 disabled={completedAttempts.length >= attemptsAllowed}
               >
                 {completedAttempts.length >= attemptsAllowed
-                  ? "Maximum Attempts Reached"
+                  ? "All Attempts Used"
+                  : completedAttempts.length > 0
+                  ? "Retake Assessment"
                   : "Start Assessment"}
               </Button>
             </div>

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = void 0;
+exports.completeModuleLearning = exports.submitQuizAttempt = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = void 0;
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
@@ -1217,5 +1217,212 @@ exports.reviewMarketplaceSellerVerification = (0, https_1.onCall)({ region: "us-
     await db.collection("sellerVerifications").doc(sellerId).set({ sellerId, sellerType: financeText(data.sellerType, 30) || "tutor", status, badge, reviewedBy: request.auth.uid, reviewedAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
     await db.collection("sellerProfiles").doc(sellerId).set({ verified: status === "verified", verificationBadge: status === "verified" ? badge : null, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
     return { status };
+});
+function finiteNumber(value, fallback = 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+function callableDate(value) {
+    if (value instanceof Date && !Number.isNaN(value.getTime()))
+        return value;
+    if (typeof value === "string" || typeof value === "number") {
+        const parsed = new Date(value);
+        if (!Number.isNaN(parsed.getTime()))
+            return parsed;
+    }
+    if (value && typeof value === "object" && "seconds" in value) {
+        const seconds = finiteNumber(value.seconds);
+        return new Date(seconds * 1000);
+    }
+    return new Date();
+}
+/**
+ * Trusted quiz submission endpoint. The attempt counter and completed attempt
+ * are committed in one transaction so refreshes, multiple browsers and direct
+ * calls cannot exceed the tutor-defined limit.
+ */
+exports.submitQuizAttempt = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError("unauthenticated", "Please sign in before submitting this quiz.");
+    }
+    const uid = request.auth.uid;
+    const authenticatedEmail = typeof request.auth.token.email === "string" ? request.auth.token.email : "";
+    const data = (request.data ?? {});
+    const quizId = asText(data.quizId, 200);
+    if (!quizId) {
+        throw new https_1.HttpsError("invalid-argument", "A quiz ID is required.");
+    }
+    const profile = await db.doc(`users/${uid}`).get();
+    if (!profile.exists || profile.get("isActive") === false || profile.get("role") !== "student") {
+        throw new https_1.HttpsError("permission-denied", "Only active students can submit quiz attempts.");
+    }
+    const quizRef = db.doc(`quizzes/${quizId}`);
+    const counterRef = db.doc(`quizAttemptCounters/${uid}_${quizId}`);
+    const attemptRef = db.collection("quizAttempts").doc((0, node_crypto_1.randomUUID)());
+    return db.runTransaction(async (transaction) => {
+        const quizSnapshot = await transaction.get(quizRef);
+        if (!quizSnapshot.exists) {
+            throw new https_1.HttpsError("not-found", "This quiz no longer exists.");
+        }
+        const quiz = quizSnapshot.data() ?? {};
+        if (quiz.status !== "published") {
+            throw new https_1.HttpsError("failed-precondition", "This quiz is not currently available.");
+        }
+        const configuredAttempts = Math.floor(finiteNumber(quiz.attemptsAllowed, 1));
+        const maximumAttempts = Math.max(configuredAttempts, 1);
+        const attemptsSnapshot = await transaction.get(db.collection("quizAttempts").where("studentId", "==", uid));
+        const existingAttempts = attemptsSnapshot.docs.filter((item) => {
+            const attempt = item.data();
+            return attempt.quizId === quizId && attempt.completed !== false;
+        }).length;
+        const counterSnapshot = await transaction.get(counterRef);
+        const counterUsed = counterSnapshot.exists
+            ? Math.max(0, Math.floor(finiteNumber(counterSnapshot.get("attemptsUsed"), 0)))
+            : 0;
+        const attemptsUsed = Math.max(existingAttempts, counterUsed);
+        if (attemptsUsed >= maximumAttempts) {
+            throw new https_1.HttpsError("resource-exhausted", "You have used all the attempts allowed for this quiz.");
+        }
+        const nextUsed = attemptsUsed + 1;
+        const score = Math.max(0, finiteNumber(data.score));
+        const totalMarks = Math.max(0, finiteNumber(data.totalMarks, finiteNumber(quiz.totalMarks)));
+        const percentage = Math.max(0, Math.min(100, finiteNumber(data.percentage)));
+        const passMark = Math.max(0, Math.min(100, finiteNumber(quiz.passMark, 50)));
+        const passed = percentage >= passMark;
+        const moduleId = asText(quiz.moduleId ?? data.moduleId, 200);
+        const courseUnitId = asText(quiz.courseUnitId ?? data.courseUnitId, 200);
+        const enrollmentRefs = new Map();
+        if (passed && moduleId) {
+            const enrollmentQueries = await Promise.all([
+                transaction.get(db.collection("enrollments").where("userId", "==", uid)),
+                transaction.get(db.collection("enrollments").where("studentAuthUid", "==", uid)),
+            ]);
+            for (const snapshot of enrollmentQueries) {
+                for (const enrollmentDoc of snapshot.docs) {
+                    const enrollment = enrollmentDoc.data();
+                    const belongs = !courseUnitId
+                        || enrollment.courseId === courseUnitId
+                        || enrollment.courseUnitId === courseUnitId
+                        || (Array.isArray(enrollment.courseUnitIds) && enrollment.courseUnitIds.includes(courseUnitId));
+                    if (belongs)
+                        enrollmentRefs.set(enrollmentDoc.ref.path, enrollmentDoc.ref);
+                }
+            }
+        }
+        transaction.set(attemptRef, {
+            id: attemptRef.id,
+            quizId,
+            quizTitle: asText(quiz.title ?? data.quizTitle, 500),
+            studentId: uid,
+            studentName: String((profile.get("fullName") ?? authenticatedEmail) || "Student"),
+            programmeId: asText(quiz.programmeId ?? data.programmeId, 200) || null,
+            programmeTitle: asText(quiz.programmeTitle ?? data.programmeTitle, 500) || null,
+            courseUnitId: courseUnitId || null,
+            courseUnitTitle: asText(quiz.courseUnitTitle ?? data.courseUnitTitle, 500) || null,
+            moduleId: moduleId || null,
+            moduleTitle: asText(quiz.moduleTitle ?? data.moduleTitle, 500) || null,
+            startedAt: callableDate(data.startedAt),
+            submittedAt: firestore_1.FieldValue.serverTimestamp(),
+            durationSeconds: Math.max(0, Math.floor(finiteNumber(data.durationSeconds))),
+            answers: Array.isArray(data.answers) ? data.answers : [],
+            score,
+            totalMarks,
+            percentage,
+            manualMarks: [],
+            manualScore: 0,
+            finalScore: score,
+            finalPercentage: percentage,
+            passed,
+            completed: true,
+            attemptNumber: nextUsed,
+            maximumAttempts,
+            tutorRemarks: "",
+            released: false,
+            releasedAt: null,
+            createdAt: firestore_1.FieldValue.serverTimestamp(),
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        });
+        transaction.set(counterRef, {
+            studentId: uid,
+            quizId,
+            attemptsUsed: nextUsed,
+            maximumAttempts,
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        for (const enrollmentRef of enrollmentRefs.values()) {
+            transaction.set(enrollmentRef, {
+                completedModules: firestore_1.FieldValue.arrayUnion(moduleId),
+                startedModules: firestore_1.FieldValue.arrayUnion(moduleId),
+                updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            }, { merge: true });
+        }
+        return {
+            attemptId: attemptRef.id,
+            attemptsUsed: nextUsed,
+            maximumAttempts,
+            attemptsRemaining: Math.max(maximumAttempts - nextUsed, 0),
+        };
+    });
+});
+/** Persist completion of a module after validating any required quiz. */
+exports.completeModuleLearning = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError("unauthenticated", "Please sign in before completing this module.");
+    }
+    const uid = request.auth.uid;
+    const moduleId = asText(request.data?.moduleId, 200);
+    if (!moduleId)
+        throw new https_1.HttpsError("invalid-argument", "A module ID is required.");
+    const moduleSnapshot = await db.doc(`modules/${moduleId}`).get();
+    if (!moduleSnapshot.exists)
+        throw new https_1.HttpsError("not-found", "Module not found.");
+    const moduleData = moduleSnapshot.data() ?? {};
+    const courseUnitId = asText(moduleData.courseUnitId ?? moduleData.courseId, 200);
+    if (moduleData.quizRequired === true) {
+        const quizzes = await db.collection("quizzes").where("moduleId", "==", moduleId).get();
+        const publishedQuizIds = quizzes.docs
+            .filter((item) => item.get("status") === "published")
+            .map((item) => item.id);
+        if (publishedQuizIds.length > 0) {
+            const attempts = await db.collection("quizAttempts").where("studentId", "==", uid).get();
+            const passed = attempts.docs.some((item) => {
+                const attempt = item.data();
+                return publishedQuizIds.includes(String(attempt.quizId ?? ""))
+                    && attempt.completed !== false
+                    && (attempt.passed === true || finiteNumber(attempt.finalPercentage ?? attempt.percentage) >= finiteNumber(moduleData.passMark, 50));
+            });
+            if (!passed) {
+                throw new https_1.HttpsError("failed-precondition", "Pass the required module quiz before completing this module.");
+            }
+        }
+    }
+    const [byUser, byAuthUid] = await Promise.all([
+        db.collection("enrollments").where("userId", "==", uid).get(),
+        db.collection("enrollments").where("studentAuthUid", "==", uid).get(),
+    ]);
+    const refs = new Map();
+    for (const snapshot of [byUser, byAuthUid]) {
+        for (const item of snapshot.docs) {
+            const enrollment = item.data();
+            const belongs = !courseUnitId
+                || enrollment.courseId === courseUnitId
+                || enrollment.courseUnitId === courseUnitId
+                || (Array.isArray(enrollment.courseUnitIds) && enrollment.courseUnitIds.includes(courseUnitId));
+            if (belongs)
+                refs.set(item.ref.path, item.ref);
+        }
+    }
+    if (refs.size === 0)
+        throw new https_1.HttpsError("failed-precondition", "Active enrolment not found.");
+    const batch = db.batch();
+    for (const ref of refs.values()) {
+        batch.set(ref, {
+            completedModules: firestore_1.FieldValue.arrayUnion(moduleId),
+            startedModules: firestore_1.FieldValue.arrayUnion(moduleId),
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        }, { merge: true });
+    }
+    await batch.commit();
+    return { moduleId, completed: true };
 });
 //# sourceMappingURL=index.js.map

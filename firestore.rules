@@ -114,6 +114,36 @@ service cloud.firestore {
       );
     }
 
+    function hasLegacyEnrollment(courseUnitId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/enrollments/$(request.auth.uid + '_' + courseUnitId))
+        && (
+          !get(/databases/$(database)/documents/enrollments/$(request.auth.uid + '_' + courseUnitId)).data.keys().hasAny(['status'])
+          || get(/databases/$(database)/documents/enrollments/$(request.auth.uid + '_' + courseUnitId)).data.status in ['active', 'approved', 'enrolled', 'accepted', 'completed']
+        );
+    }
+
+    function canReadCourseRecord(documentId, data) {
+      return hasCourseUnitAssignment(documentId)
+        || hasLegacyEnrollment(documentId)
+        || (
+          data.keys().hasAny(['courseId'])
+          && data.courseId is string
+          && (
+            hasCourseUnitAssignment(data.courseId)
+            || hasLegacyEnrollment(data.courseId)
+          )
+        )
+        || (
+          data.keys().hasAny(['id'])
+          && data.id is string
+          && (
+            hasCourseUnitAssignment(data.id)
+            || hasLegacyEnrollment(data.id)
+          )
+        );
+    }
+
     function canReadProgramme(programmeId) {
       return exists(/databases/$(database)/documents/programmes/$(programmeId))
         && (
@@ -211,10 +241,29 @@ service cloud.firestore {
     }
 
     match /quizAttempts/{attemptId} {
-      allow create: if signedIn()
-        && request.resource.data.studentId == request.auth.uid;
+      // Completed attempts are created only by the trusted submitQuizAttempt
+      // Cloud Function, which atomically enforces the tutor-defined limit.
+      allow create: if false;
       allow read: if ownsByUid(resource.data) || isTutorOrAdmin();
-      allow update, delete: if isTutorOrAdmin();
+      // Tutors may add manual marking and release metadata, but cannot alter
+      // the learner identity, submitted answers, score or attempt sequence.
+      allow update: if isTutorOrAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'manualMarks',
+          'manualScore',
+          'finalScore',
+          'finalPercentage',
+          'tutorRemarks',
+          'passed',
+          'released',
+          'releasedAt',
+          'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    match /quizAttemptCounters/{counterId} {
+      allow read, create, update, delete: if false;
     }
 
     match /quizDraftAttempts/{draftId} {
@@ -474,13 +523,13 @@ service cloud.firestore {
 
       allow update: if isTutorOrAdmin() || (
         signedIn()
-        && ownsLinkedStudent(resource.data)
+        && (ownsLinkedStudent(resource.data) || ownsByUid(resource.data))
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'studentAuthUid', 'userId', 'studentEmailNormalized',
-          'identityLinkedAt', 'updatedAt'
+          'identityLinkedAt', 'startedModules', 'updatedAt'
         ])
-        && request.resource.data.studentAuthUid == request.auth.uid
-        && request.resource.data.userId == request.auth.uid
+        && (!request.resource.data.keys().hasAny(['studentAuthUid']) || request.resource.data.studentAuthUid == request.auth.uid)
+        && (!request.resource.data.keys().hasAny(['userId']) || request.resource.data.userId == request.auth.uid)
       );
     }
 
@@ -660,7 +709,7 @@ service cloud.firestore {
         ownsRecord(resource.data)
         || assignedTutor(resource.data)
         || (isAdmin() && sameInstitution(resource.data))
-        || (hasRole('student') && hasCourseUnitAssignment(documentId))
+        || (hasRole('student') && canReadCourseRecord(documentId, resource.data))
         || (resource.data.keys().hasAny(['programmeId']) && resource.data.programmeId != null && canReadProgramme(resource.data.programmeId))
         || (
           hasRole('student')
@@ -685,7 +734,7 @@ service cloud.firestore {
         ownsRecord(resource.data)
         || assignedTutor(resource.data)
         || (isAdmin() && sameInstitution(resource.data))
-        || (hasRole('student') && hasCourseUnitAssignment(documentId))
+        || (hasRole('student') && canReadCourseRecord(documentId, resource.data))
         || (resource.data.keys().hasAny(['programmeId']) && resource.data.programmeId != null && canReadProgramme(resource.data.programmeId))
       );
       allow create: if isTutorOrAdmin() && request.resource.data.ownerUserId == request.auth.uid;

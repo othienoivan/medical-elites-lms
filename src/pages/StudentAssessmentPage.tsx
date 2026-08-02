@@ -48,29 +48,29 @@ export default function StudentAssessmentPage() {
   const [assessmentType, setAssessmentType] =
     useState<"all" | AssessmentType>("all");
 
-  const completedAssessmentKeys = useMemo(() => {
-    const keys = new Set<string>();
+  const completedAttemptsByQuiz = useMemo(() => {
+    const counts = new Map<string, number>();
 
     attempts.forEach((attempt) => {
-      if (attempt.quizId) keys.add(`id:${attempt.quizId}`);
-
-      const title = attempt.quizTitle?.trim().toLowerCase();
-      if (title) keys.add(`title:${title}`);
+      if (attempt.completed === false || !attempt.quizId) return;
+      counts.set(attempt.quizId, (counts.get(attempt.quizId) ?? 0) + 1);
     });
 
-    return keys;
+    return counts;
   }, [attempts]);
 
-  const hasCompletedQuiz = useCallback(
-    (quiz: { id: string; title: string }) => {
-      return (
-        completedAssessmentKeys.has(`id:${quiz.id}`) ||
-        completedAssessmentKeys.has(
-          `title:${quiz.title.trim().toLowerCase()}`
-        )
-      );
+  const getAttemptUsage = useCallback(
+    (quiz: { id: string; attemptsAllowed?: number }) => {
+      const maximumAttempts = Math.max(1, Math.floor(quiz.attemptsAllowed ?? 1));
+      const attemptsUsed = completedAttemptsByQuiz.get(quiz.id) ?? 0;
+
+      return {
+        attemptsUsed,
+        maximumAttempts,
+        attemptsRemaining: Math.max(maximumAttempts - attemptsUsed, 0),
+      };
     },
-    [completedAssessmentKeys]
+    [completedAttemptsByQuiz]
   );
 
   const visibleAssessments = useMemo(() => {
@@ -80,7 +80,8 @@ export default function StudentAssessmentPage() {
       const isPublished = quiz.status === "published";
       const isAssigned = canAccessQuiz(quiz);
       const isNotArchived = !quiz.isArchived;
-      const isNotCompleted = !hasCompletedQuiz(quiz);
+      const attemptUsage = getAttemptUsage(quiz);
+      const hasAttemptsRemaining = attemptUsage.attemptsRemaining > 0;
 
       const fromDate = normalizeDate(quiz.availableFrom);
       const untilDate = normalizeDate(quiz.availableUntil);
@@ -98,13 +99,13 @@ export default function StudentAssessmentPage() {
         isPublished &&
         isAssigned &&
         isNotArchived &&
-        isNotCompleted &&
+        hasAttemptsRemaining &&
         hasOpened &&
         hasNotClosed &&
         matchesType
       );
     });
-  }, [quizzes, assessmentType, canAccessQuiz, hasCompletedQuiz]);
+  }, [quizzes, assessmentType, canAccessQuiz, getAttemptUsage]);
 
   const completedAttempts = useMemo(() => {
     return attempts
@@ -129,10 +130,10 @@ export default function StudentAssessmentPage() {
         !quiz.isArchived &&
         fromDate !== null &&
         fromDate > now &&
-        !hasCompletedQuiz(quiz)
+        getAttemptUsage(quiz).attemptsRemaining > 0
       );
     });
-  }, [quizzes, canAccessQuiz, hasCompletedQuiz]);
+  }, [quizzes, canAccessQuiz, getAttemptUsage]);
 
   const totalTimeSpentSeconds = useMemo(() => {
     return attempts.reduce(
@@ -314,7 +315,10 @@ export default function StudentAssessmentPage() {
           </Card>
         ) : (
           <div className="grid gap-6 md:grid-cols-2">
-            {visibleAssessments.map((quiz) => (
+            {visibleAssessments.map((quiz) => {
+              const usage = getAttemptUsage(quiz);
+
+              return (
               <Card key={quiz.id}>
                 <div className="flex flex-wrap gap-2">
                   <AssessmentTypeBadge
@@ -348,6 +352,9 @@ export default function StudentAssessmentPage() {
                   <Badge>{quiz.questions.length} Questions</Badge>
                   <Badge>{quiz.totalMarks} Marks</Badge>
                   <Badge>Pass: {quiz.passMark}%</Badge>
+                  <Badge>Attempts used: {usage.attemptsUsed}</Badge>
+                  <Badge>Maximum: {usage.maximumAttempts}</Badge>
+                  <Badge>Remaining: {usage.attemptsRemaining}</Badge>
 
                   {quiz.timeLimitMinutes && (
                     <Badge>{quiz.timeLimitMinutes} Minutes</Badge>
@@ -377,10 +384,11 @@ export default function StudentAssessmentPage() {
                   className="mt-6 w-full"
                   onClick={() => navigate(`/assessments/quizzes/${quiz.id}`)}
                 >
-                  Start Assessment
+                  {usage.attemptsUsed > 0 ? "Retake Assessment" : "Start Assessment"}
                 </Button>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

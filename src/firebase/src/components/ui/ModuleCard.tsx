@@ -1,27 +1,41 @@
-import { Clock, Lock, LockOpen, Trophy } from "lucide-react";
+import { CheckCircle2, Clock, Lock, LockOpen, PlayCircle, Trophy } from "lucide-react";
 
 import type { Module } from "../../models/Module";
 import Button from "./Button";
 import Card from "./Card";
 
+export type ModuleLearningState = "not-started" | "in-progress" | "completed";
+
 type ModuleCardProps = {
   module: Module;
   isUnlocked: boolean;
+  learningState?: ModuleLearningState;
   onStart: () => void;
   lessonCount?: number;
 };
 
+function actionLabel(state: ModuleLearningState): string {
+  if (state === "completed") return "Review Module";
+  if (state === "in-progress") return "Continue Learning";
+  return "Start Module";
+}
+
 export default function ModuleCard({
   module,
   isUnlocked,
+  learningState = "not-started",
   onStart,
   lessonCount,
 }: ModuleCardProps) {
+  const completed = learningState === "completed";
+
   return (
     <Card
       className={
         isUnlocked
-          ? "border border-blue-100"
+          ? completed
+            ? "border border-emerald-200"
+            : "border border-blue-100"
           : "border border-slate-200 opacity-70"
       }
     >
@@ -50,11 +64,17 @@ export default function ModuleCard({
               <Trophy size={16} className="text-amber-500" />
               Pass mark: {module.passMark}%
             </p>
+
+            {completed && (
+              <p className="flex items-center gap-2 text-emerald-700">
+                <CheckCircle2 size={16} /> Module completed
+              </p>
+            )}
           </div>
         </div>
 
-        <div className="rounded-full bg-slate-100 p-3 text-slate-600">
-          {isUnlocked ? <LockOpen size={22} /> : <Lock size={22} />}
+        <div className={`rounded-full p-3 ${completed ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+          {completed ? <CheckCircle2 size={22} /> : isUnlocked ? <LockOpen size={22} /> : <Lock size={22} />}
         </div>
       </div>
 
@@ -64,7 +84,13 @@ export default function ModuleCard({
         disabled={!isUnlocked}
         onClick={onStart}
       >
-        {isUnlocked ? "Start Module" : "Locked"}
+        {isUnlocked ? (
+          <>
+            <PlayCircle size={17} /> {actionLabel(learningState)}
+          </>
+        ) : (
+          "Locked"
+        )}
       </Button>
     </Card>
   );

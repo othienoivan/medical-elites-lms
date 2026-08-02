@@ -9,8 +9,9 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
 
-import { db } from "../config/firebase";
+import { db, functions } from "../config/firebase";
 import type { Enrollment } from "../models/Enrollment";
 
 export async function enrollInCourse({
@@ -100,4 +101,64 @@ export async function completeModuleAndUnlockNext({
     progress,
     updatedAt: serverTimestamp(),
   });
+}
+/** Records that a learner has opened a module at least once. */
+export async function markModuleStarted({
+  userId,
+  courseId,
+  moduleId,
+}: {
+  userId: string;
+  courseId: string;
+  moduleId: string;
+}): Promise<void> {
+  const matches = new Map<string, ReturnType<typeof doc>>();
+  const directRef = doc(db, "enrollments", `${userId}_${courseId}`);
+  const direct = await getDoc(directRef);
+  if (direct.exists()) matches.set(directRef.path, directRef);
+
+  const queries = await Promise.allSettled([
+    getDocs(query(collection(db, "enrollments"), where("userId", "==", userId))),
+    getDocs(query(collection(db, "enrollments"), where("studentAuthUid", "==", userId))),
+  ]);
+
+  for (const result of queries) {
+    if (result.status !== "fulfilled") continue;
+    for (const snapshot of result.value.docs) {
+      const data = snapshot.data() as {
+        courseId?: string;
+        courseUnitId?: string;
+        courseUnitIds?: string[];
+      };
+      const belongsToCourse =
+        data.courseId === courseId ||
+        data.courseUnitId === courseId ||
+        data.courseUnitIds?.includes(courseId);
+      if (belongsToCourse) matches.set(snapshot.ref.path, snapshot.ref);
+    }
+  }
+
+  await Promise.all(
+    [...matches.values()].map(async (reference) => {
+      const snapshot = await getDoc(reference);
+      if (!snapshot.exists()) return;
+      const startedModules = new Set<string>(snapshot.data().startedModules ?? []);
+      if (startedModules.has(moduleId)) return;
+      startedModules.add(moduleId);
+      await updateDoc(reference, {
+        startedModules: [...startedModules],
+        updatedAt: serverTimestamp(),
+      });
+    }),
+  );
+}
+
+
+/** Securely complete a module after backend progression validation. */
+export async function completeModuleLearning(moduleId: string): Promise<void> {
+  const callable = httpsCallable<{ moduleId: string }, { completed: boolean }>(
+    functions,
+    "completeModuleLearning",
+  );
+  await callable({ moduleId });
 }

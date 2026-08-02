@@ -1,4 +1,5 @@
 import type React from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   Award,
@@ -23,6 +24,9 @@ import useModules from "../hooks/useModules";
 import useStudentLearningAccess from "../hooks/useStudentLearningAccess";
 import useCourseUnitContentStats from "../hooks/useCourseUnitContentStats";
 import useModuleProgression from "../hooks/useModuleProgression";
+import { markModuleStarted } from "../firebase/enrollments";
+import { getCourseUnitByIdentifier } from "../firebase/courseUnits";
+import type { CourseUnit } from "../models/CourseUnit";
 
 export default function CourseUnitDetailsPage() {
   const { slug } = useParams();
@@ -44,22 +48,65 @@ export default function CourseUnitDetailsPage() {
   } = useCourseUnits(true);
 
   const courseIdentifier = decodeURIComponent(slug ?? "");
-  const visibleCourseUnits = currentUser
-    ? [...accessibleCourseUnits, ...publishedCourseUnits]
-    : publishedCourseUnits;
-  const courseUnit = visibleCourseUnits.find(
-    (item, index, rows) =>
-      rows.findIndex((candidate) => candidate.id === item.id) === index &&
-      (item.id === courseIdentifier || item.slug === courseIdentifier),
+  const [resolvedCourseUnit, setResolvedCourseUnit] = useState<CourseUnit | null>(null);
+  const [resolvingCourseUnit, setResolvingCourseUnit] = useState(Boolean(courseIdentifier));
+
+  const visibleCourseUnits = useMemo(
+    () =>
+      currentUser
+        ? [...accessibleCourseUnits, ...publishedCourseUnits]
+        : publishedCourseUnits,
+    [accessibleCourseUnits, currentUser, publishedCourseUnits],
   );
 
-  const courseUnitsLoading = currentUser
-    ? accessibleCourseUnitsLoading
-    : publishedCourseUnitsLoading;
+  const listedCourseUnit = visibleCourseUnits.find(
+    (item, index, rows) =>
+      rows.findIndex((candidate) => candidate.id === item.id) === index &&
+      (item.id === courseIdentifier || item.slug === courseIdentifier ||
+        String((item as CourseUnit & { courseId?: unknown }).courseId ?? "") === courseIdentifier),
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    async function resolveRouteCourseUnit() {
+      if (!courseIdentifier || listedCourseUnit) {
+        if (active) {
+          setResolvedCourseUnit(listedCourseUnit ?? null);
+          setResolvingCourseUnit(false);
+        }
+        return;
+      }
+
+      try {
+        setResolvingCourseUnit(true);
+        const result = await getCourseUnitByIdentifier(courseIdentifier);
+        if (active) setResolvedCourseUnit(result);
+      } catch (error) {
+        console.error("Failed to resolve course unit route:", error);
+        if (active) setResolvedCourseUnit(null);
+      } finally {
+        if (active) setResolvingCourseUnit(false);
+      }
+    }
+
+    void resolveRouteCourseUnit();
+    return () => {
+      active = false;
+    };
+  }, [courseIdentifier, listedCourseUnit]);
+
+  const courseUnit = listedCourseUnit ?? resolvedCourseUnit;
+
+  const courseUnitsLoading =
+    resolvingCourseUnit ||
+    (currentUser
+      ? accessibleCourseUnitsLoading
+      : publishedCourseUnitsLoading);
 
   const { modules, loading: modulesLoading } = useModules(courseUnit?.id);
   const contentStats = useCourseUnitContentStats(courseUnit?.id);
-  const progression = useModuleProgression(modules);
+  const progression = useModuleProgression(modules, courseUnit?.id);
 
   const hasCourseAccess = courseUnit
     ? canAccessCourseUnit(courseUnit.id, courseUnit.programmeId)
@@ -80,7 +127,18 @@ export default function CourseUnitDetailsPage() {
     navigate("/my-courses");
   }
 
-  function handleStartModule(moduleId: string) {
+  async function handleStartModule(moduleId: string) {
+    if (currentUser && courseUnit) {
+      try {
+        await markModuleStarted({
+          userId: currentUser.uid,
+          courseId: courseUnit.id,
+          moduleId,
+        });
+      } catch (error) {
+        console.warn("Module start progress could not be saved:", error);
+      }
+    }
     navigate(`/lesson/${moduleId}`);
   }
 
@@ -101,12 +159,17 @@ export default function CourseUnitDetailsPage() {
           </h1>
 
           <p className="mt-3 text-slate-600">
-            The course unit you are looking for does not exist.
+            The course unit may have been removed, unpublished, or is no longer available.
           </p>
 
-          <Button className="mt-6" onClick={() => navigate("/courses")}>
-            Back to Course Units
-          </Button>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Button onClick={() => navigate("/courses")}>
+              Browse Published Course Units
+            </Button>
+            <Button variant="outline" onClick={() => navigate("/dashboard")}>
+              Return to Dashboard
+            </Button>
+          </div>
         </Card>
       </main>
     );
@@ -275,6 +338,7 @@ export default function CourseUnitDetailsPage() {
                   module={module}
                   isUnlocked={(hasCourseAccess || hasElevatedAccess) && progression.isUnlocked(module.id)}
                   lessonCount={contentStats.lessonCounts[module.id] ?? 0}
+                  learningState={progression.getLearningState(module.id)}
                   onStart={() => {
                     if ((hasCourseAccess || hasElevatedAccess) && progression.isUnlocked(module.id)) {
                       handleStartModule(module.id);

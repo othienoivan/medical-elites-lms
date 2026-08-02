@@ -14,6 +14,7 @@ import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Container from "../components/ui/Container";
 import { getLessons } from "../firebase/lessons";
+import { completeModuleLearning } from "../firebase/enrollments";
 import type { Lesson } from "../models/Lesson";
 import type { LessonBlock } from "../models/LessonBlock";
 import useAccessScope from "../hooks/useAccessScope";
@@ -28,6 +29,7 @@ export default function LessonPage() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [activeLessonIndex, setActiveLessonIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [completingModule, setCompletingModule] = useState(false);
 
   useEffect(() => {
     async function loadLessons() {
@@ -81,6 +83,20 @@ export default function LessonPage() {
     setActiveLessonIndex((current) =>
       Math.min(current + 1, lessons.length - 1)
     );
+  }
+
+  async function handleCompleteModule() {
+    if (!moduleId) return;
+    try {
+      setCompletingModule(true);
+      await completeModuleLearning(moduleId);
+      navigate("/dashboard");
+    } catch (error) {
+      console.error("Failed to complete module:", error);
+      window.alert(error instanceof Error ? error.message : "Unable to complete this module.");
+    } finally {
+      setCompletingModule(false);
+    }
   }
 
   if (loading) {
@@ -184,27 +200,39 @@ export default function LessonPage() {
                 </h2>
 
                 <div className="mt-4 space-y-3">
-                  {activeLesson.resources.map((resource) => (
-                    <a
-                      key={resource.id}
-                      href={resource.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-blue-700 hover:bg-white"
-                    >
-                      {resource.type === "video" ||
-                      resource.type === "youtube" ? (
-                        <PlayCircle size={18} />
-                      ) : resource.type === "pdf" ||
-                        resource.type === "ppt" ? (
+                  {activeLesson.resources.map((resource) =>
+                    resource.type === "pdf" || resource.type === "ppt" ? (
+                      <button
+                        key={resource.id}
+                        type="button"
+                        onClick={() => void downloadResource(resource.url, resource.title)}
+                        className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-sm font-semibold text-blue-700 hover:bg-white"
+                      >
                         <Download size={18} />
-                      ) : (
-                        <FileText size={18} />
-                      )}
-
-                      {resource.title}
-                    </a>
-                  ))}
+                        <span>
+                          <span className="block">{resource.title}</span>
+                          <span className="block text-xs font-normal text-slate-500">
+                            {resource.type === "pdf" ? "PDF document" : "PowerPoint presentation"} • Download only
+                          </span>
+                        </span>
+                      </button>
+                    ) : (
+                      <a
+                        key={resource.id}
+                        href={resource.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-blue-700 hover:bg-white"
+                      >
+                        {resource.type === "video" || resource.type === "youtube" ? (
+                          <PlayCircle size={18} />
+                        ) : (
+                          <FileText size={18} />
+                        )}
+                        {resource.title}
+                      </a>
+                    ),
+                  )}
                 </div>
               </Card>
             )}
@@ -226,11 +254,13 @@ export default function LessonPage() {
                 {activeLessonIndex < lessons.length - 1 ? (
                   <Button onClick={goToNextLesson}>Next Lesson</Button>
                 ) : moduleQuiz ? (
-                  <Button onClick={() => navigate(`/assessments/quizzes/${moduleQuiz.id}/take`)}>
+                  <Button onClick={() => navigate(`/assessments/quizzes/${moduleQuiz.id}`)}>
                     Attempt Module Quiz ({moduleQuiz.passMark}% pass mark)
                   </Button>
                 ) : (
-                  <Button onClick={() => navigate("/dashboard")}>Complete Module</Button>
+                  <Button disabled={completingModule} onClick={() => void handleCompleteModule()}>
+                    {completingModule ? "Completing..." : "Complete Module"}
+                  </Button>
                 )}
               </div>
             </Card>
@@ -239,6 +269,25 @@ export default function LessonPage() {
       </Container>
     </main>
   );
+}
+
+async function downloadResource(url: string, fileName: string): Promise<void> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Unable to download this file.");
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(objectUrl);
+  } catch (error) {
+    console.error("Resource download failed:", error);
+    window.alert(error instanceof Error ? error.message : "Unable to download this file.");
+  }
 }
 
 function convertLegacyLessonToBlocks(lesson: Lesson): LessonBlock[] {

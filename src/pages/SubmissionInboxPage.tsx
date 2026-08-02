@@ -19,7 +19,7 @@ type StatusFilter = "all" | "passed" | "failed";
 
 export default function SubmissionInboxPage() {
   const navigate = useNavigate();
-  const { attempts, loading } = useTutorQuizAttempts();
+  const { attempts, loading, loadingMore, hasMore, loadMore, error } = useTutorQuizAttempts();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -182,6 +182,20 @@ export default function SubmissionInboxPage() {
             </table>
           </div>
         </Card>
+      )}
+
+      {error && (
+        <p role="alert" className="mt-4 text-sm font-semibold text-red-700">
+          {error}
+        </p>
+      )}
+
+      {hasMore && !loading && (
+        <div className="mt-6 flex justify-center">
+          <Button variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>
+            {loadingMore ? "Loading more submissions..." : "Load more submissions"}
+          </Button>
+        </div>
       )}
     </TutorLayout>
   );

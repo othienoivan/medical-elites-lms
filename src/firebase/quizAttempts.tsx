@@ -1,54 +1,80 @@
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
   getDoc,
   getDocs,
+  limit,
   orderBy,
   query,
   serverTimestamp,
   setDoc,
+  startAfter,
   updateDoc,
   where,
+  type DocumentData,
+  type QueryDocumentSnapshot,
 } from "firebase/firestore";
 
 import type { ManualMark } from "../models/QuizAttempt";
-import { db } from "../config/firebase";
+import { httpsCallable } from "firebase/functions";
+
+import { db, functions } from "../config/firebase";
 import type { QuizAttempt } from "../models/QuizAttempt";
 
 const COLLECTION = "quizAttempts";
 const DRAFT_COLLECTION = "quizDraftAttempts";
 
+/** Quiz attempt usage returned by the backend. */
+export type QuizAttemptUsage = {
+  attemptsUsed: number;
+  maximumAttempts: number;
+  attemptsRemaining: number;
+};
+
+type SubmitQuizAttemptResponse = QuizAttemptUsage & { attemptId: string };
+
 /**
- * Save a completed quiz attempt
+ * Save a completed quiz attempt through the trusted backend. The callable
+ * enforces the tutor-defined attempt limit atomically before writing.
  */
 export async function createQuizAttempt(
   attempt: QuizAttempt
-): Promise<void> {
-  const payload = removeUndefinedValues({
-    ...attempt,
+): Promise<SubmitQuizAttemptResponse> {
+  const callable = httpsCallable<QuizAttempt, SubmitQuizAttemptResponse>(
+    functions,
+    "submitQuizAttempt",
+  );
+  const result = await callable(removeUndefinedValues(attempt));
+  return result.data;
+}
 
-    // Manual marking defaults
-    manualMarks: [],
-    manualScore: 0,
-
-    // Initial final result equals objective score
-    finalScore: attempt.score,
-    finalPercentage: attempt.percentage,
-
-    // Tutor workflow
-    tutorRemarks: "",
-    released: false,
-    releasedAt: null,
-
-    completed: true,
-
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  await addDoc(collection(db, COLLECTION), payload);
+/** Read completed-attempt usage for one learner and quiz. */
+export async function getQuizAttemptUsage({
+  quizId,
+  studentId,
+  maximumAttempts,
+}: {
+  quizId: string;
+  studentId: string;
+  maximumAttempts: number;
+}): Promise<QuizAttemptUsage> {
+  const snapshot = await getDocs(
+    query(
+      collection(db, COLLECTION),
+      where("studentId", "==", studentId),
+      where("quizId", "==", quizId),
+    ),
+  );
+  const attemptsUsed = snapshot.docs.filter((item) => {
+    const data = item.data();
+    return data.completed !== false;
+  }).length;
+  return {
+    attemptsUsed,
+    maximumAttempts,
+    attemptsRemaining: Math.max(maximumAttempts - attemptsUsed, 0),
+  };
 }
 
 /**
@@ -145,31 +171,53 @@ export async function deleteQuizDraftAttempt({
 }
 
 
+export type QuizAttemptPage = {
+  attempts: QuizAttempt[];
+  cursor: QueryDocumentSnapshot<DocumentData> | null;
+  hasMore: boolean;
+};
+
+const DEFAULT_ATTEMPT_PAGE_SIZE = 50;
+
 /**
- * Get every completed quiz attempt.
- * Intended for tutor and administrator dashboards.
+ * Load a bounded page of completed quiz attempts for tutor/admin inboxes.
+ * Cursor pagination prevents large institutions from downloading the entire
+ * attempt collection whenever the page opens.
+ */
+export async function getQuizAttemptsPage({
+  pageSize = DEFAULT_ATTEMPT_PAGE_SIZE,
+  cursor = null,
+}: {
+  pageSize?: number;
+  cursor?: QueryDocumentSnapshot<DocumentData> | null;
+} = {}): Promise<QuizAttemptPage> {
+  const safePageSize = Math.min(Math.max(Math.trunc(pageSize), 1), 100);
+  const constraints = [orderBy("createdAt", "desc"), limit(safePageSize + 1)];
+  const pageQuery = cursor
+    ? query(collection(db, COLLECTION), ...constraints.slice(0, 1), startAfter(cursor), constraints[1])
+    : query(collection(db, COLLECTION), ...constraints);
+  const snapshot = await getDocs(pageQuery);
+  const hasMore = snapshot.docs.length > safePageSize;
+  const visibleDocs = snapshot.docs.slice(0, safePageSize);
+
+  return {
+    attempts: visibleDocs
+      .map((docSnap) => ({
+        ...(docSnap.data() as QuizAttempt),
+        id: docSnap.id,
+      }))
+      .filter((attempt) => attempt.completed !== false),
+    cursor: visibleDocs.at(-1) ?? null,
+    hasMore,
+  };
+}
+
+/**
+ * Backwards-compatible first-page loader. New list screens should use
+ * getQuizAttemptsPage so they can expose an explicit Load more action.
  */
 export async function getAllQuizAttempts(): Promise<QuizAttempt[]> {
-  const snapshot = await getDocs(collection(db, COLLECTION));
-
-  return snapshot.docs
-    .map((docSnap) => ({
-      ...(docSnap.data() as QuizAttempt),
-      id: docSnap.id,
-    }))
-    .filter((attempt) => attempt.completed !== false)
-    .sort((a, b) => {
-      const aTime =
-        normalizeDate(a.submittedAt)?.getTime() ||
-        normalizeDate(a.createdAt)?.getTime() ||
-        0;
-      const bTime =
-        normalizeDate(b.submittedAt)?.getTime() ||
-        normalizeDate(b.createdAt)?.getTime() ||
-        0;
-
-      return bTime - aTime;
-    });
+  return (await getQuizAttemptsPage()).attempts;
 }
 
 /** Get one attempt by document ID. */

@@ -392,7 +392,6 @@ function ResourceUploadBlock({
   accept,
   uploadLabel,
   titlePlaceholder,
-  requirePdfPreview = false,
 }: {
   block: LessonBlock;
   onChange: (updatedBlock: LessonBlock) => void;
@@ -400,7 +399,6 @@ function ResourceUploadBlock({
   accept: string;
   uploadLabel: string;
   titlePlaceholder: string;
-  requirePdfPreview?: boolean;
 }) {
   return (
     <div className="grid gap-4">
@@ -429,45 +427,6 @@ function ResourceUploadBlock({
         }
       />
 
-      {requirePdfPreview && (
-        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-          <p className="font-semibold text-blue-950">Browser preview PDF</p>
-          <p className="mt-1 text-sm leading-6 text-blue-800">
-            A PDF preview is generated automatically after upload. You may still
-            upload a manual PDF replacement when a lecturer needs a specially
-            formatted preview.
-          </p>
-          <div className="mt-4">
-            <FileUpload
-              folder="pdfs"
-              accept=".pdf,application/pdf"
-              label={block.metadata?.previewPdfUrl ? "Replace PDF Preview" : "Upload PDF Preview"}
-              onUploaded={(file) =>
-                onChange({
-                  ...block,
-                  metadata: {
-                    ...block.metadata,
-                    previewPdfUrl: file.downloadUrl,
-                    previewPdfFileName: file.fileName,
-                    previewPdfFilePath: file.filePath,
-                  },
-                })
-              }
-            />
-          </div>
-          {block.metadata?.previewPdfUrl && (
-            <a
-              href={block.metadata.previewPdfUrl as string}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-3 inline-block font-semibold text-blue-700 underline"
-            >
-              Open uploaded PDF preview
-            </a>
-          )}
-        </div>
-      )}
-
       {block.url && block.type === "image" && (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <img
@@ -485,7 +444,7 @@ function ResourceUploadBlock({
           rel="noreferrer"
           className="rounded-xl bg-white p-4 font-semibold text-blue-700 underline"
         >
-          Open uploaded file
+          Download uploaded file
         </a>
       )}
     </div>

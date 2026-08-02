@@ -1,6 +1,7 @@
 {
   "projects": {
-    "default": "medical-elites-lms",
-    "staging": "REPLACE_WITH_STAGING_PROJECT_ID"
+    "default": "your-firebase-project-id",
+    "staging": "your-staging-firebase-project-id",
+    "production": "your-production-firebase-project-id"
   }
 }
