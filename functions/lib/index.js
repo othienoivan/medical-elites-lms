@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateTenantSubscriptionStatus = exports.assignTenantSubscription = exports.saveSubscriptionPlan = exports.assignTenantOwner = exports.updateTenantStatus = exports.updateTenantProfile = exports.createTenant = exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.submitQuizAttempt = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = void 0;
+exports.updateTenantSubscriptionStatus = exports.assignTenantSubscription = exports.saveSubscriptionPlan = exports.assignTenantOwner = exports.updateTenantStatus = exports.updateTenantProfile = exports.createTenant = exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.submitQuizAttempt = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.completeFinanceWithdrawal = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = void 0;
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
@@ -540,13 +540,21 @@ async function claimFinanceCommand(uid, operation, idempotencyKey) {
 exports.createFinanceWallet = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
     if (!request.auth)
         throw new https_1.HttpsError("unauthenticated", "Please sign in.");
-    await assertFinancePlatformAdmin(request.auth.uid);
+    const profile = await financeProfile(request.auth.uid);
     const data = (request.data ?? {});
     const ownerType = financeText(data.ownerType, 20);
     const ownerId = financeText(data.ownerId, 128);
     const currency = financeCurrency(data.currency);
     if (!new Set(["platform", "institution", "tutor"]).has(ownerType) || !ownerId)
         throw new https_1.HttpsError("invalid-argument", "Valid wallet ownership is required.");
+    const isPlatformFinance = profile.get("role") === "admin"
+        && ["super_admin", "platform_finance"].includes(String(profile.get("platformRole") ?? ""));
+    const isTutorSelfService = profile.get("role") === "tutor"
+        && ownerType === "tutor"
+        && ownerId === request.auth.uid;
+    if (!isPlatformFinance && !isTutorSelfService) {
+        throw new https_1.HttpsError("permission-denied", "You may only create your own tutor wallet.");
+    }
     const command = await claimFinanceCommand(request.auth.uid, "create_wallet", data.idempotencyKey);
     const walletId = safeFinanceId(`${ownerType}_${ownerId}_${currency}`);
     const walletRef = db.collection("wallets").doc(walletId);
@@ -693,6 +701,95 @@ exports.reviewFinanceWithdrawal = (0, https_1.onCall)({ region: "us-central1", t
     });
     return { status };
 });
+exports.completeFinanceWithdrawal = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    await assertFinancePlatformAdmin(request.auth.uid);
+    const data = (request.data ?? {});
+    const withdrawalId = financeText(data.withdrawalId, 160);
+    const externalReference = financeText(data.externalReference, 180);
+    if (!withdrawalId || !externalReference) {
+        throw new https_1.HttpsError("invalid-argument", "Withdrawal and external payment reference are required.");
+    }
+    const command = await claimFinanceCommand(request.auth.uid, "complete_withdrawal", data.idempotencyKey);
+    const withdrawalRef = db.collection("withdrawals").doc(withdrawalId);
+    try {
+        await db.runTransaction(async (transaction) => {
+            const withdrawal = await transaction.get(withdrawalRef);
+            if (!withdrawal.exists || !["approved", "processing"].includes(String(withdrawal.get("status") ?? ""))) {
+                throw new https_1.HttpsError("failed-precondition", "Withdrawal must be approved before it can be marked paid.");
+            }
+            const walletRef = db.collection("wallets").doc(String(withdrawal.get("walletId") ?? ""));
+            const wallet = await transaction.get(walletRef);
+            if (!wallet.exists)
+                throw new https_1.HttpsError("not-found", "Wallet was not found.");
+            const amount = Number(withdrawal.get("amount.amount") ?? 0);
+            const currency = String(withdrawal.get("amount.currency") ?? wallet.get("currency") ?? "UGX");
+            const frozen = Number(wallet.get("frozenBalance") ?? 0);
+            const lifetimeDebits = Number(wallet.get("lifetimeDebits") ?? 0);
+            if (!Number.isSafeInteger(amount) || amount <= 0 || frozen < amount) {
+                throw new https_1.HttpsError("failed-precondition", "Reserved wallet funds are insufficient for this payout.");
+            }
+            const journalRef = db.collection("journals").doc();
+            const period = financePeriod();
+            const ownerId = String(withdrawal.get("ownerId") ?? wallet.get("ownerId") ?? "");
+            const lines = [
+                { accountId: `wallet_liability_${walletRef.id}`, walletId: walletRef.id, ownerId, direction: "debit", amount, memo: `Payout ${externalReference}` },
+                { accountId: "platform_cash_clearing", direction: "credit", amount, memo: `Payout ${externalReference}` },
+            ];
+            transaction.update(walletRef, {
+                frozenBalance: frozen - amount,
+                lifetimeDebits: lifetimeDebits + amount,
+                updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            });
+            transaction.update(withdrawalRef, {
+                status: "paid",
+                externalReference,
+                paidAt: firestore_1.FieldValue.serverTimestamp(),
+                paidBy: request.auth.uid,
+                updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            });
+            transaction.create(journalRef, {
+                reference: `payout:${withdrawalId}`,
+                idempotencyKey: financeText(data.idempotencyKey, 140),
+                eventType: "withdrawal.paid",
+                currency,
+                accountingPeriod: period,
+                lines,
+                status: "posted",
+                createdBy: request.auth.uid,
+                createdAt: firestore_1.FieldValue.serverTimestamp(),
+            });
+            lines.forEach((line) => transaction.create(db.collection("ledgerEntries").doc(), {
+                ...line,
+                journalId: journalRef.id,
+                reference: `payout:${withdrawalId}`,
+                currency,
+                accountingPeriod: period,
+                createdAt: firestore_1.FieldValue.serverTimestamp(),
+            }));
+            transaction.create(db.collection("platformAuditLogs").doc(), {
+                action: "finance.withdrawal.paid",
+                actorUserId: request.auth.uid,
+                targetType: "withdrawal",
+                targetId: withdrawalId,
+                metadata: { walletId: walletRef.id, amount, currency, externalReference },
+                createdAt: firestore_1.FieldValue.serverTimestamp(),
+            });
+            transaction.update(command, {
+                status: "completed",
+                withdrawalId,
+                journalId: journalRef.id,
+                completedAt: firestore_1.FieldValue.serverTimestamp(),
+            });
+        });
+        return { status: "paid" };
+    }
+    catch (error) {
+        await command.set({ status: "failed", updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+        throw error;
+    }
+});
 exports.upsertFinanceCommissionRule = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
     if (!request.auth)
         throw new https_1.HttpsError("unauthenticated", "Please sign in.");
@@ -782,6 +879,7 @@ exports.createCommerceCheckout = (0, https_1.onCall)({ region: "us-central1", ti
     const orderRef = db.collection("commerceOrders").doc(txRef);
     const invoiceRef = db.collection("invoices").doc();
     const paymentRef = db.collection("payments").doc(txRef);
+    const paymentIntentRef = db.collection("paymentIntents").doc(txRef);
     const now = new Date();
     const invoiceNumber = `ME-${now.getUTCFullYear()}-${invoiceRef.id.slice(0, 8).toUpperCase()}`;
     await db.runTransaction(async (transaction) => {
@@ -801,6 +899,13 @@ exports.createCommerceCheckout = (0, https_1.onCall)({ region: "us-central1", ti
         transaction.create(paymentRef, {
             orderId: txRef, invoiceId: invoiceRef.id, customerUid: request.auth.uid, provider: "flutterwave", providerReference: txRef,
             status: "pending", amount: { amount: item.amount, currency: item.currency }, createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        });
+        transaction.create(paymentIntentRef, {
+            tenantId: item.tenantId ?? profile.get("institutionId") ?? null, payerUserId: request.auth.uid, provider: "flutterwave",
+            purpose, amountMinor: Math.round(item.amount * 100), currency: item.currency, status: "pending", externalReference: txRef,
+            idempotencyKey: financeText(data.idempotencyKey, 180), orderId: txRef, invoiceId: invoiceRef.id,
+            metadata: { planId: item.planId ?? null, productId: item.productId ?? null, paymentMethod },
+            createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp(),
         });
         transaction.update(command, { status: "checkout_created", orderId: txRef, invoiceId: invoiceRef.id, completedAt: firestore_1.FieldValue.serverTimestamp() });
     });
@@ -826,11 +931,15 @@ exports.createCommerceCheckout = (0, https_1.onCall)({ region: "us-central1", ti
         await Promise.all([
             orderRef.set({ status: "checkout_failed", gatewayMessage: result.message ?? null, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true }),
             paymentRef.set({ status: "failed", gatewayMessage: result.message ?? null, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true }),
+            paymentIntentRef.set({ status: "failed", lastError: result.message ?? null, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true }),
         ]);
         throw new https_1.HttpsError("internal", "Unable to create payment checkout.");
     }
-    await orderRef.set({ checkoutUrlCreated: true, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
-    return { checkoutUrl: result.data.link, transactionReference: txRef, invoiceId: invoiceRef.id };
+    await Promise.all([
+        orderRef.set({ checkoutUrlCreated: true, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true }),
+        paymentIntentRef.set({ checkoutUrlCreated: true, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true }),
+    ]);
+    return { checkoutUrl: result.data.link, transactionReference: txRef, invoiceId: invoiceRef.id, paymentIntentId: txRef };
 });
 exports.createMarketplaceCartCheckout = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, secrets: [FLUTTERWAVE_SECRET_KEY] }, async (request) => {
     if (!request.auth)
@@ -886,6 +995,7 @@ exports.createMarketplaceCartCheckout = (0, https_1.onCall)({ region: "us-centra
     const orderRef = db.collection("commerceOrders").doc(txRef);
     const invoiceRef = db.collection("invoices").doc();
     const paymentRef = db.collection("payments").doc(txRef);
+    const paymentIntentRef = db.collection("paymentIntents").doc(txRef);
     const invoiceNumber = `ME-${new Date().getUTCFullYear()}-${invoiceRef.id.slice(0, 8).toUpperCase()}`;
     await db.runTransaction(async (transaction) => {
         transaction.create(orderRef, {
@@ -900,6 +1010,7 @@ exports.createMarketplaceCartCheckout = (0, https_1.onCall)({ region: "us-centra
             issuedAt: firestore_1.FieldValue.serverTimestamp(), dueAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp(),
         });
         transaction.create(paymentRef, { orderId: txRef, invoiceId: invoiceRef.id, customerUid: request.auth.uid, provider: "flutterwave", providerReference: txRef, status: "pending", amount: { amount, currency }, createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() });
+        transaction.create(paymentIntentRef, { tenantId: profile.get("institutionId") ?? null, payerUserId: request.auth.uid, provider: "flutterwave", purpose: "marketplace_purchase", amountMinor: Math.round(amount * 100), currency, status: "pending", externalReference: txRef, idempotencyKey: financeText(data.idempotencyKey, 180), orderId: txRef, invoiceId: invoiceRef.id, metadata: { productIds, paymentMethod }, createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() });
         transaction.update(command, { status: "checkout_created", orderId: txRef, invoiceId: invoiceRef.id, completedAt: firestore_1.FieldValue.serverTimestamp() });
     });
     const secretKey = FLUTTERWAVE_SECRET_KEY.value();
@@ -913,11 +1024,11 @@ exports.createMarketplaceCartCheckout = (0, https_1.onCall)({ region: "us-centra
     });
     const result = await gateway.json();
     if (!gateway.ok || result.status !== "success" || !result.data?.link) {
-        await Promise.all([orderRef.set({ status: "checkout_failed", gatewayMessage: result.message ?? null, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true }), paymentRef.set({ status: "failed", gatewayMessage: result.message ?? null, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true })]);
+        await Promise.all([orderRef.set({ status: "checkout_failed", gatewayMessage: result.message ?? null, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true }), paymentRef.set({ status: "failed", gatewayMessage: result.message ?? null, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true }), paymentIntentRef.set({ status: "failed", lastError: result.message ?? null, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true })]);
         throw new https_1.HttpsError("internal", "Unable to create marketplace checkout.");
     }
-    await orderRef.set({ checkoutUrlCreated: true, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
-    return { checkoutUrl: result.data.link, transactionReference: txRef, invoiceId: invoiceRef.id };
+    await Promise.all([orderRef.set({ checkoutUrlCreated: true, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true }), paymentIntentRef.set({ checkoutUrlCreated: true, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true })]);
+    return { checkoutUrl: result.data.link, transactionReference: txRef, invoiceId: invoiceRef.id, paymentIntentId: txRef };
 });
 async function fulfilCommerceOrder(orderRef, transactionId, verified, eventName) {
     const order = await orderRef.get();
@@ -935,6 +1046,7 @@ async function fulfilCommerceOrder(orderRef, transactionId, verified, eventName)
     }
     const invoiceId = String(order.get("invoiceId") ?? "");
     const paymentRef = db.collection("payments").doc(txRef);
+    const paymentIntentRef = db.collection("paymentIntents").doc(txRef);
     const receiptRef = db.collection("receipts").doc(txRef);
     await db.runTransaction(async (transaction) => {
         const freshOrder = await transaction.get(orderRef);
@@ -942,6 +1054,7 @@ async function fulfilCommerceOrder(orderRef, transactionId, verified, eventName)
             return;
         transaction.update(orderRef, { status: "fulfilled", fulfilledAt: firestore_1.FieldValue.serverTimestamp(), flutterwaveTransactionId: transactionId, flutterwaveReference: verified.flw_ref ?? null, updatedAt: firestore_1.FieldValue.serverTimestamp() });
         transaction.set(paymentRef, { status: "successful", providerTransactionId: transactionId, providerReference: verified.flw_ref ?? txRef, verifiedAmount: verified.amount ?? null, verifiedCurrency: verified.currency ?? null, paymentType: verified.payment_type ?? null, paidAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+        transaction.set(paymentIntentRef, { status: "successful", providerTransactionId: transactionId, providerReference: verified.flw_ref ?? txRef, verifiedAmountMinor: Math.round(Number(verified.amount ?? 0) * 100), verifiedCurrency: verified.currency ?? null, paidAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
         if (invoiceId)
             transaction.set(db.collection("invoices").doc(invoiceId), { status: "paid", paidAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
         transaction.set(receiptRef, { number: `ME-RCT-${txRef.slice(-12).toUpperCase()}`, orderId: txRef, invoiceId: invoiceId || null, customerUid: freshOrder.get("customerUid"), customerEmail: freshOrder.get("customerEmail"), amount: freshOrder.get("amount"), provider: "flutterwave", providerTransactionId: transactionId, event: eventName, issuedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
@@ -1007,6 +1120,8 @@ exports.flutterwaveCommerceWebhook = (0, https_1.onRequest)({ region: "us-centra
         return;
     }
     const receiptRef = db.collection("webhookReceipts").doc(`commerce_flutterwave_${transactionId}`);
+    const webhookEventRef = db.collection("paymentWebhookEvents").doc(`flutterwave_${transactionId}`);
+    await webhookEventRef.set({ provider: "flutterwave", providerEventId: transactionId, externalReference: txRef, eventType: body.event ?? body.type ?? null, signatureVerified: true, processingStatus: "received", retryCount: firestore_1.FieldValue.increment(1), receivedAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
     const receipt = await receiptRef.get();
     if (receipt.get("processed") === true) {
         response.status(200).send("Already processed");
@@ -1020,12 +1135,18 @@ exports.flutterwaveCommerceWebhook = (0, https_1.onRequest)({ region: "us-centra
     try {
         const verified = await verifyFlutterwaveTransaction(transactionId);
         await fulfilCommerceOrder(orderRef, transactionId, verified, body.event ?? body.type ?? "unknown");
-        await receiptRef.set({ provider: "flutterwave", transactionId, txRef, processed: true, receivedAt: firestore_1.FieldValue.serverTimestamp(), event: body.event ?? body.type ?? null }, { merge: true });
+        await Promise.all([
+            receiptRef.set({ provider: "flutterwave", transactionId, txRef, processed: true, receivedAt: firestore_1.FieldValue.serverTimestamp(), event: body.event ?? body.type ?? null }, { merge: true }),
+            webhookEventRef.set({ processingStatus: "processed", processedAt: firestore_1.FieldValue.serverTimestamp(), lastError: null, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true }),
+        ]);
         response.status(200).send("OK");
     }
     catch (error) {
         console.error("Commerce webhook processing failed", { txRef, transactionId, message: error instanceof Error ? error.message : "unknown" });
-        await receiptRef.set({ provider: "flutterwave", transactionId, txRef, processed: false, failedAt: firestore_1.FieldValue.serverTimestamp(), event: body.event ?? body.type ?? null }, { merge: true });
+        await Promise.all([
+            receiptRef.set({ provider: "flutterwave", transactionId, txRef, processed: false, failedAt: firestore_1.FieldValue.serverTimestamp(), event: body.event ?? body.type ?? null }, { merge: true }),
+            webhookEventRef.set({ processingStatus: "failed", lastError: error instanceof Error ? error.message : "Unknown webhook processing error", failedAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true }),
+        ]);
         response.status(200).send("Verification failed");
     }
 });
@@ -1323,6 +1444,11 @@ exports.submitQuizAttempt = (0, https_1.onCall)({ region: "us-central1", timeout
             courseUnitTitle: asText(quiz.courseUnitTitle ?? data.courseUnitTitle, 500) || null,
             moduleId: moduleId || null,
             moduleTitle: asText(quiz.moduleTitle ?? data.moduleTitle, 500) || null,
+            tutorUid: asText(quiz.ownerUserId ?? quiz.createdByUid ?? quiz.tutorUid, 200) || null,
+            ownerUserId: asText(quiz.ownerUserId ?? quiz.createdByUid ?? quiz.tutorUid, 200) || null,
+            createdByUid: asText(quiz.createdByUid ?? quiz.ownerUserId ?? quiz.tutorUid, 200) || null,
+            tenantId: asText(quiz.tenantId ?? quiz.institutionId, 200) || null,
+            institutionId: asText(quiz.institutionId, 200) || null,
             startedAt: callableDate(data.startedAt),
             submittedAt: firestore_1.FieldValue.serverTimestamp(),
             durationSeconds: Math.max(0, Math.floor(finiteNumber(data.durationSeconds))),

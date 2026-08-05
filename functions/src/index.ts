@@ -603,12 +603,22 @@ async function claimFinanceCommand(uid: string, operation: string, idempotencyKe
 
 export const createFinanceWallet = onCall({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Please sign in.");
-  await assertFinancePlatformAdmin(request.auth.uid);
+  const profile = await financeProfile(request.auth.uid);
   const data = (request.data ?? {}) as Record<string, unknown>;
   const ownerType = financeText(data.ownerType, 20) as FinanceOwnerType;
   const ownerId = financeText(data.ownerId, 128);
   const currency = financeCurrency(data.currency);
   if (!new Set(["platform", "institution", "tutor"]).has(ownerType) || !ownerId) throw new HttpsError("invalid-argument", "Valid wallet ownership is required.");
+
+  const isPlatformFinance = profile.get("role") === "admin"
+    && ["super_admin", "platform_finance"].includes(String(profile.get("platformRole") ?? ""));
+  const isTutorSelfService = profile.get("role") === "tutor"
+    && ownerType === "tutor"
+    && ownerId === request.auth.uid;
+
+  if (!isPlatformFinance && !isTutorSelfService) {
+    throw new HttpsError("permission-denied", "You may only create your own tutor wallet.");
+  }
   const command = await claimFinanceCommand(request.auth.uid, "create_wallet", data.idempotencyKey);
   const walletId = safeFinanceId(`${ownerType}_${ownerId}_${currency}`);
   const walletRef = db.collection("wallets").doc(walletId);
@@ -712,6 +722,105 @@ export const reviewFinanceWithdrawal = onCall({ region: "us-central1", timeoutSe
   return { status };
 });
 
+
+export const completeFinanceWithdrawal = onCall({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Please sign in.");
+  await assertFinancePlatformAdmin(request.auth.uid);
+
+  const data = (request.data ?? {}) as Record<string, unknown>;
+  const withdrawalId = financeText(data.withdrawalId, 160);
+  const externalReference = financeText(data.externalReference, 180);
+  if (!withdrawalId || !externalReference) {
+    throw new HttpsError("invalid-argument", "Withdrawal and external payment reference are required.");
+  }
+
+  const command = await claimFinanceCommand(
+    request.auth.uid,
+    "complete_withdrawal",
+    data.idempotencyKey
+  );
+  const withdrawalRef = db.collection("withdrawals").doc(withdrawalId);
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const withdrawal = await transaction.get(withdrawalRef);
+      if (!withdrawal.exists || !["approved", "processing"].includes(String(withdrawal.get("status") ?? ""))) {
+        throw new HttpsError("failed-precondition", "Withdrawal must be approved before it can be marked paid.");
+      }
+
+      const walletRef = db.collection("wallets").doc(String(withdrawal.get("walletId") ?? ""));
+      const wallet = await transaction.get(walletRef);
+      if (!wallet.exists) throw new HttpsError("not-found", "Wallet was not found.");
+
+      const amount = Number(withdrawal.get("amount.amount") ?? 0);
+      const currency = String(withdrawal.get("amount.currency") ?? wallet.get("currency") ?? "UGX");
+      const frozen = Number(wallet.get("frozenBalance") ?? 0);
+      const lifetimeDebits = Number(wallet.get("lifetimeDebits") ?? 0);
+      if (!Number.isSafeInteger(amount) || amount <= 0 || frozen < amount) {
+        throw new HttpsError("failed-precondition", "Reserved wallet funds are insufficient for this payout.");
+      }
+
+      const journalRef = db.collection("journals").doc();
+      const period = financePeriod();
+      const ownerId = String(withdrawal.get("ownerId") ?? wallet.get("ownerId") ?? "");
+      const lines = [
+        { accountId: `wallet_liability_${walletRef.id}`, walletId: walletRef.id, ownerId, direction: "debit", amount, memo: `Payout ${externalReference}` },
+        { accountId: "platform_cash_clearing", direction: "credit", amount, memo: `Payout ${externalReference}` },
+      ];
+
+      transaction.update(walletRef, {
+        frozenBalance: frozen - amount,
+        lifetimeDebits: lifetimeDebits + amount,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      transaction.update(withdrawalRef, {
+        status: "paid",
+        externalReference,
+        paidAt: FieldValue.serverTimestamp(),
+        paidBy: request.auth!.uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      transaction.create(journalRef, {
+        reference: `payout:${withdrawalId}`,
+        idempotencyKey: financeText(data.idempotencyKey, 140),
+        eventType: "withdrawal.paid",
+        currency,
+        accountingPeriod: period,
+        lines,
+        status: "posted",
+        createdBy: request.auth!.uid,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      lines.forEach((line) => transaction.create(db.collection("ledgerEntries").doc(), {
+        ...line,
+        journalId: journalRef.id,
+        reference: `payout:${withdrawalId}`,
+        currency,
+        accountingPeriod: period,
+        createdAt: FieldValue.serverTimestamp(),
+      }));
+      transaction.create(db.collection("platformAuditLogs").doc(), {
+        action: "finance.withdrawal.paid",
+        actorUserId: request.auth!.uid,
+        targetType: "withdrawal",
+        targetId: withdrawalId,
+        metadata: { walletId: walletRef.id, amount, currency, externalReference },
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      transaction.update(command, {
+        status: "completed",
+        withdrawalId,
+        journalId: journalRef.id,
+        completedAt: FieldValue.serverTimestamp(),
+      });
+    });
+    return { status: "paid" };
+  } catch (error) {
+    await command.set({ status: "failed", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    throw error;
+  }
+});
+
 export const upsertFinanceCommissionRule = onCall({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Please sign in."); await assertFinancePlatformAdmin(request.auth.uid);
   const data = (request.data ?? {}) as { rule?: Record<string, unknown>; idempotencyKey?: unknown }; const rule = data.rule ?? {}; const scope = financeText(rule.scope, 20) || "global"; const scopeId = financeText(rule.scopeId, 128) || (scope === "global" ? "global" : "");
@@ -812,6 +921,7 @@ export const createCommerceCheckout = onCall(
     const orderRef = db.collection("commerceOrders").doc(txRef);
     const invoiceRef = db.collection("invoices").doc();
     const paymentRef = db.collection("payments").doc(txRef);
+    const paymentIntentRef = db.collection("paymentIntents").doc(txRef);
     const now = new Date();
     const invoiceNumber = `ME-${now.getUTCFullYear()}-${invoiceRef.id.slice(0, 8).toUpperCase()}`;
     await db.runTransaction(async transaction => {
@@ -831,6 +941,13 @@ export const createCommerceCheckout = onCall(
       transaction.create(paymentRef, {
         orderId: txRef, invoiceId: invoiceRef.id, customerUid: request.auth!.uid, provider: "flutterwave", providerReference: txRef,
         status: "pending", amount: { amount: item.amount, currency: item.currency }, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+      });
+      transaction.create(paymentIntentRef, {
+        tenantId: item.tenantId ?? profile.get("institutionId") ?? null, payerUserId: request.auth!.uid, provider: "flutterwave",
+        purpose, amountMinor: Math.round(item.amount * 100), currency: item.currency, status: "pending", externalReference: txRef,
+        idempotencyKey: financeText(data.idempotencyKey, 180), orderId: txRef, invoiceId: invoiceRef.id,
+        metadata: { planId: item.planId ?? null, productId: item.productId ?? null, paymentMethod },
+        createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
       });
       transaction.update(command, { status: "checkout_created", orderId: txRef, invoiceId: invoiceRef.id, completedAt: FieldValue.serverTimestamp() });
     });
@@ -855,11 +972,15 @@ export const createCommerceCheckout = onCall(
       await Promise.all([
         orderRef.set({ status: "checkout_failed", gatewayMessage: result.message ?? null, updatedAt: FieldValue.serverTimestamp() }, { merge: true }),
         paymentRef.set({ status: "failed", gatewayMessage: result.message ?? null, updatedAt: FieldValue.serverTimestamp() }, { merge: true }),
+        paymentIntentRef.set({ status: "failed", lastError: result.message ?? null, updatedAt: FieldValue.serverTimestamp() }, { merge: true }),
       ]);
       throw new HttpsError("internal", "Unable to create payment checkout.");
     }
-    await orderRef.set({ checkoutUrlCreated: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    return { checkoutUrl: result.data.link, transactionReference: txRef, invoiceId: invoiceRef.id };
+    await Promise.all([
+      orderRef.set({ checkoutUrlCreated: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true }),
+      paymentIntentRef.set({ checkoutUrlCreated: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true }),
+    ]);
+    return { checkoutUrl: result.data.link, transactionReference: txRef, invoiceId: invoiceRef.id, paymentIntentId: txRef };
   }
 );
 
@@ -911,6 +1032,7 @@ export const createMarketplaceCartCheckout = onCall(
     const orderRef = db.collection("commerceOrders").doc(txRef);
     const invoiceRef = db.collection("invoices").doc();
     const paymentRef = db.collection("payments").doc(txRef);
+    const paymentIntentRef = db.collection("paymentIntents").doc(txRef);
     const invoiceNumber = `ME-${new Date().getUTCFullYear()}-${invoiceRef.id.slice(0, 8).toUpperCase()}`;
     await db.runTransaction(async transaction => {
       transaction.create(orderRef, {
@@ -925,6 +1047,7 @@ export const createMarketplaceCartCheckout = onCall(
         issuedAt: FieldValue.serverTimestamp(), dueAt: FieldValue.serverTimestamp(), createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
       });
       transaction.create(paymentRef, { orderId: txRef, invoiceId: invoiceRef.id, customerUid: request.auth!.uid, provider: "flutterwave", providerReference: txRef, status: "pending", amount: { amount, currency }, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+      transaction.create(paymentIntentRef, { tenantId: profile.get("institutionId") ?? null, payerUserId: request.auth!.uid, provider: "flutterwave", purpose: "marketplace_purchase", amountMinor: Math.round(amount * 100), currency, status: "pending", externalReference: txRef, idempotencyKey: financeText(data.idempotencyKey, 180), orderId: txRef, invoiceId: invoiceRef.id, metadata: { productIds, paymentMethod }, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
       transaction.update(command, { status: "checkout_created", orderId: txRef, invoiceId: invoiceRef.id, completedAt: FieldValue.serverTimestamp() });
     });
     const secretKey = FLUTTERWAVE_SECRET_KEY.value();
@@ -937,11 +1060,11 @@ export const createMarketplaceCartCheckout = onCall(
     });
     const result = await gateway.json() as { status?: string; message?: string; data?: { link?: string } };
     if (!gateway.ok || result.status !== "success" || !result.data?.link) {
-      await Promise.all([orderRef.set({ status: "checkout_failed", gatewayMessage: result.message ?? null, updatedAt: FieldValue.serverTimestamp() }, { merge: true }), paymentRef.set({ status: "failed", gatewayMessage: result.message ?? null, updatedAt: FieldValue.serverTimestamp() }, { merge: true })]);
+      await Promise.all([orderRef.set({ status: "checkout_failed", gatewayMessage: result.message ?? null, updatedAt: FieldValue.serverTimestamp() }, { merge: true }), paymentRef.set({ status: "failed", gatewayMessage: result.message ?? null, updatedAt: FieldValue.serverTimestamp() }, { merge: true }), paymentIntentRef.set({ status: "failed", lastError: result.message ?? null, updatedAt: FieldValue.serverTimestamp() }, { merge: true })]);
       throw new HttpsError("internal", "Unable to create marketplace checkout.");
     }
-    await orderRef.set({ checkoutUrlCreated: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    return { checkoutUrl: result.data.link, transactionReference: txRef, invoiceId: invoiceRef.id };
+    await Promise.all([orderRef.set({ checkoutUrlCreated: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true }), paymentIntentRef.set({ checkoutUrlCreated: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true })]);
+    return { checkoutUrl: result.data.link, transactionReference: txRef, invoiceId: invoiceRef.id, paymentIntentId: txRef };
   }
 );
 
@@ -959,12 +1082,14 @@ async function fulfilCommerceOrder(orderRef: FirebaseFirestore.DocumentReference
   }
   const invoiceId = String(order.get("invoiceId") ?? "");
   const paymentRef = db.collection("payments").doc(txRef);
+  const paymentIntentRef = db.collection("paymentIntents").doc(txRef);
   const receiptRef = db.collection("receipts").doc(txRef);
   await db.runTransaction(async transaction => {
     const freshOrder = await transaction.get(orderRef);
     if (freshOrder.get("status") === "fulfilled") return;
     transaction.update(orderRef, { status: "fulfilled", fulfilledAt: FieldValue.serverTimestamp(), flutterwaveTransactionId: transactionId, flutterwaveReference: verified.flw_ref ?? null, updatedAt: FieldValue.serverTimestamp() });
     transaction.set(paymentRef, { status: "successful", providerTransactionId: transactionId, providerReference: verified.flw_ref ?? txRef, verifiedAmount: verified.amount ?? null, verifiedCurrency: verified.currency ?? null, paymentType: verified.payment_type ?? null, paidAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    transaction.set(paymentIntentRef, { status: "successful", providerTransactionId: transactionId, providerReference: verified.flw_ref ?? txRef, verifiedAmountMinor: Math.round(Number(verified.amount ?? 0) * 100), verifiedCurrency: verified.currency ?? null, paidAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     if (invoiceId) transaction.set(db.collection("invoices").doc(invoiceId), { status: "paid", paidAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     transaction.set(receiptRef, { number: `ME-RCT-${txRef.slice(-12).toUpperCase()}`, orderId: txRef, invoiceId: invoiceId || null, customerUid: freshOrder.get("customerUid"), customerEmail: freshOrder.get("customerEmail"), amount: freshOrder.get("amount"), provider: "flutterwave", providerTransactionId: transactionId, event: eventName, issuedAt: FieldValue.serverTimestamp(), createdAt: FieldValue.serverTimestamp() }, { merge: true });
     if (freshOrder.get("purpose") === "subscription") {
@@ -1017,6 +1142,8 @@ export const flutterwaveCommerceWebhook = onRequest(
     const transactionId = financeText(eventData.id, 80);
     if (!txRef || !transactionId) { response.status(200).send("Ignored"); return; }
     const receiptRef = db.collection("webhookReceipts").doc(`commerce_flutterwave_${transactionId}`);
+    const webhookEventRef = db.collection("paymentWebhookEvents").doc(`flutterwave_${transactionId}`);
+    await webhookEventRef.set({ provider: "flutterwave", providerEventId: transactionId, externalReference: txRef, eventType: body.event ?? body.type ?? null, signatureVerified: true, processingStatus: "received", retryCount: FieldValue.increment(1), receivedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     const receipt = await receiptRef.get();
     if (receipt.get("processed") === true) { response.status(200).send("Already processed"); return; }
     const orderRef = db.collection("commerceOrders").doc(txRef);
@@ -1024,11 +1151,17 @@ export const flutterwaveCommerceWebhook = onRequest(
     try {
       const verified = await verifyFlutterwaveTransaction(transactionId);
       await fulfilCommerceOrder(orderRef, transactionId, verified, body.event ?? body.type ?? "unknown");
-      await receiptRef.set({ provider: "flutterwave", transactionId, txRef, processed: true, receivedAt: FieldValue.serverTimestamp(), event: body.event ?? body.type ?? null }, { merge: true });
+      await Promise.all([
+        receiptRef.set({ provider: "flutterwave", transactionId, txRef, processed: true, receivedAt: FieldValue.serverTimestamp(), event: body.event ?? body.type ?? null }, { merge: true }),
+        webhookEventRef.set({ processingStatus: "processed", processedAt: FieldValue.serverTimestamp(), lastError: null, updatedAt: FieldValue.serverTimestamp() }, { merge: true }),
+      ]);
       response.status(200).send("OK");
     } catch (error) {
       console.error("Commerce webhook processing failed", { txRef, transactionId, message: error instanceof Error ? error.message : "unknown" });
-      await receiptRef.set({ provider: "flutterwave", transactionId, txRef, processed: false, failedAt: FieldValue.serverTimestamp(), event: body.event ?? body.type ?? null }, { merge: true });
+      await Promise.all([
+        receiptRef.set({ provider: "flutterwave", transactionId, txRef, processed: false, failedAt: FieldValue.serverTimestamp(), event: body.event ?? body.type ?? null }, { merge: true }),
+        webhookEventRef.set({ processingStatus: "failed", lastError: error instanceof Error ? error.message : "Unknown webhook processing error", failedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true }),
+      ]);
       response.status(200).send("Verification failed");
     }
   }

@@ -15,6 +15,7 @@ import {
   Layers,
   Link2,
   PackageOpen,
+  ShoppingBag,
   Megaphone,
   Menu,
   MessageCircle,
@@ -97,6 +98,16 @@ const navigationGroups: NavigationGroup[] = [
     ],
   },
   {
+    title: "Commerce",
+    items: [
+      { name: "Commerce Centre", icon: ShoppingBag, path: "/tutor/commerce" },
+      { name: "My Products", icon: PackageOpen, path: "/tutor/commerce/products" },
+      { name: "Create Product", icon: PlusCircle, path: "/tutor/commerce/products/new" },
+      { name: "Marketplace Analytics", icon: BarChart3, path: "/marketplace/seller-analytics" },
+      { name: "My Wallet", icon: WalletCards, path: "/tutor/finance" },
+    ],
+  },
+  {
     title: "Institution & Communication",
     items: [
       { name: "Finance", icon: WalletCards, path: "/tutor/finance" },
@@ -132,6 +143,8 @@ const breadcrumbLabels: Record<string, string> = {
   attendance: "Attendance",
   timetable: "Timetable",
   finance: "Finance",
+  commerce: "Commerce Centre",
+  products: "My Products",
   announcements: "Announcements",
   messages: "Messages",
   notifications: "Notifications",
