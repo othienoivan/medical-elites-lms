@@ -240,6 +240,7 @@ export default function ManualMarkingPage() {
       <div className="space-y-5">
         {attempt.answers.map((answer, index) => {
           const manualMark = getManualMark(answer.questionId);
+          const question = attempt.questionSnapshots?.find((item) => item.id === answer.questionId);
 
           return (
             <Card key={`${answer.questionId}-${index}`}>
@@ -250,9 +251,23 @@ export default function ManualMarkingPage() {
                     {answer.isCorrect ? <CorrectBadge /> : <WrongBadge />}
                   </div>
 
-                  <p className="mt-4 text-sm text-slate-500">
-                    Question ID: {answer.questionId}
-                  </p>
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="font-semibold leading-7 text-slate-900">
+                      {question?.questionText || "Question text unavailable"}
+                    </p>
+                    {question?.options && question.options.length > 0 && (
+                      <div className="mt-3 grid gap-2 text-sm text-slate-600">
+                        {question.options.map((option, optionIndex) => (
+                          <p key={`${answer.questionId}-option-${option.id || optionIndex}`}>
+                            <strong>{option.label || String.fromCharCode(65 + optionIndex)}.</strong> {option.text || ""}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    {question?.correctAnswer && (
+                      <p className="mt-3 text-sm text-emerald-700"><strong>Expected answer:</strong> {question.correctAnswer}</p>
+                    )}
+                  </div>
 
                   <div className="mt-4 rounded-xl bg-slate-50 p-4">
                     <p className="text-sm font-semibold text-slate-500">

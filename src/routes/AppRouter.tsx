@@ -178,7 +178,7 @@ const WithdrawalsPage = lazy(() => import("../pages/platform/finance/Withdrawals
 const RevenueSharingPage = lazy(() => import("../pages/platform/finance/RevenueSharingPage"));
 const FinanceOperationsPage = lazy(() => import("../pages/platform/finance/FinanceOperationsPage"));
 
-const TUTOR_ROLES: readonly UserRole[] = ["tutor", "admin"];
+const TUTOR_ROLES: readonly UserRole[] = ["tutor"];
 const ADMIN_ROLES: readonly UserRole[] = ["admin"];
 const LEARNER_ROLES: readonly UserRole[] = ["student", "tutor", "admin"];
 

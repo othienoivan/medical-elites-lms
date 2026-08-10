@@ -240,7 +240,7 @@ export default function LessonPage() {
 
           <section className="lg:col-span-3">
             <Card>
-              <LessonViewer blocks={lessonBlocks} />
+              <LessonViewer blocks={lessonBlocks} lessonId={activeLesson.id} courseUnitId={activeLesson.courseUnitId || activeLesson.courseId} />
 
               <div className="mt-8 flex flex-col gap-3 border-t border-slate-200 pt-6 md:flex-row md:justify-between">
                 <Button
@@ -273,17 +273,14 @@ export default function LessonPage() {
 
 async function downloadResource(url: string, fileName: string): Promise<void> {
   try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("Unable to download this file.");
-    const blob = await response.blob();
-    const objectUrl = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
-    anchor.href = objectUrl;
+    anchor.href = url;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
     anchor.download = fileName;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
-    URL.revokeObjectURL(objectUrl);
   } catch (error) {
     console.error("Resource download failed:", error);
     window.alert(error instanceof Error ? error.message : "Unable to download this file.");

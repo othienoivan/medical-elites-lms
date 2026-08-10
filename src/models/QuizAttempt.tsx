@@ -8,6 +8,17 @@ export interface QuizAnswer {
   marksAwarded: number;
 }
 
+
+export interface QuizAttemptQuestionSnapshot {
+  id: string;
+  questionText: string;
+  options?: Array<{ id?: string; label?: string; text?: string }>;
+  correctAnswer?: string;
+  explanation?: string;
+  marks?: number;
+  type?: string;
+}
+
 export interface ManualMark {
   questionId: string;
 
@@ -42,6 +53,7 @@ export interface QuizAttempt {
   durationSeconds: number;
 
   answers: QuizAnswer[];
+  questionSnapshots?: QuizAttemptQuestionSnapshot[];
 
   score: number;
   totalMarks: number;

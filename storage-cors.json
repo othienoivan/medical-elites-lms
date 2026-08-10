@@ -1,0 +1,14 @@
+[
+  {
+    "origin": [
+      "https://medicalelites.org",
+      "https://www.medicalelites.org",
+      "https://medical-elites-lms.web.app",
+      "https://medical-elites-lms.firebaseapp.com",
+      "http://localhost:5173"
+    ],
+    "method": ["GET", "HEAD"],
+    "responseHeader": ["Content-Type", "Content-Disposition", "Content-Length", "Range"],
+    "maxAgeSeconds": 3600
+  }
+]

@@ -1,8 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.notifyStudentsWhenLessonPublished = exports.getPublicCourseCatalogueSnapshotV2 = exports.getTutorEnrollmentCourseUnits = exports.resolveTenantWorkspaceTrusted = exports.updateOwnStudentProfile = exports.updateOwnTutorProfile = exports.synchronizeStudentIdentity = exports.getStudentLearningOverview = exports.getPublicCourseCatalogueSnapshot = exports.refreshMarketplaceLearningAccess = exports.updateTenantSubscriptionStatus = exports.assignTenantSubscription = exports.saveSubscriptionPlan = exports.assignTenantOwner = exports.updateTenantStatus = exports.updateTenantProfile = exports.createTenant = exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.submitQuizAttempt = exports.getTutorMarketplaceAnalytics = exports.reconcileTutorMarketplaceRevenue = exports.getTutorAssessmentAttempt = exports.saveTutorAssessmentMarking = exports.getTutorAssessmentAttempts = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.validateMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.cancelTutorSubscriptionAtPeriodEnd = exports.refreshTutorSubscriptionLifecycle = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.completeFinanceWithdrawal = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = void 0;
+exports.notifyStudentsWhenLessonPublished = exports.getPublicCourseCatalogueSnapshotV2 = exports.getTutorEnrollmentCourseUnits = exports.resolveTenantWorkspaceTrusted = exports.updateOwnStudentProfile = exports.updateOwnTutorProfile = exports.synchronizeStudentIdentity = exports.getStudentLearningOverview = exports.getPublicCourseCatalogueSnapshot = exports.refreshMarketplaceLearningAccess = exports.updateTenantSubscriptionStatus = exports.assignTenantSubscription = exports.saveSubscriptionPlan = exports.assignTenantOwner = exports.updateTenantStatus = exports.updateTenantProfile = exports.createTenant = exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.submitQuizAttempt = exports.getTutorMarketplaceAnalytics = exports.reconcileTutorMarketplaceRevenue = exports.getTutorAssessmentAttempt = exports.saveTutorAssessmentMarking = exports.getTutorAssessmentAttempts = exports.getTutorQuizAnalytics = exports.getLessonResourceAccessUrl = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.validateMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.cancelTutorSubscriptionAtPeriodEnd = exports.refreshTutorSubscriptionLifecycle = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.completeFinanceWithdrawal = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = void 0;
 const app_1 = require("firebase-admin/app");
 const auth_1 = require("firebase-admin/auth");
+const storage_1 = require("firebase-admin/storage");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const firestore_2 = require("firebase-functions/v2/firestore");
@@ -1814,6 +1815,179 @@ function serializeTutorAttempt(snapshot) {
         releasedAt: callableDateText(data.releasedAt),
     };
 }
+function activeEnrollmentStatus(value) {
+    const status = String(value ?? "").trim().toLowerCase();
+    return ["active", "approved", "enrolled", "accepted", "completed"].includes(status);
+}
+async function userHasCourseAccess(uid, courseUnitId) {
+    if (!courseUnitId)
+        return false;
+    const [user, student, byUser, byAuth, byStudent] = await Promise.all([
+        db.collection("users").doc(uid).get(),
+        db.collection("students").doc(uid).get(),
+        db.collection("enrollments").where("userId", "==", uid).get(),
+        db.collection("enrollments").where("studentAuthUid", "==", uid).get(),
+        db.collection("enrollments").where("studentId", "==", uid).get(),
+    ]);
+    const assigned = new Set();
+    for (const snapshot of [user, student]) {
+        if (!snapshot.exists)
+            continue;
+        const data = snapshot.data() ?? {};
+        for (const key of ["courseUnitId", "courseId"]) {
+            const value = data[key];
+            if (typeof value === "string" && value.trim())
+                assigned.add(value.trim());
+        }
+        for (const key of ["assignedCourseUnitIds", "courseUnitIds", "courseIds"]) {
+            const value = data[key];
+            if (Array.isArray(value))
+                value.forEach((item) => { if (typeof item === "string" && item.trim())
+                    assigned.add(item.trim()); });
+        }
+    }
+    if (assigned.has(courseUnitId))
+        return true;
+    for (const snapshot of [byUser, byAuth, byStudent]) {
+        for (const doc of snapshot.docs) {
+            const data = doc.data();
+            if (!activeEnrollmentStatus(data.status ?? data.approvalStatus) && data.active !== true)
+                continue;
+            const values = [data.courseUnitId, data.courseId, ...(Array.isArray(data.courseUnitIds) ? data.courseUnitIds : []), ...(Array.isArray(data.courseIds) ? data.courseIds : [])];
+            if (values.some((value) => String(value ?? "").trim() === courseUnitId))
+                return true;
+        }
+    }
+    return false;
+}
+function tutorOwnsLessonData(data, uid) {
+    return [data.ownerUserId, data.createdByUid, data.createdBy, data.tutorId].some((value) => value === uid)
+        || (Array.isArray(data.assignedTutorIds) && data.assignedTutorIds.includes(uid));
+}
+function lessonReferencesFilePath(data, filePath) {
+    const blocks = Array.isArray(data.blocks) ? data.blocks : [];
+    return blocks.some((block) => {
+        const metadata = block && typeof block.metadata === "object" && block.metadata !== null
+            ? block.metadata
+            : {};
+        return financeText(metadata.filePath, 1000) === filePath;
+    });
+}
+function safeResourceFileName(value) {
+    const name = financeText(value, 180).replace(/[\\/\r\n\"]+/g, "_").trim();
+    return name || "medical-elites-resource";
+}
+exports.getLessonResourceAccessUrl = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in to access this lesson resource.");
+    const uid = request.auth.uid;
+    const profile = await financeProfile(uid);
+    const role = String(profile.get("role") ?? "");
+    if (!["student", "tutor", "admin"].includes(role))
+        throw new https_1.HttpsError("permission-denied", "This account cannot access lesson resources.");
+    const data = (request.data ?? {});
+    const filePath = financeText(data.filePath, 1000).replace(/^\/+/, "");
+    const lessonId = financeText(data.lessonId, 180);
+    const requestedCourseUnitId = financeText(data.courseUnitId, 180);
+    if (!filePath || filePath.includes(".."))
+        throw new https_1.HttpsError("invalid-argument", "A valid lesson resource path is required.");
+    const bucket = (0, storage_1.getStorage)().bucket();
+    const file = bucket.file(filePath);
+    const [exists] = await file.exists();
+    if (!exists)
+        throw new https_1.HttpsError("not-found", "This lesson resource no longer exists.");
+    const [metadata] = await file.getMetadata();
+    const objectMetadata = (metadata.metadata ?? {});
+    const metadataCourseUnitId = financeText(objectMetadata.courseUnitId, 180);
+    const metadataLessonId = financeText(objectMetadata.lessonId, 180);
+    const uploaderUid = financeText(objectMetadata.uploaderUid, 180);
+    let lesson = null;
+    if (lessonId)
+        lesson = await db.collection("lessons").doc(lessonId).get();
+    const lessonData = lesson?.exists ? (lesson.data() ?? {}) : {};
+    const lessonCourseUnitId = financeText(lessonData.courseUnitId, 180) || financeText(lessonData.courseId, 180);
+    const courseUnitId = lessonCourseUnitId || metadataCourseUnitId || requestedCourseUnitId;
+    let authorized = false;
+    if (role === "tutor") {
+        authorized = uploaderUid === uid || (lesson?.exists === true && tutorOwnsLessonData(lessonData, uid));
+    }
+    else if (role === "admin") {
+        authorized = true;
+    }
+    else {
+        if (!lesson?.exists)
+            throw new https_1.HttpsError("permission-denied", "This resource is not attached to an available lesson.");
+        if (!courseUnitId)
+            throw new https_1.HttpsError("failed-precondition", "This resource is missing its course-unit access metadata.");
+        if (metadataLessonId && metadataLessonId !== lessonId)
+            throw new https_1.HttpsError("permission-denied", "Resource lesson metadata does not match this lesson.");
+        const attachedToLesson = lessonReferencesFilePath(lessonData, filePath)
+            || (metadataLessonId === lessonId && (!metadataCourseUnitId || metadataCourseUnitId === courseUnitId));
+        if (!attachedToLesson)
+            throw new https_1.HttpsError("permission-denied", "This resource is not attached to the requested lesson.");
+        authorized = await userHasCourseAccess(uid, courseUnitId);
+    }
+    if (!authorized)
+        throw new https_1.HttpsError("permission-denied", "You do not have access to this lesson resource.");
+    const disposition = financeText(data.disposition, 20) === "attachment" ? "attachment" : "inline";
+    const fileName = safeResourceFileName(data.fileName || metadata.name?.split("/").pop());
+    const expiresAt = Date.now() + 15 * 60 * 1000;
+    const [url] = await file.getSignedUrl({
+        version: "v4",
+        action: "read",
+        expires: expiresAt,
+        responseDisposition: `${disposition}; filename="${fileName}"`,
+    });
+    return { url, expiresAt: new Date(expiresAt).toISOString() };
+});
+async function loadTutorQuizQuestionSnapshots(quizData) {
+    const refs = Array.isArray(quizData.questions) ? quizData.questions : [];
+    const ids = [...new Set(refs.map((item) => financeText(item.questionId, 180)).filter(Boolean))];
+    const docs = ids.length ? await db.getAll(...ids.map((id) => db.collection("questions").doc(id))) : [];
+    const byId = new Map(docs.filter((doc) => doc.exists).map((doc) => [doc.id, doc.data() ?? {}]));
+    return refs.map((ref) => {
+        const id = financeText(ref.questionId, 180);
+        const question = byId.get(id) ?? {};
+        return {
+            id,
+            questionText: financeText(question.questionText, 12000) || financeText(ref.question, 12000) || "Question text unavailable",
+            options: Array.isArray(question.options) ? question.options : Array.isArray(ref.options) ? ref.options : [],
+            correctAnswer: financeText(question.correctAnswer, 4000) || financeText(ref.correctAnswer, 4000),
+            explanation: financeText(question.explanation, 8000) || financeText(ref.explanation, 8000),
+            marks: finiteNumber(ref.marks || question.marks),
+            type: financeText(question.type, 80),
+            topic: financeText(question.topic, 240),
+        };
+    });
+}
+exports.getTutorQuizAnalytics = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const uid = request.auth.uid;
+    const profile = await financeProfile(uid);
+    if (String(profile.get("role") ?? "") !== "tutor")
+        throw new https_1.HttpsError("permission-denied", "Tutor access is required.");
+    const data = (request.data ?? {});
+    const quizId = financeText(data.quizId, 180);
+    if (!quizId)
+        throw new https_1.HttpsError("invalid-argument", "Assessment ID is required.");
+    const quiz = await db.collection("quizzes").doc(quizId).get();
+    if (!quiz.exists)
+        return { quiz: null, attempts: [], questions: [] };
+    const quizData = quiz.data() ?? {};
+    if (!tutorOwnsQuizData(quizData, uid))
+        throw new https_1.HttpsError("permission-denied", "This assessment does not belong to you.");
+    const [attemptsSnapshot, questions] = await Promise.all([
+        db.collection("quizAttempts").where("quizId", "==", quizId).get(),
+        loadTutorQuizQuestionSnapshots(quizData),
+    ]);
+    const attempts = attemptsSnapshot.docs.filter((doc) => doc.get("completed") !== false).map(serializeTutorAttempt);
+    return {
+        quiz: { ...quizData, id: quiz.id },
+        attempts,
+        questions,
+    };
+});
 /**
  * Trusted tutor assessment workspace loader. This intentionally supports both
  * canonical attempts (which carry tutor ownership metadata) and older attempts
@@ -1824,7 +1998,7 @@ exports.getTutorAssessmentAttempts = (0, https_1.onCall)({ region: "us-central1"
         throw new https_1.HttpsError("unauthenticated", "Please sign in.");
     const uid = request.auth.uid;
     const profile = await financeProfile(uid);
-    if (!["tutor", "admin"].includes(String(profile.get("role") ?? ""))) {
+    if (String(profile.get("role") ?? "") !== "tutor") {
         throw new https_1.HttpsError("permission-denied", "Tutor access is required.");
     }
     const quizSnapshots = await Promise.all([
@@ -1862,7 +2036,7 @@ exports.saveTutorAssessmentMarking = (0, https_1.onCall)({ region: "us-central1"
         throw new https_1.HttpsError("unauthenticated", "Please sign in.");
     const uid = request.auth.uid;
     const profile = await financeProfile(uid);
-    if (!["tutor", "admin"].includes(String(profile.get("role") ?? ""))) {
+    if (String(profile.get("role") ?? "") !== "tutor") {
         throw new https_1.HttpsError("permission-denied", "Tutor access is required.");
     }
     const data = (request.data ?? {});
@@ -1881,7 +2055,7 @@ exports.saveTutorAssessmentMarking = (0, https_1.onCall)({ region: "us-central1"
             authorized = quiz.exists && tutorOwnsQuizData(quiz.data() ?? {}, uid);
         }
     }
-    if (!authorized && profile.get("role") !== "admin")
+    if (!authorized)
         throw new https_1.HttpsError("permission-denied", "This submission does not belong to you.");
     const finalPercentage = Math.max(0, Math.min(100, finiteNumber(data.finalPercentage)));
     const patch = {
@@ -1908,7 +2082,7 @@ exports.getTutorAssessmentAttempt = (0, https_1.onCall)({ region: "us-central1",
         throw new https_1.HttpsError("unauthenticated", "Please sign in.");
     const uid = request.auth.uid;
     const profile = await financeProfile(uid);
-    if (!["tutor", "admin"].includes(String(profile.get("role") ?? ""))) {
+    if (String(profile.get("role") ?? "") !== "tutor") {
         throw new https_1.HttpsError("permission-denied", "Tutor access is required.");
     }
     const data = (request.data ?? {});
@@ -1926,17 +2100,20 @@ exports.getTutorAssessmentAttempt = (0, https_1.onCall)({ region: "us-central1",
             authorized = quiz.exists && tutorOwnsQuizData(quiz.data() ?? {}, uid);
         }
     }
-    if (!authorized && profile.get("role") !== "admin") {
+    if (!authorized) {
         throw new https_1.HttpsError("permission-denied", "This submission does not belong to you.");
     }
-    return { attempt: serializeTutorAttempt(attempt) };
+    const quizId = financeText(attempt.get("quizId"), 180);
+    const quiz = quizId ? await db.collection("quizzes").doc(quizId).get() : null;
+    const questionSnapshots = quiz?.exists ? await loadTutorQuizQuestionSnapshots(quiz.data() ?? {}) : [];
+    return { attempt: { ...serializeTutorAttempt(attempt), questionSnapshots } };
 });
 exports.reconcileTutorMarketplaceRevenue = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 120 }, async (request) => {
     if (!request.auth)
         throw new https_1.HttpsError("unauthenticated", "Please sign in.");
     const uid = request.auth.uid;
     const profile = await financeProfile(uid);
-    if (!["tutor", "admin"].includes(String(profile.get("role") ?? ""))) {
+    if (String(profile.get("role") ?? "") !== "tutor") {
         throw new https_1.HttpsError("permission-denied", "Tutor access is required.");
     }
     const purchases = await db.collection("marketplacePurchases").where("sellerId", "==", uid).get();
@@ -1963,7 +2140,7 @@ exports.getTutorMarketplaceAnalytics = (0, https_1.onCall)({ region: "us-central
         throw new https_1.HttpsError("unauthenticated", "Please sign in.");
     const uid = request.auth.uid;
     const profile = await financeProfile(uid);
-    if (!["tutor", "admin"].includes(String(profile.get("role") ?? "")))
+    if (String(profile.get("role") ?? "") !== "tutor")
         throw new https_1.HttpsError("permission-denied", "Tutor access is required.");
     const productsSnap = await db.collection("marketplaceProducts").where("sellerId", "==", uid).get();
     const products = productsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -2284,7 +2461,8 @@ exports.bootstrapTenantWorkspace = (0, https_1.onCall)({
             throw new https_1.HttpsError("permission-denied", "Your active user profile is required.");
         }
         const role = String(userSnapshot.get("role") ?? "student");
-        const institutionId = String(userSnapshot.get("institutionId") ?? studentSnapshot.get("institutionId") ?? "").trim();
+        const independentTutor = role === "tutor" && String(userSnapshot.get("workspaceMode") ?? "") === "independent";
+        const institutionId = independentTutor ? "" : String(userSnapshot.get("institutionId") ?? studentSnapshot.get("institutionId") ?? "").trim();
         if (!institutionId && role !== "tutor") {
             throw new https_1.HttpsError("failed-precondition", "An institution assignment is required before this account can receive a workspace.");
         }

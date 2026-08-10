@@ -1,15 +1,18 @@
-import type React from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { LessonBlock } from "../../models/LessonBlock";
 import InteractiveQuestion from "./InteractiveQuestion";
 import OfficeDocumentViewer from "./OfficeDocumentViewer";
 import { Download, FileDown, FileText } from "lucide-react";
 import Button from "../ui/Button";
+import { getLessonResourceAccessUrl } from "../../firebase/lessonResourceAccess";
 
 type Props = {
   blocks: LessonBlock[];
+  lessonId?: string;
+  courseUnitId?: string;
 };
 
-export default function LessonViewer({ blocks }: Props) {
+export default function LessonViewer({ blocks, lessonId, courseUnitId }: Props) {
   if (blocks.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-500">
@@ -47,18 +50,11 @@ export default function LessonViewer({ blocks }: Props) {
           )}
 
           {block.type === "html5" && (block.content || block.url) && (
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-              {block.title && <h3 className="border-b p-4 text-xl font-bold text-slate-950">{block.title}</h3>}
-              <iframe
-                title={block.title || "Interactive HTML5 lesson"}
-                {...(block.url ? { src: block.url } : { srcDoc: block.content || "" })}
-                sandbox="allow-scripts allow-forms allow-modals allow-popups allow-presentation allow-downloads"
-                allow="fullscreen; autoplay"
-                allowFullScreen
-                className="min-h-[640px] w-full bg-white"
-                referrerPolicy="no-referrer"
-              />
-            </div>
+            <SecureHtmlLessonFrame
+              block={block}
+              lessonId={lessonId}
+              courseUnitId={courseUnitId}
+            />
           )}
 
           {block.type === "image" && block.url && (
@@ -106,6 +102,9 @@ export default function LessonViewer({ blocks }: Props) {
               fileType="PDF document"
               fileSize={block.metadata?.size as number | undefined}
               icon={<FileText className="text-red-600" size={44} />}
+              filePath={block.metadata?.filePath as string | undefined}
+              lessonId={lessonId}
+              courseUnitId={courseUnitId}
             />
           )}
 
@@ -119,6 +118,9 @@ export default function LessonViewer({ blocks }: Props) {
               icon={<FileDown className="text-orange-600" size={44} />}
               buttonLabel="Download PowerPoint"
               note="Browser preview has been disabled."
+              filePath={block.metadata?.filePath as string | undefined}
+              lessonId={lessonId}
+              courseUnitId={courseUnitId}
             />
           )}
 
@@ -389,6 +391,58 @@ function OsceField({ label, value }: { label: string; value?: string }) {
   );
 }
 
+function SecureHtmlLessonFrame({
+  block,
+  lessonId,
+  courseUnitId,
+}: {
+  block: LessonBlock;
+  lessonId?: string;
+  courseUnitId?: string;
+}) {
+  const filePath = block.metadata?.filePath as string | undefined;
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(filePath ? null : block.url || null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!filePath) {
+      setResolvedUrl(block.url || null);
+      return () => { cancelled = true; };
+    }
+    setResolvedUrl(null);
+    setError("");
+    void getLessonResourceAccessUrl({ filePath, lessonId, courseUnitId, disposition: "inline" })
+      .then((url) => { if (!cancelled) setResolvedUrl(url); })
+      .catch((caught) => {
+        console.error("Unable to authorize HTML lesson resource:", caught);
+        if (!cancelled) setError(caught instanceof Error ? caught.message : "Unable to open this HTML lesson.");
+      });
+    return () => { cancelled = true; };
+  }, [block.url, courseUnitId, filePath, lessonId]);
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      {block.title && <h3 className="border-b p-4 text-xl font-bold text-slate-950">{block.title}</h3>}
+      {error ? (
+        <div className="p-6 text-sm text-red-700">{error}</div>
+      ) : resolvedUrl || block.content ? (
+        <iframe
+          title={block.title || "Interactive HTML5 lesson"}
+          {...(resolvedUrl ? { src: resolvedUrl } : { srcDoc: block.content || "" })}
+          sandbox="allow-scripts allow-forms allow-modals allow-popups allow-presentation allow-downloads"
+          allow="fullscreen; autoplay"
+          allowFullScreen
+          className="min-h-[640px] w-full bg-white"
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <div className="p-6 text-sm text-slate-500">Authorizing interactive lesson…</div>
+      )}
+    </div>
+  );
+}
+
 function formatFileSize(size?: number): string | null {
   if (!size || size <= 0) return null;
   if (size < 1024) return `${size} B`;
@@ -396,18 +450,37 @@ function formatFileSize(size?: number): string | null {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-async function downloadFile(url: string, fileName: string): Promise<void> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("Unable to download this file.");
-  const blob = await response.blob();
-  const objectUrl = URL.createObjectURL(blob);
+async function downloadFile({
+  url,
+  fileName,
+  filePath,
+  lessonId,
+  courseUnitId,
+}: {
+  url: string;
+  fileName: string;
+  filePath?: string;
+  lessonId?: string;
+  courseUnitId?: string;
+}): Promise<void> {
+  const resolvedUrl = filePath
+    ? await getLessonResourceAccessUrl({
+        filePath,
+        lessonId,
+        courseUnitId,
+        disposition: "attachment",
+        fileName,
+      })
+    : url;
+
   const anchor = document.createElement("a");
-  anchor.href = objectUrl;
+  anchor.href = resolvedUrl;
+  anchor.rel = "noopener noreferrer";
+  anchor.target = "_blank";
   anchor.download = fileName;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  URL.revokeObjectURL(objectUrl);
 }
 
 function DownloadAttachment({
@@ -419,15 +492,21 @@ function DownloadAttachment({
   icon,
   buttonLabel = "Download",
   note,
+  filePath,
+  lessonId,
+  courseUnitId,
 }: {
   url: string;
   title: string;
   fileName?: string;
   fileType: string;
   fileSize?: number;
-  icon: React.ReactNode;
+  icon: ReactNode;
   buttonLabel?: string;
   note?: string;
+  filePath?: string;
+  lessonId?: string;
+  courseUnitId?: string;
 }) {
   const resolvedName = fileName || title;
   const sizeLabel = formatFileSize(fileSize);
@@ -443,7 +522,13 @@ function DownloadAttachment({
       </div>
       <Button
         className="mt-5"
-        onClick={() => void downloadFile(url, resolvedName).catch((error) => {
+        onClick={() => void downloadFile({
+          url,
+          fileName: resolvedName,
+          filePath,
+          lessonId,
+          courseUnitId,
+        }).catch((error) => {
           console.error("File download failed:", error);
           window.alert(error instanceof Error ? error.message : "Unable to download this file.");
         })}
