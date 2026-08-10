@@ -22,7 +22,7 @@ export default function Footer() {
           <h4 className="font-bold">Contact</h4>
           <ul className="mt-3 space-y-2 text-sm text-slate-400">
             <li>medicalelites.org</li>
-            <li>othienoivan@gmail.com</li>
+            <li>admin@medicalelites.org</li>
             <li>Uganda</li>
           </ul>
         </div>

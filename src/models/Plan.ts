@@ -53,4 +53,12 @@ export interface TenantSubscription {
   currentPeriodEnd?: Date | Timestamp | null;
   trialEndsAt?: Date | Timestamp | null;
   cancelAtPeriodEnd?: boolean;
+  source?: string;
+  customerUid?: string;
+  autoRenew?: boolean;
+  lastPaymentId?: string;
+  lastProviderTransactionId?: string;
+  startedAt?: Date | Timestamp | string | null;
+  expiredAt?: Date | Timestamp | string | null;
+  cancellationRequestedAt?: Date | Timestamp | string | null;
 }

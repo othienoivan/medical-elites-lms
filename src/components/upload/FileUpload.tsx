@@ -10,6 +10,7 @@ type Props = {
   folder: UploadFolder;
   accept?: string;
   label?: string;
+  customMetadata?: Record<string, string>;
   onUploaded: (result: {
     fileName: string;
     filePath: string;
@@ -23,6 +24,7 @@ export default function FileUpload({
   folder,
   accept,
   label = "Upload File",
+  customMetadata,
   onUploaded,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -39,6 +41,7 @@ export default function FileUpload({
         file,
         folder,
         onProgress: setProgress,
+        customMetadata,
       });
 
       setUploadedFile(result.fileName);

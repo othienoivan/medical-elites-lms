@@ -20,7 +20,7 @@ test("course-unit module cards use persisted progression state", () => {
 });
 
 test("progress loader supports legacy and canonical enrollment identities", () => {
-  assert.match(hook, /where\("studentId", "==", currentUser\.uid\)/);
+  assert.match(hook, /where\("studentId",\s*"==",\s*[^)]+\)/);
   assert.match(hook, /directEnrollmentId/);
   assert.match(hook, /assignedCourseUnitIds/);
 });

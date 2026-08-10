@@ -10,6 +10,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "../config/firebase";
+import { refreshMarketplaceLearningAccess } from "../domains/finance/infrastructure/commerceRepository";
 import useAuth from "./useAuth";
 import useModules from "./useModules";
 import type { Enrollment } from "../models/Enrollment";
@@ -43,6 +44,7 @@ export default function useStudentLearningAccess() {
   const { modules } = useModules();
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [studentRecord, setStudentRecord] = useState<Student | null>(null);
+  const [marketplaceCourseUnitIds, setMarketplaceCourseUnitIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,6 +56,7 @@ export default function useStudentLearningAccess() {
         if (active) {
           setEnrollments([]);
           setStudentRecord(null);
+          setMarketplaceCourseUnitIds([]);
           setLoading(false);
         }
         return;
@@ -63,6 +66,10 @@ export default function useStudentLearningAccess() {
         setLoading(true);
         setError(null);
 
+        const marketplaceAccess = await refreshMarketplaceLearningAccess().catch((error) => {
+          console.warn("Marketplace learning access could not be refreshed:", error);
+          return { courseUnitIds: [] as string[], count: 0 };
+        });
         const canonicalStudent = await getDoc(doc(db, "students", currentUser.uid));
         const enrollmentResults = await Promise.allSettled([
           runEnrollmentQuery(
@@ -95,6 +102,7 @@ export default function useStudentLearningAccess() {
               : null
           );
           setEnrollments(Array.from(merged.values()).filter(isActiveEnrollment));
+          setMarketplaceCourseUnitIds(marketplaceAccess.courseUnitIds ?? []);
         }
       } catch (loadError) {
         console.error("Failed to load student learning access:", loadError);
@@ -135,9 +143,10 @@ export default function useStudentLearningAccess() {
       if (item.courseId) ids.add(item.courseId);
     });
     studentRecord?.assignedCourseUnitIds?.forEach((id) => ids.add(id));
+    marketplaceCourseUnitIds.forEach((id) => ids.add(id));
 
     return ids;
-  }, [enrollments, studentRecord, userProfile]);
+  }, [enrollments, marketplaceCourseUnitIds, studentRecord, userProfile]);
 
   const accessibleModuleIds = useMemo(
     () =>
@@ -189,6 +198,7 @@ export default function useStudentLearningAccess() {
     enrollments,
     programmeIds,
     courseUnitIds,
+    marketplaceCourseUnitIds,
     loading,
     error,
     hasElevatedAccess,

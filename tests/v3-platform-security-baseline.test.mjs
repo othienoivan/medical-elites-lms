@@ -1,4 +1,4 @@
-import test from 'node:test';
+﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
@@ -25,7 +25,7 @@ test('storage rules are default deny and never use expiring test mode', async ()
 test('storage rules restrict legacy teaching uploads to tutor or admin roles', async () => {
   const rules = await read('storage.rules');
   assert.match(rules, /function isTutorOrAdmin\(\)/);
-  assert.match(rules, /folder in \['images', 'pdfs', 'powerpoints', 'videos', 'audio', 'documents', 'lesson-resources'\]/);
+  assert.match(rules, /folder in \['images', 'pdfs', 'powerpoints', 'videos', 'audio', 'documents', 'html5', 'lesson-resources'\]/);
   assert.match(rules, /allow create: if belongsToTenant\(tenantId\)[\s\S]*isTutorOrAdmin\(\)/);
   assert.match(rules, /allow create, update: if false;/);
 });
@@ -42,3 +42,4 @@ test('functions source is restored and repository secrets are ignored', async ()
   assert.match(ignore, /\.env/);
   assert.match(ignore, /functions\/lib\//);
 });
+

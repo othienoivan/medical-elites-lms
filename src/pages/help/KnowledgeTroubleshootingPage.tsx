@@ -1,0 +1,4 @@
+import { Link } from "react-router-dom";
+import useAuth from "../../hooks/useAuth";
+import { KnowledgeArticleCard, KnowledgeService } from "../../domains/knowledge";
+export default function KnowledgeTroubleshootingPage(){const {role}=useAuth();const articles=KnowledgeService.listByCategory("troubleshooting",role);return <main className="mx-auto min-h-screen max-w-6xl px-4 py-10 sm:px-6"><Link to="/help" className="text-sm font-bold text-blue-700">← Knowledge Center</Link><h1 className="mt-4 text-3xl font-black">Troubleshooting Center</h1><p className="mt-2 text-slate-600">Use controlled diagnostic steps. Never weaken security rules to bypass an access problem.</p><section className="mt-8 grid gap-4 md:grid-cols-2">{articles.map(article=><KnowledgeArticleCard key={article.id} article={article}/>)}</section></main>}

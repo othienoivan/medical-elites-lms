@@ -37,7 +37,7 @@ test("tenant rules isolate workspaces and prevent browser role escalation", asyn
   assert.match(rules, /match \/tenantMemberships\/\{membershipId\}/);
   assert.match(rules, /allow create, update, delete: if isPlatformAdmin\(\)/);
   assert.match(rules, /match \/tenants\/\{tenantId\}/);
-  assert.match(rules, /allow read: if isPlatformAdmin\(\) \|\| hasTenantMembership\(tenantId\)/);
+  assert.match(rules, /allow read: if isPlatformAdmin\(\) \|\| hasActiveTenantMembership\(tenantId\)/);
 });
 
 test("tenant membership lookup has a composite index", async () => {

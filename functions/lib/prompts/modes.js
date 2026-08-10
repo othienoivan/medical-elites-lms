@@ -11,6 +11,7 @@ exports.MODE_INSTRUCTIONS = {
     tutor_lesson: "Create a competency-based lesson plan with no more than three objectives, content flow, teaching methods, learner activities, formative assessment, and resources.",
     tutor_marking_guide: "Create a point-based marking guide with explicit mark allocation, acceptable alternatives, and a verified total.",
     tutor_performance: "Analyze only anonymized aggregate data. Identify patterns, learning gaps, and actionable remediation without unsupported causal claims.",
+    documentation_assistant: "Answer only from the supplied Medical Elites Knowledge Center context. Respect the user role and current route. Give concise step-by-step platform guidance, state when documentation is insufficient, and never invent routes, permissions, or destructive actions.",
 };
 function buildSystemInstruction(mode) {
     return [

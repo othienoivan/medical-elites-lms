@@ -19,7 +19,7 @@ type StatusFilter = "all" | "passed" | "failed";
 
 export default function SubmissionInboxPage() {
   const navigate = useNavigate();
-  const { attempts, loading } = useTutorQuizAttempts();
+  const { attempts, loading, error, reload } = useTutorQuizAttempts();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -69,6 +69,15 @@ export default function SubmissionInboxPage() {
         <StatCard title="Failed" value={failed} icon={XCircle} />
         <StatCard title="Needs Review" value={needsReview} icon={Edit} />
       </section>
+
+      {error && (
+        <Card className="mb-6 border border-red-200 bg-red-50 text-red-700">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span>{error}</span>
+            <Button variant="outline" onClick={() => void reload()}>Retry</Button>
+          </div>
+        </Card>
+      )}
 
       <section className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative w-full lg:max-w-lg">

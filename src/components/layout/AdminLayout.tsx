@@ -29,7 +29,6 @@ import { signOut } from "firebase/auth";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { auth } from "../../config/firebase";
-import MediFloatingAssistant from "../MediFloatingAssistant";
 import HeaderActions from "../HeaderActions";
 
 type Props = { title: string; subtitle?: string; children: ReactNode };
@@ -158,5 +157,5 @@ export default function AdminLayout({ title, subtitle, children }: Props) {
         <section className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-10">{children}</section>
       </main>
     </div>
-  <MediFloatingAssistant/></div>;
+</div>;
 }

@@ -96,7 +96,22 @@ export default function CourseUnitDetailsPage() {
     };
   }, [courseIdentifier, listedCourseUnit]);
 
-  const courseUnit = listedCourseUnit ?? resolvedCourseUnit;
+  const baseCourseUnit = listedCourseUnit ?? resolvedCourseUnit;
+  const publicMetadata = baseCourseUnit
+    ? publishedCourseUnits.find((item) => item.id === baseCourseUnit.id)
+    : null;
+  const courseUnit = baseCourseUnit && publicMetadata
+    ? {
+        ...baseCourseUnit,
+        image: publicMetadata.image || baseCourseUnit.image,
+        tutor: publicMetadata.tutor || baseCourseUnit.tutor,
+        duration: publicMetadata.duration || baseCourseUnit.duration,
+        modules: publicMetadata.modules || baseCourseUnit.modules,
+        lessons: publicMetadata.lessons || baseCourseUnit.lessons,
+        rating: publicMetadata.rating || baseCourseUnit.rating,
+        students: publicMetadata.students || baseCourseUnit.students,
+      }
+    : baseCourseUnit;
 
   const courseUnitsLoading =
     resolvingCourseUnit ||
@@ -244,25 +259,25 @@ export default function CourseUnitDetailsPage() {
               <Info
                 icon={<GraduationCap size={20} />}
                 label="Tutor"
-                value={courseUnit.tutor && courseUnit.tutor.toLowerCase() !== "unassigned" ? courseUnit.tutor : "Assigned tutor"}
+                value={courseUnit.tutor?.trim() || "Medical Elites Tutor"}
               />
 
               <Info
                 icon={<Clock size={20} />}
                 label="Duration"
-                value={courseUnit.duration}
+                value={courseUnit.duration?.trim() || "Self-paced"}
               />
 
               <Info
                 icon={<BookOpen size={20} />}
                 label="Modules"
-                value={`${contentStats.modules} modules`}
+                value={`${Math.max(contentStats.modules, Number(courseUnit.modules ?? 0))} modules`}
               />
 
               <Info
                 icon={<BookOpen size={20} />}
                 label="Lessons"
-                value={`${contentStats.lessons} lessons`}
+                value={`${Math.max(contentStats.lessons, Number(courseUnit.lessons ?? 0))} lessons`}
               />
 
               <Info

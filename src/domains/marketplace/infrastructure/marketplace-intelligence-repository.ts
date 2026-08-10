@@ -2,7 +2,7 @@ import { collection, doc, getDoc, getDocs, limit, orderBy, query, setDoc, server
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../../../config/firebase";
 import type { MarketplaceProduct } from "../domain/models";
-import type { MarketplaceCoupon, MarketplacePromotion, ProductRatingSummary, ProductReview, SellerAnalyticsSnapshot } from "../domain/intelligence";
+import type { MarketplaceOperationsCoupon, MarketplacePromotion, ProductRatingSummary, ProductReview, SellerAnalyticsSnapshot } from "../domain/intelligence";
 
 function mapDoc<T>(snapshot: { id: string; data(): unknown }): T {
   return { id: snapshot.id, ...(snapshot.data() as object) } as T;
@@ -37,9 +37,9 @@ export const MarketplaceIntelligenceRepository = {
     const snap = await getDocs(query(collection(db, "marketplacePromotions"), orderBy("createdAt", "desc"), limit(100)));
     return snap.docs.map((item) => mapDoc<MarketplacePromotion>(item));
   },
-  async listCoupons(): Promise<MarketplaceCoupon[]> {
+  async listCoupons(): Promise<MarketplaceOperationsCoupon[]> {
     const snap = await getDocs(query(collection(db, "marketplaceCoupons"), orderBy("createdAt", "desc"), limit(100)));
-    return snap.docs.map((item) => mapDoc<MarketplaceCoupon>(item));
+    return snap.docs.map((item) => mapDoc<MarketplaceOperationsCoupon>(item));
   },
   submitReview: httpsCallable(functions, "submitMarketplaceReview"),
   voteReview: httpsCallable(functions, "voteMarketplaceReview"),

@@ -8,7 +8,6 @@ import {
   query,
   serverTimestamp,
   setDoc,
-  updateDoc,
   where,
 } from "firebase/firestore";
 
@@ -173,6 +172,20 @@ export async function deleteQuizDraftAttempt({
  */
 export async function getAllQuizAttempts(tutorUid: string): Promise<QuizAttempt[]> {
   if (!tutorUid) return [];
+  try {
+    const callable = httpsCallable<Record<string, never>, { attempts: QuizAttempt[] }>(functions, "getTutorAssessmentAttempts");
+    const result = await callable({});
+    return (result.data.attempts ?? []).map((attempt) => ({
+      ...attempt,
+      startedAt: normalizeDate(attempt.startedAt) ?? new Date(0),
+      submittedAt: normalizeDate(attempt.submittedAt) ?? undefined,
+      createdAt: normalizeDate(attempt.createdAt) ?? undefined,
+      updatedAt: normalizeDate(attempt.updatedAt) ?? undefined,
+      releasedAt: normalizeDate(attempt.releasedAt) ?? undefined,
+    }));
+  } catch (callableError) {
+    console.warn("Trusted assessment workspace loader failed; using canonical Firestore ownership queries.", callableError);
+  }
   const snapshots = await Promise.allSettled([
     getDocs(query(collection(db, COLLECTION), where("tutorUid", "==", tutorUid))),
     getDocs(query(collection(db, COLLECTION), where("createdByUid", "==", tutorUid))),
@@ -180,39 +193,41 @@ export async function getAllQuizAttempts(tutorUid: string): Promise<QuizAttempt[
   ]);
   const documents = snapshots.flatMap((result) => result.status === "fulfilled" ? result.value.docs : []);
   const unique = [...new Map(documents.map((item) => [item.id, item])).values()];
-
-  return unique
-    .map((docSnap) => ({
-      ...(docSnap.data() as QuizAttempt),
-      id: docSnap.id,
-    }))
-    .filter((attempt) => attempt.completed !== false)
-    .sort((a, b) => {
-      const aTime =
-        normalizeDate(a.submittedAt)?.getTime() ||
-        normalizeDate(a.createdAt)?.getTime() ||
-        0;
-      const bTime =
-        normalizeDate(b.submittedAt)?.getTime() ||
-        normalizeDate(b.createdAt)?.getTime() ||
-        0;
-
-      return bTime - aTime;
-    });
+  return unique.map((docSnap) => ({ ...(docSnap.data() as QuizAttempt), id: docSnap.id })).filter((attempt) => attempt.completed !== false).sort((a, b) => (normalizeDate(b.submittedAt)?.getTime() || normalizeDate(b.createdAt)?.getTime() || 0) - (normalizeDate(a.submittedAt)?.getTime() || normalizeDate(a.createdAt)?.getTime() || 0));
 }
 
 /** Get one attempt by document ID. */
 export async function getQuizAttemptById(
   attemptId: string
 ): Promise<QuizAttempt | null> {
+  if (!attemptId) return null;
+
+  // Tutor marking must not depend on direct browser reads of quizAttempts.
+  // Older attempts may not carry the newest ownership fields, so the trusted
+  // callable resolves ownership through the linked quiz before returning it.
+  try {
+    const callable = httpsCallable<{ attemptId: string }, { attempt: QuizAttempt | null }>(
+      functions,
+      "getTutorAssessmentAttempt",
+    );
+    const result = await callable({ attemptId });
+    const attempt = result.data.attempt;
+    if (!attempt) return null;
+    return {
+      ...attempt,
+      startedAt: normalizeDate(attempt.startedAt) ?? new Date(0),
+      submittedAt: normalizeDate(attempt.submittedAt) ?? undefined,
+      createdAt: normalizeDate(attempt.createdAt) ?? undefined,
+      updatedAt: normalizeDate(attempt.updatedAt) ?? undefined,
+      releasedAt: normalizeDate(attempt.releasedAt) ?? undefined,
+    };
+  } catch (callableError) {
+    console.warn("Trusted attempt loader failed; falling back to direct read.", callableError);
+  }
+
   const snapshot = await getDoc(doc(db, COLLECTION, attemptId));
-
   if (!snapshot.exists()) return null;
-
-  return {
-    ...(snapshot.data() as QuizAttempt),
-    id: snapshot.id,
-  };
+  return { ...(snapshot.data() as QuizAttempt), id: snapshot.id };
 }
 
 /**
@@ -269,58 +284,21 @@ export async function getQuizAttemptsByQuiz(
 }
 
 export async function saveManualMarks({
-  attemptId,
-  manualMarks,
-  manualScore,
-  finalScore,
-  finalPercentage,
-  tutorRemarks,
+  attemptId, manualMarks, manualScore, finalScore, finalPercentage, tutorRemarks,
 }: {
-  attemptId: string;
-  manualMarks: ManualMark[];
-  manualScore: number;
-  finalScore: number;
-  finalPercentage: number;
-  tutorRemarks?: string;
+  attemptId: string; manualMarks: ManualMark[]; manualScore: number; finalScore: number; finalPercentage: number; tutorRemarks?: string;
 }): Promise<void> {
-  await updateDoc(doc(db, COLLECTION, attemptId), {
-    manualMarks,
-    manualScore,
-    finalScore,
-    finalPercentage,
-    tutorRemarks: tutorRemarks || "",
-    updatedAt: serverTimestamp(),
-  });
+  const callable = httpsCallable(functions, "saveTutorAssessmentMarking");
+  await callable({ attemptId, manualMarks, manualScore, finalScore, finalPercentage, tutorRemarks: tutorRemarks || "", release: false });
 }
 
 export async function releaseQuizAttemptResults({
-  attemptId,
-  manualMarks,
-  manualScore,
-  finalScore,
-  finalPercentage,
-  tutorRemarks,
-  passed,
+  attemptId, manualMarks, manualScore, finalScore, finalPercentage, tutorRemarks, passed,
 }: {
-  attemptId: string;
-  manualMarks: ManualMark[];
-  manualScore: number;
-  finalScore: number;
-  finalPercentage: number;
-  tutorRemarks?: string;
-  passed: boolean;
+  attemptId: string; manualMarks: ManualMark[]; manualScore: number; finalScore: number; finalPercentage: number; tutorRemarks?: string; passed: boolean;
 }): Promise<void> {
-  await updateDoc(doc(db, COLLECTION, attemptId), {
-    manualMarks,
-    manualScore,
-    finalScore,
-    finalPercentage,
-    tutorRemarks: tutorRemarks || "",
-    passed,
-    released: true,
-    releasedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  const callable = httpsCallable(functions, "saveTutorAssessmentMarking");
+  await callable({ attemptId, manualMarks, manualScore, finalScore, finalPercentage, tutorRemarks: tutorRemarks || "", passed, release: true });
 }
 
 function normalizeDate(value: unknown): Date | null {

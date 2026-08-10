@@ -54,12 +54,16 @@ service cloud.firestore {
       return tenantId + '_' + request.auth.uid;
     }
 
-    function hasTenantMembership(tenantId) {
+    function hasActiveTenantMembership(tenantId) {
       return signedIn()
         && tenantId is string
         && tenantId.size() > 0
         && exists(/databases/$(database)/documents/tenantMemberships/$(tenantMembershipId(tenantId)))
-        && get(/databases/$(database)/documents/tenantMemberships/$(tenantMembershipId(tenantId))).data.status == 'active'
+        && get(/databases/$(database)/documents/tenantMemberships/$(tenantMembershipId(tenantId))).data.status == 'active';
+    }
+
+    function hasTenantMembership(tenantId) {
+      return hasActiveTenantMembership(tenantId)
         && exists(/databases/$(database)/documents/tenants/$(tenantId))
         && get(/databases/$(database)/documents/tenants/$(tenantId)).data.status in ['trial', 'active'];
     }
@@ -161,15 +165,27 @@ service cloud.firestore {
         );
     }
 
+    function hasMarketplaceCourseAccess(courseUnitId) {
+      return signedIn()
+        && courseUnitId is string
+        && courseUnitId.size() > 0
+        && exists(/databases/$(database)/documents/marketplaceCourseAccess/$(request.auth.uid + '_' + courseUnitId))
+        && get(/databases/$(database)/documents/marketplaceCourseAccess/$(request.auth.uid + '_' + courseUnitId)).data.customerUid == request.auth.uid
+        && get(/databases/$(database)/documents/marketplaceCourseAccess/$(request.auth.uid + '_' + courseUnitId)).data.courseUnitId == courseUnitId
+        && get(/databases/$(database)/documents/marketplaceCourseAccess/$(request.auth.uid + '_' + courseUnitId)).data.status == 'active';
+    }
+
     function canReadCourseRecord(documentId, data) {
       return hasCourseUnitAssignment(documentId)
         || hasLegacyEnrollment(documentId)
+        || hasMarketplaceCourseAccess(documentId)
         || (
           data.keys().hasAny(['courseId'])
           && data.courseId is string
           && (
             hasCourseUnitAssignment(data.courseId)
             || hasLegacyEnrollment(data.courseId)
+            || hasMarketplaceCourseAccess(data.courseId)
           )
         )
         || (
@@ -178,6 +194,7 @@ service cloud.firestore {
           && (
             hasCourseUnitAssignment(data.id)
             || hasLegacyEnrollment(data.id)
+            || hasMarketplaceCourseAccess(data.id)
           )
         );
     }
@@ -237,6 +254,21 @@ service cloud.firestore {
         );
     }
 
+    // Public testimonials: authenticated users submit pending feedback; only approved feedback is public.
+    match /testimonials/{testimonialId} {
+      allow read: if resource.data.status == 'approved' || isPlatformAdmin();
+      allow create: if signedIn()
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.review is string
+        && request.resource.data.review.size() >= 20
+        && request.resource.data.review.size() <= 1500;
+      allow update, delete: if isPlatformAdmin();
+    }
+
     match /users/{userId} {
       allow create: if signedIn()
         && request.auth.uid == userId
@@ -261,6 +293,15 @@ service cloud.firestore {
           && request.resource.data.uid == resource.data.uid
           && request.resource.data.role == resource.data.role
           && request.resource.data.isActive == resource.data.isActive
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'fullName',
+            'phoneNumber',
+            'phone',
+            'address',
+            'emergencyContact',
+            'profilePhoto',
+            'updatedAt'
+          ])
         )
       );
 
@@ -771,6 +812,7 @@ service cloud.firestore {
         || assignedTutor(resource.data)
         || (isAdmin() && sameInstitution(resource.data))
         || (hasRole('student') && canReadCourseRecord(documentId, resource.data))
+        || hasMarketplaceCourseAccess(documentId)
         || (resource.data.keys().hasAny(['programmeId']) && resource.data.programmeId != null && canReadProgramme(resource.data.programmeId))
         || (
           hasRole('student')
@@ -796,6 +838,7 @@ service cloud.firestore {
         || assignedTutor(resource.data)
         || (isAdmin() && sameInstitution(resource.data))
         || (hasRole('student') && canReadCourseRecord(documentId, resource.data))
+        || hasMarketplaceCourseAccess(documentId)
         || (resource.data.keys().hasAny(['programmeId']) && resource.data.programmeId != null && canReadProgramme(resource.data.programmeId))
       );
       allow create: if isTutorOrAdmin() && request.resource.data.ownerUserId == request.auth.uid;
@@ -808,7 +851,9 @@ service cloud.firestore {
         || assignedTutor(resource.data)
         || (isAdmin() && sameInstitution(resource.data))
         || (resource.data.keys().hasAny(['programmeId']) && resource.data.programmeId != null && canReadProgramme(resource.data.programmeId))
+        || (resource.data.keys().hasAny(['courseUnitId']) && resource.data.courseUnitId != null && hasMarketplaceCourseAccess(resource.data.courseUnitId))
         || (hasRole('student') && resource.data.keys().hasAny(['courseUnitId']) && resource.data.courseUnitId != null && hasCourseUnitAssignment(resource.data.courseUnitId))
+        || (resource.data.keys().hasAny(['courseId']) && resource.data.courseId != null && hasMarketplaceCourseAccess(resource.data.courseId))
         || (hasRole('student') && resource.data.keys().hasAny(['courseId']) && resource.data.courseId != null && hasCourseUnitAssignment(resource.data.courseId))
       );
       allow create: if isTutorOrAdmin() && request.resource.data.ownerUserId == request.auth.uid;
@@ -816,16 +861,16 @@ service cloud.firestore {
     }
 
     function canStudentReadLesson(data) {
-      return hasRole('student') && (
+      return signedIn() && (
         (
           data.keys().hasAny(['courseUnitId'])
           && data.courseUnitId != null
-          && hasCourseUnitAssignment(data.courseUnitId)
+          && (hasCourseUnitAssignment(data.courseUnitId) || hasMarketplaceCourseAccess(data.courseUnitId))
         )
         || (
           data.keys().hasAny(['courseId'])
           && data.courseId != null
-          && hasCourseUnitAssignment(data.courseId)
+          && (hasCourseUnitAssignment(data.courseId) || hasMarketplaceCourseAccess(data.courseId))
         )
         || (
           data.keys().hasAny(['moduleId'])
@@ -835,16 +880,16 @@ service cloud.firestore {
             (
               get(/databases/$(database)/documents/modules/$(data.moduleId)).data.keys().hasAny(['courseUnitId'])
               && get(/databases/$(database)/documents/modules/$(data.moduleId)).data.courseUnitId != null
-              && hasCourseUnitAssignment(
+              && (hasCourseUnitAssignment(
                 get(/databases/$(database)/documents/modules/$(data.moduleId)).data.courseUnitId
-              )
+              ) || hasMarketplaceCourseAccess(get(/databases/$(database)/documents/modules/$(data.moduleId)).data.courseUnitId))
             )
             || (
               get(/databases/$(database)/documents/modules/$(data.moduleId)).data.keys().hasAny(['courseId'])
               && get(/databases/$(database)/documents/modules/$(data.moduleId)).data.courseId != null
-              && hasCourseUnitAssignment(
+              && (hasCourseUnitAssignment(
                 get(/databases/$(database)/documents/modules/$(data.moduleId)).data.courseId
-              )
+              ) || hasMarketplaceCourseAccess(get(/databases/$(database)/documents/modules/$(data.moduleId)).data.courseId))
             )
           )
         )
@@ -914,7 +959,7 @@ service cloud.firestore {
     }
 
     match /examinations/{documentId} {
-      allow read: if signedIn() && (ownsRecord(resource.data) || assignedTutor(resource.data) || (isAdmin() && sameInstitution(resource.data)) || (hasRole('student') && resource.data.courseUnitId != null && hasCourseUnitAssignment(resource.data.courseUnitId)));
+      allow read: if signedIn() && (ownsRecord(resource.data) || assignedTutor(resource.data) || (isAdmin() && sameInstitution(resource.data)) || (hasRole('student') && resource.data.courseUnitId != null && (hasCourseUnitAssignment(resource.data.courseUnitId) || hasMarketplaceCourseAccess(resource.data.courseUnitId))));
       allow create: if isTutorOrAdmin() && request.resource.data.ownerUserId == request.auth.uid;
       allow update, delete: if canManageRecord(resource.data);
     }
@@ -926,7 +971,7 @@ service cloud.firestore {
         || (isAdmin() && sameInstitution(resource.data))
         || (hasRole('student')
           && resource.data.courseUnitId != null
-          && hasCourseUnitAssignment(resource.data.courseUnitId))
+          && (hasCourseUnitAssignment(resource.data.courseUnitId) || hasMarketplaceCourseAccess(resource.data.courseUnitId)))
       );
       allow create: if isTutorOrAdmin()
         && request.resource.data.ownerUserId == request.auth.uid
@@ -964,7 +1009,7 @@ service cloud.firestore {
     }
 
     match /tenants/{tenantId} {
-      allow read: if isPlatformAdmin() || hasTenantMembership(tenantId);
+      allow read: if isPlatformAdmin() || hasActiveTenantMembership(tenantId);
       allow create, update, delete: if isPlatformAdmin();
     }
     match /tenantMemberships/{membershipId} {
@@ -1061,7 +1106,11 @@ service cloud.firestore {
         signedIn()
         && resource.data.sellerId == request.auth.uid
         && request.resource.data.sellerId == resource.data.sellerId
-        && request.resource.data.status in ['draft', 'submitted']
+        && request.resource.data.ownerTutorUid == resource.data.ownerTutorUid
+        && (
+          request.resource.data.status == resource.data.status
+          || request.resource.data.status in ['draft', 'submitted']
+        )
       );
       allow delete: if isPlatformAdmin() || (signedIn() && resource.data.sellerId == request.auth.uid && resource.data.status == 'draft');
     }
@@ -1086,14 +1135,16 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
     match /marketplaceCarts/{customerUid} {
-      allow read, create, update, delete: if signedIn()
+      allow read, delete: if signedIn() && customerUid == request.auth.uid;
+      allow create, update: if signedIn()
         && customerUid == request.auth.uid
-        && (!request.resource.data.keys().hasAny(['customerUid']) || request.resource.data.customerUid == request.auth.uid);
+        && request.resource.data.customerUid == request.auth.uid;
     }
     match /marketplaceWishlists/{customerUid} {
-      allow read, create, update, delete: if signedIn()
+      allow read, delete: if signedIn() && customerUid == request.auth.uid;
+      allow create, update: if signedIn()
         && customerUid == request.auth.uid
-        && (!request.resource.data.keys().hasAny(['customerUid']) || request.resource.data.customerUid == request.auth.uid);
+        && request.resource.data.customerUid == request.auth.uid;
     }
     match /marketplacePurchases/{purchaseId} {
       allow read: if isPlatformAdmin() || (signedIn() && resource.data.customerUid == request.auth.uid) || (signedIn() && resource.data.sellerId == request.auth.uid);
@@ -1133,7 +1184,11 @@ service cloud.firestore {
     }
     match /trendingProducts/{documentId} { allow read: if true; allow create, update, delete: if false; }
     match /marketplacePromotions/{documentId} { allow read: if resource.data.status == 'active' || isPlatformAdmin(); allow create, update, delete: if false; }
-    match /marketplaceCoupons/{documentId} { allow read: if resource.data.status == 'active' || isPlatformAdmin(); allow create, update, delete: if false; }
+    match /marketplaceCoupons/{documentId} {
+      allow read: if resource.data.status == 'active' || isPlatformAdmin() || (signedIn() && resource.data.sellerId == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+    match /marketplaceCouponRedemptions/{documentId} { allow read, create, update, delete: if false; }
     match /couponRedemptions/{documentId} { allow read: if isPlatformAdmin() || (signedIn() && resource.data.customerUid == request.auth.uid); allow create, update, delete: if false; }
     match /sellerVerifications/{sellerId} { allow read: if resource.data.status == 'verified' || isPlatformAdmin() || (signedIn() && sellerId == request.auth.uid); allow create, update, delete: if false; }
     match /marketplaceModeration/{documentId} { allow read: if isPlatformAdmin(); allow create, update, delete: if false; }
@@ -1170,7 +1225,13 @@ service cloud.firestore {
 
 
     // RC4 Batch 3 commerce records. Trusted Functions own all writes.
-    match /commerceOrders/{documentId} { allow read: if isPlatformAdmin() || (signedIn() && resource.data.customerUid == request.auth.uid); allow create, update, delete: if false; }
+    match /commerceOrders/{documentId} {
+      allow read: if isPlatformAdmin()
+        || (signedIn() && resource.data.customerUid == request.auth.uid)
+        || (signedIn() && resource.data.keys().hasAny(['sellerId']) && resource.data.sellerId == request.auth.uid)
+        || (signedIn() && resource.data.keys().hasAny(['tutorId']) && resource.data.tutorId == request.auth.uid);
+      allow create, update, delete: if false;
+    }
     match /commerceProducts/{documentId} { allow read: if resource.data.status == 'published' || isPlatformAdmin(); allow create, update, delete: if false; }
     match /commerceEntitlements/{documentId} { allow read: if isPlatformAdmin() || (signedIn() && resource.data.customerUid == request.auth.uid); allow create, update, delete: if false; }
     match /receipts/{documentId} { allow read: if isPlatformAdmin() || (signedIn() && resource.data.customerUid == request.auth.uid); allow create, update, delete: if false; }

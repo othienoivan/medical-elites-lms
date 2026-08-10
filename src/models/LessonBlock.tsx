@@ -2,6 +2,7 @@ export type LessonBlockType =
   | "heading"
   | "objective"
   | "richtext"
+  | "html5"
   | "image"
   | "youtube"
   | "pdf"

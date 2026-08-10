@@ -35,6 +35,9 @@ export default function MarketplaceProductPage() {
   const [product, setProduct] = useState<MarketplaceProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
+  const [buying, setBuying] = useState(false);
+  const [couponCode, setCouponCode] = useState("");
+  const [couponSummary, setCouponSummary] = useState<{ discountAmount: number; totalAmount: number; currency: string } | null>(null);
   const [related, setRelated] = useState<MarketplaceProduct[]>([]);
 
   useEffect(() => {
@@ -52,7 +55,7 @@ export default function MarketplaceProductPage() {
 
         setProduct(item);
 
-        if (item) {
+        if (item?.status === "published") {
           await MarketplaceIntelligenceService.recordView(
             currentUser?.uid ?? null,
             item.id,
@@ -83,7 +86,14 @@ export default function MarketplaceProductPage() {
     return <div className="p-12 text-center">Loading product…</div>;
   }
 
-  if (!product || product.status !== "published") {
+  const isOwner = Boolean(
+    product &&
+      currentUser &&
+      (product.sellerId === currentUser.uid ||
+        product.ownerTutorUid === currentUser.uid),
+  );
+
+  if (!product || (product.status !== "published" && !isOwner)) {
     return (
       <div className="mx-auto max-w-3xl p-12 text-center">
         <h1 className="text-3xl font-black">Product unavailable</h1>
@@ -113,6 +123,41 @@ export default function MarketplaceProductPage() {
     }
   };
 
+  const handleBuyNow = async () => {
+    if (!currentUser) {
+      navigate("/login");
+      return;
+    }
+    if (product.sellerId === currentUser.uid) {
+      setMessage("You cannot purchase your own product.");
+      return;
+    }
+    setBuying(true);
+    setMessage(null);
+    try {
+      const result = await MarketplaceCommerceService.buyProduct({
+        productId: product.id,
+        paymentMethod: "card",
+        returnUrl: `${window.location.origin}/student/purchases?payment=complete`,
+        idempotencyKey: crypto.randomUUID(),
+        couponCode: couponCode.trim().toUpperCase() || undefined,
+      });
+      window.location.assign(result.checkoutUrl);
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : "Unable to start checkout.");
+      setBuying(false);
+    }
+  };
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) { setCouponSummary(null); setMessage("Enter a coupon code."); return; }
+    try {
+      const result = await MarketplaceCommerceService.validateCoupon({ code: couponCode.trim().toUpperCase(), productId: product.id });
+      setCouponSummary(result);
+      setMessage(`Coupon ${result.code} applied.`);
+    } catch (cause) { setCouponSummary(null); setMessage(cause instanceof Error ? cause.message : "Unable to apply coupon."); }
+  };
+
   const handleToggleWishlist = async () => {
     if (!currentUser) {
       navigate("/login");
@@ -136,9 +181,26 @@ export default function MarketplaceProductPage() {
     <div className="min-h-screen bg-slate-50">
       <main className="mx-auto grid max-w-7xl gap-10 px-4 py-10 lg:grid-cols-[1fr_380px]">
         <section>
-          <Link to="/marketplace" className="text-sm font-bold text-cyan-700">
-            ← Marketplace
-          </Link>
+          {isOwner ? (
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+              <div>
+                <p className="font-black">Tutor preview</p>
+                <p className="text-sm">
+                  This product is currently <strong>{product.status}</strong>. Only you can view it until it is published.
+                </p>
+              </div>
+              <Link
+                to="/tutor/commerce/products"
+                className="rounded-xl border border-amber-400 bg-white px-4 py-2 text-sm font-black"
+              >
+                Back to My Products
+              </Link>
+            </div>
+          ) : (
+            <Link to="/marketplace" className="text-sm font-bold text-cyan-700">
+              ← Marketplace
+            </Link>
+          )}
 
           <div className="mt-5 overflow-hidden rounded-3xl bg-gradient-to-br from-cyan-100 to-blue-100">
             {product.thumbnailUrl ? (
@@ -208,7 +270,9 @@ export default function MarketplaceProductPage() {
             </div>
           )}
 
-          <MarketplaceReviews productId={product.id} />
+          {product.status === "published" && (
+            <MarketplaceReviews productId={product.id} />
+          )}
 
           {related.length > 0 && (
             <section className="mt-6 rounded-2xl border bg-white p-7">
@@ -237,26 +301,58 @@ export default function MarketplaceProductPage() {
         <aside>
           <div className="sticky top-6 rounded-3xl border bg-white p-7 shadow-lg">
             <p className="text-3xl font-black">
-              {money(product.price.amount, product.price.currency)}
+              {money(couponSummary?.totalAmount ?? product.price.amount, couponSummary?.currency ?? product.price.currency)}
             </p>
+            {couponSummary && <p className="mt-1 text-sm font-bold text-emerald-700">You save {money(couponSummary.discountAmount, couponSummary.currency)}</p>}
 
-            <button
-              type="button"
-              onClick={() => void handleAddToCart()}
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-700 px-5 py-4 font-black text-white"
-            >
-              <ShoppingCart size={20} />
-              Add to cart
-            </button>
+            {isOwner ? (
+              <div className="mt-6 space-y-3">
+                <div className="rounded-xl bg-slate-100 p-4 text-sm text-slate-700">
+                  <p className="font-black text-slate-950">Product status</p>
+                  <p className="mt-1 capitalize">{product.status.replaceAll("_", " ")}</p>
+                </div>
+                <Link
+                  to={`/tutor/commerce/products/${product.id}/edit`}
+                  className="flex w-full items-center justify-center rounded-xl bg-cyan-700 px-5 py-4 font-black text-white"
+                >
+                  Edit Product
+                </Link>
+              </div>
+            ) : (
+              <>
+                <div className="mt-5 rounded-xl bg-slate-50 p-3">
+                  <label className="text-xs font-black uppercase text-slate-600">Coupon code</label>
+                  <div className="mt-2 flex gap-2"><input value={couponCode} onChange={(e)=>setCouponCode(e.target.value.toUpperCase())} className="min-w-0 flex-1 rounded-lg border bg-white px-3 py-2" placeholder="WELCOME10"/><button type="button" onClick={() => void handleApplyCoupon()} className="rounded-lg border border-cyan-700 px-3 py-2 text-sm font-black text-cyan-800">Apply</button></div>
+                </div>
+                <button
+                  type="button"
+                  disabled={buying}
+                  onClick={() => void handleBuyNow()}
+                  className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-700 px-5 py-4 font-black text-white disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <ShoppingCart size={20} />
+                  {buying ? "Opening secure checkout…" : "Buy now"}
+                </button>
 
-            <button
-              type="button"
-              onClick={() => void handleToggleWishlist()}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border px-5 py-4 font-black"
-            >
-              <Heart size={20} />
-              Save to wishlist
-            </button>
+                <button
+                  type="button"
+                  onClick={() => void handleAddToCart()}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-700 px-5 py-4 font-black text-cyan-800"
+                >
+                  <ShoppingCart size={20} />
+                  Add to cart
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void handleToggleWishlist()}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border px-5 py-4 font-black"
+                >
+                  <Heart size={20} />
+                  Save to wishlist
+                </button>
+              </>
+            )}
 
             {message && (
               <p className="mt-3 rounded-lg bg-cyan-50 p-3 text-sm font-bold text-cyan-800">

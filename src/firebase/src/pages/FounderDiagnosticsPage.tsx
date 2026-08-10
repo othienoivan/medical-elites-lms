@@ -30,7 +30,7 @@ import {
 } from "../utils/appDiagnostics";
 
 const founderEmail = (
-  import.meta.env.VITE_FOUNDER_EMAIL || "othienoivan@gmail.com"
+  import.meta.env.VITE_FOUNDER_EMAIL || "admin@medicalelites.org"
 ).trim().toLowerCase();
 
 const releaseChecklist = [

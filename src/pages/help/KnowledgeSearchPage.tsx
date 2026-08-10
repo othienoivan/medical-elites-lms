@@ -1,0 +1,5 @@
+import { useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import useAuth from "../../hooks/useAuth";
+import { KnowledgeArticleCard, KnowledgeSearch, KnowledgeService } from "../../domains/knowledge";
+export default function KnowledgeSearchPage(){const {role}=useAuth();const [params,setParams]=useSearchParams();const [query,setQuery]=useState(params.get("q")??"");const results=useMemo(()=>KnowledgeService.search(query,role),[query,role]);return <main className="mx-auto min-h-screen max-w-6xl px-4 py-10 sm:px-6"><Link to="/help" className="text-sm font-bold text-blue-700">← Knowledge Center</Link><h1 className="mt-4 text-3xl font-black">Search documentation</h1><div className="mt-6"><KnowledgeSearch value={query} onChange={setQuery} onSubmit={()=>setParams({q:query})}/></div><p className="mt-5 text-sm text-slate-600">{results.length} result{results.length===1?"":"s"}</p><section className="mt-5 grid gap-4 md:grid-cols-2">{results.map(article=><KnowledgeArticleCard key={article.id} article={article}/>)}</section></main>}

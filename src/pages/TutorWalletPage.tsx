@@ -5,7 +5,7 @@ import TutorLayout from "../components/layout/TutorLayout";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import WalletSummaryCard from "../components/finance/WalletSummaryCard";
-import { FinanceService, type CurrencyCode, type Wallet, type Withdrawal } from "../domains/finance";
+import { FinanceService, type CurrencyCode, type LedgerEntry, type Wallet, type Withdrawal } from "../domains/finance";
 import useAuth from "../hooks/useAuth";
 
 function money(value = 0, currency: CurrencyCode = "UGX") {
@@ -16,6 +16,7 @@ export default function TutorWalletPage() {
   const { currentUser } = useAuth();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -31,12 +32,18 @@ export default function TutorWalletPage() {
     setLoading(true);
     setError("");
     try {
-      const [walletRecords, withdrawalRecords] = await Promise.all([
+      // Backfill any fulfilled marketplace orders that pre-date automatic
+      // revenue allocation. The backend operation is idempotent.
+      await FinanceService.reconcileTutorMarketplaceRevenue();
+
+      const [walletRecords, withdrawalRecords, ledgerRecords] = await Promise.all([
         FinanceService.listOwnerWallets(currentUser.uid),
         FinanceService.listOwnerWithdrawals(currentUser.uid),
+        FinanceService.listOwnerLedgerEntries(currentUser.uid),
       ]);
       setWallets(walletRecords);
       setWithdrawals(withdrawalRecords);
+      setLedgerEntries(ledgerRecords);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load your wallet.");
     } finally {
@@ -148,6 +155,27 @@ export default function TutorWalletPage() {
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
           <div className="space-y-6">
             <WalletSummaryCard wallet={wallet} />
+
+            <Card>
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-xl font-bold">Recent earnings activity</h3>
+                <span className="text-sm text-slate-500">{ledgerEntries.length} entr{ledgerEntries.length === 1 ? "y" : "ies"}</span>
+              </div>
+              <div className="mt-4 space-y-3">
+                {ledgerEntries.slice(0, 10).map((entry) => (
+                  <div key={entry.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 p-4">
+                    <div>
+                      <p className="font-bold">{entry.reference || "Marketplace revenue"}</p>
+                      <p className="text-sm text-slate-500">{entry.accountingPeriod || "Current period"}</p>
+                    </div>
+                    <span className={`font-black ${entry.direction === "credit" ? "text-emerald-700" : "text-slate-700"}`}>
+                      {entry.direction === "credit" ? "+" : "-"}{money(entry.amount, entry.currency)}
+                    </span>
+                  </div>
+                ))}
+                {ledgerEntries.length === 0 && <p className="text-slate-500">Revenue credits and completed payout entries will appear here.</p>}
+              </div>
+            </Card>
 
             <Card>
               <h3 className="text-xl font-bold">Payout history</h3>

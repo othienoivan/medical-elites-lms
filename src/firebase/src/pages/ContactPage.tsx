@@ -46,7 +46,7 @@ export default function ContactPage() {
       alert("Your enquiry has been sent successfully.");
     } catch (error) {
       console.error("Failed to submit contact request:", error);
-      alert("Your enquiry could not be sent. Please try again or email othienoivan@gmail.com.");
+      alert("Your enquiry could not be sent. Please try again or email admin@medicalelites.org.");
     } finally {
       setSending(false);
     }
@@ -64,7 +64,7 @@ export default function ContactPage() {
             </p>
 
             <div className="mt-8 space-y-4">
-              <ContactItem icon={Mail} title="Email" value="othienoivan@gmail.com" />
+              <ContactItem icon={Mail} title="Email" value="admin@medicalelites.org" />
               <ContactItem icon={Phone} title="Telephone" value="Available on request" />
               <ContactItem icon={Building2} title="Location" value="Uganda" />
               <ContactItem icon={MessageCircle} title="Support" value="Academic, technical, and institutional support" />

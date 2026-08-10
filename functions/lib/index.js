@@ -1,9 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateTenantSubscriptionStatus = exports.assignTenantSubscription = exports.saveSubscriptionPlan = exports.assignTenantOwner = exports.updateTenantStatus = exports.updateTenantProfile = exports.createTenant = exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.submitQuizAttempt = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.completeFinanceWithdrawal = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = void 0;
+exports.notifyStudentsWhenLessonPublished = exports.getPublicCourseCatalogueSnapshotV2 = exports.getTutorEnrollmentCourseUnits = exports.resolveTenantWorkspaceTrusted = exports.updateOwnStudentProfile = exports.updateOwnTutorProfile = exports.synchronizeStudentIdentity = exports.getStudentLearningOverview = exports.getPublicCourseCatalogueSnapshot = exports.refreshMarketplaceLearningAccess = exports.updateTenantSubscriptionStatus = exports.assignTenantSubscription = exports.saveSubscriptionPlan = exports.assignTenantOwner = exports.updateTenantStatus = exports.updateTenantProfile = exports.createTenant = exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.submitQuizAttempt = exports.getTutorMarketplaceAnalytics = exports.reconcileTutorMarketplaceRevenue = exports.getTutorAssessmentAttempt = exports.saveTutorAssessmentMarking = exports.getTutorAssessmentAttempts = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.validateMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.cancelTutorSubscriptionAtPeriodEnd = exports.refreshTutorSubscriptionLifecycle = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.completeFinanceWithdrawal = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = void 0;
 const app_1 = require("firebase-admin/app");
+const auth_1 = require("firebase-admin/auth");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
+const firestore_2 = require("firebase-functions/v2/firestore");
 const params_1 = require("firebase-functions/params");
 const node_crypto_1 = require("node:crypto");
 (0, app_1.initializeApp)();
@@ -19,6 +21,7 @@ const allowedModes = new Set([
     "tutor_marking_guide",
     "tutor_performance",
     "curriculum_import",
+    "documentation_assistant",
 ]);
 const MODE_ROLES = {
     student_explain: ["student", "tutor", "admin"],
@@ -30,6 +33,7 @@ const MODE_ROLES = {
     tutor_marking_guide: ["tutor", "admin"],
     tutor_performance: ["tutor", "admin"],
     curriculum_import: ["tutor", "admin"],
+    documentation_assistant: ["student", "tutor", "admin"],
 };
 async function consumeRateLimit(uid, options) {
     const now = Date.now();
@@ -248,7 +252,9 @@ exports.medicalElitesAi = (0, https_1.onCall)({
             messages: [
                 {
                     role: "system",
-                    content: "You are Medi, the Medical Elites academic assistant. Give accurate, educational answers, clearly state uncertainty, and never present output as a substitute for professional clinical judgment.",
+                    content: mode === "documentation_assistant"
+                        ? "You are Medi, the Medical Elites platform documentation assistant. Answer only from the supplied Knowledge Center context. Respect the authenticated role and current route. Give concise step-by-step guidance, state when documentation is insufficient, and never invent routes, permissions, secrets, external links, or destructive actions."
+                        : "You are Medi, the Medical Elites academic assistant. Give accurate, educational answers, clearly state uncertainty, and never present output as a substitute for professional clinical judgment.",
                 },
                 {
                     role: "user",
@@ -383,7 +389,7 @@ exports.createDonationCheckout = (0, https_1.onCall)({
         currency,
         redirect_url: `${returnUrl}${returnUrl.includes("?") ? "&" : "?"}tx_ref=${encodeURIComponent(txRef)}`,
         payment_options: method === "mobile_money" ? "mobilemoneyuganda" : "card",
-        customer: { email, name: fullName, phonenumber: phoneNumber || undefined },
+        customer: { email, name: fullName, ...(phoneNumber ? { phonenumber: phoneNumber } : {}) },
         customizations: {
             title: "Medical Elites Donation",
             description: purpose || "Support Medical Elites learning access",
@@ -512,11 +518,67 @@ function financePeriod(now = new Date()) {
 function safeFinanceId(value) {
     return value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 180);
 }
-async function financeProfile(uid) {
-    const profile = await db.doc(`users/${uid}`).get();
-    if (!profile.exists || profile.get("isActive") === false)
+function syntheticFinanceProfile(uid, values) {
+    return {
+        id: uid,
+        exists: true,
+        get(fieldPath) { return values[fieldPath]; },
+        data() { return values; },
+    };
+}
+function assertActiveFinanceProfile(profile) {
+    const accountStatus = String(profile.get("status") ?? profile.get("accountStatus") ?? "").trim().toLowerCase();
+    const explicitlyInactive = profile.get("isActive") === false
+        || ["inactive", "disabled", "suspended", "archived", "blocked"].includes(accountStatus);
+    if (explicitlyInactive)
         throw new https_1.HttpsError("permission-denied", "Your account is not active.");
     return profile;
+}
+async function financeProfile(uid) {
+    const userProfile = await db.doc(`users/${uid}`).get();
+    if (userProfile.exists)
+        return assertActiveFinanceProfile(userProfile);
+    let studentProfile = await db.doc(`students/${uid}`).get();
+    if (!studentProfile.exists) {
+        const byAuthUid = await db.collection("students").where("authUid", "==", uid).limit(1).get();
+        if (!byAuthUid.empty)
+            studentProfile = byAuthUid.docs[0];
+    }
+    let authEmail = "";
+    let authDisplayName = "";
+    let authRole = "";
+    try {
+        const authUser = await (0, auth_1.getAuth)().getUser(uid);
+        authEmail = String(authUser.email ?? "").trim();
+        authDisplayName = String(authUser.displayName ?? "").trim();
+        authRole = String(authUser.customClaims?.role ?? "").trim().toLowerCase();
+        if (!studentProfile.exists && authEmail) {
+            const byEmail = await db.collection("students").where("emailNormalized", "==", authEmail.toLowerCase()).limit(1).get();
+            if (!byEmail.empty)
+                studentProfile = byEmail.docs[0];
+        }
+    }
+    catch (error) {
+        console.warn("Unable to resolve Firebase Auth profile for finance fallback", { uid, error });
+    }
+    const studentData = studentProfile.exists ? studentProfile.data() : {};
+    const inferredRole = studentProfile.exists ? "student" : (["student", "tutor", "admin"].includes(authRole) ? authRole : "student");
+    const composedName = [studentData.firstName, studentData.lastName].filter(Boolean).join(" ");
+    const fullName = String(studentData.fullName ?? studentData.name ?? (composedName || authDisplayName || "Medical Elites User")).trim();
+    const email = String(studentData.email ?? authEmail ?? "").trim();
+    return assertActiveFinanceProfile(syntheticFinanceProfile(uid, {
+        ...studentData,
+        uid,
+        authUid: uid,
+        role: studentData.role ?? inferredRole,
+        requestedRole: studentData.requestedRole ?? inferredRole,
+        fullName: fullName || "Medical Elites User",
+        email,
+        emailNormalized: email.toLowerCase(),
+        isActive: studentData.isActive ?? true,
+        status: studentData.status ?? "active",
+        studentRecordId: studentProfile.exists ? studentProfile.id : null,
+    }));
 }
 async function assertFinancePlatformAdmin(uid) {
     const profile = await financeProfile(uid);
@@ -585,6 +647,73 @@ async function loadCommissionRule(context) {
             return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
     }
     return { id: "default_50_50", scope: "global", scopeId: "global", platformPercent: 50, tutorPercent: 50, institutionPercent: 0, active: true };
+}
+async function automaticallyDistributeMarketplaceRevenue(orderId) {
+    const order = await db.collection("commerceOrders").doc(orderId).get();
+    if (!order.exists || order.get("purpose") !== "marketplace" || order.get("status") !== "fulfilled")
+        return;
+    const orderAmount = order.get("amount");
+    const currency = financeCurrency(orderAmount?.currency);
+    const items = Array.isArray(order.get("items")) ? order.get("items") : [];
+    for (let index = 0; index < items.length; index += 1) {
+        const item = items[index];
+        const productId = financeText(item.productId, 160);
+        const tutorId = financeText(item.sellerId, 128);
+        if (!productId || !tutorId)
+            continue;
+        const price = item.price;
+        const amount = financeAmount(price?.amount);
+        const institutionId = financeText(item.institutionId, 128);
+        const linkedIds = Array.isArray(item.linkedResourceIds) ? item.linkedResourceIds : [];
+        const courseId = linkedIds.map((value) => financeText(value, 180)).find(Boolean) || "";
+        const commandRef = db.collection("financeCommands").doc(safeFinanceId(`auto_marketplace_revenue_${orderId}_${productId}_${index}`));
+        const journalRef = db.collection("journals").doc(safeFinanceId(`marketplace_revenue_${orderId}_${productId}_${index}`));
+        const rule = await loadCommissionRule({ tutorId, institutionId: institutionId || undefined, courseId: courseId || undefined });
+        const platformPercent = Number(rule.platformPercent ?? 0);
+        const configuredTutorPercent = Number(rule.tutorPercent ?? 0);
+        const configuredInstitutionPercent = Number(rule.institutionPercent ?? 0);
+        const institutionPercent = institutionId ? configuredInstitutionPercent : 0;
+        const tutorPercent = institutionId ? configuredTutorPercent : configuredTutorPercent + configuredInstitutionPercent;
+        if (Math.abs(platformPercent + tutorPercent + institutionPercent - 100) > 0.001)
+            throw new Error("Commission rule must total 100%.");
+        const platformAmount = Math.round(amount * platformPercent / 100);
+        const tutorAmount = Math.round(amount * tutorPercent / 100);
+        const institutionAmount = amount - platformAmount - tutorAmount;
+        const platformWalletId = `platform_medical-elites_${currency}`;
+        const tutorWalletId = safeFinanceId(`tutor_${tutorId}_${currency}`);
+        const institutionWalletId = institutionId && institutionAmount > 0 ? safeFinanceId(`institution_${institutionId}_${currency}`) : "";
+        const period = financePeriod();
+        await db.runTransaction(async (transaction) => {
+            const command = await transaction.get(commandRef);
+            if (command.exists && command.get("status") === "completed")
+                return;
+            const walletRefs = [db.collection("wallets").doc(platformWalletId), db.collection("wallets").doc(tutorWalletId), ...(institutionWalletId ? [db.collection("wallets").doc(institutionWalletId)] : [])];
+            const walletSnaps = await Promise.all(walletRefs.map((ref) => transaction.get(ref)));
+            const owners = [
+                { ownerType: "platform", ownerId: "medical-elites", amount: platformAmount },
+                { ownerType: "tutor", ownerId: tutorId, amount: tutorAmount },
+                ...(institutionWalletId ? [{ ownerType: "institution", ownerId: institutionId, amount: institutionAmount }] : []),
+            ];
+            walletRefs.forEach((ref, walletIndex) => {
+                const meta = owners[walletIndex];
+                const current = walletSnaps[walletIndex];
+                if (!current.exists)
+                    transaction.create(ref, { ownerType: meta.ownerType, ownerId: meta.ownerId, currency, status: "active", availableBalance: meta.amount, pendingBalance: 0, frozenBalance: 0, lifetimeCredits: meta.amount, lifetimeDebits: 0, createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() });
+                else
+                    transaction.update(ref, { availableBalance: firestore_1.FieldValue.increment(meta.amount), lifetimeCredits: firestore_1.FieldValue.increment(meta.amount), updatedAt: firestore_1.FieldValue.serverTimestamp() });
+            });
+            const lines = [{ accountId: "platform_clearing", direction: "debit", amount, memo: orderId }];
+            if (platformAmount > 0)
+                lines.push({ accountId: "platform_revenue", walletId: platformWalletId, ownerId: "medical-elites", direction: "credit", amount: platformAmount });
+            if (tutorAmount > 0)
+                lines.push({ accountId: `tutor_revenue_${tutorId}`, walletId: tutorWalletId, ownerId: tutorId, direction: "credit", amount: tutorAmount });
+            if (institutionWalletId && institutionAmount > 0)
+                lines.push({ accountId: `institution_revenue_${institutionId}`, walletId: institutionWalletId, ownerId: institutionId, direction: "credit", amount: institutionAmount });
+            transaction.set(commandRef, { operation: "auto_marketplace_revenue", requestedBy: "system", status: "completed", orderId, productId, journalId: journalRef.id, createdAt: firestore_1.FieldValue.serverTimestamp(), completedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+            transaction.set(journalRef, { reference: `marketplace:${orderId}:${productId}`, idempotencyKey: commandRef.id, eventType: "revenue.distributed", currency, accountingPeriod: period, commissionRuleId: rule.id, orderId, productId, tutorId, institutionId: institutionId || null, allocations: { platform: platformAmount, tutor: tutorAmount, institution: institutionAmount }, lines, status: "posted", createdBy: "system", createdAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+            lines.forEach((line) => transaction.create(db.collection("ledgerEntries").doc(), { ...line, journalId: journalRef.id, reference: `marketplace:${orderId}:${productId}`, currency, accountingPeriod: period, createdAt: firestore_1.FieldValue.serverTimestamp() }));
+        });
+    }
 }
 exports.distributeFinanceRevenue = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
     if (!request.auth)
@@ -821,8 +950,14 @@ async function verifyFlutterwaveTransaction(transactionId) {
     return payload.data;
 }
 function safeCommerceReturnUrl(requested) {
-    const appUrl = process.env.APP_URL || "https://medical-elites-lms.web.app";
-    const allowed = new Set([appUrl, "https://medical-elites-lms.web.app", "https://medical-elites-lms.firebaseapp.com"]);
+    const appUrl = process.env.APP_URL || "https://medicalelites.org";
+    const allowed = new Set([
+        appUrl,
+        "https://medicalelites.org",
+        "https://www.medicalelites.org",
+        "https://medical-elites-lms.web.app",
+        "https://medical-elites-lms.firebaseapp.com",
+    ]);
     if (requested) {
         try {
             const parsed = new URL(requested);
@@ -833,23 +968,157 @@ function safeCommerceReturnUrl(requested) {
     }
     return `${appUrl}/dashboard?payment=complete`;
 }
+function marketplaceMoney(snapshot) {
+    const salePrice = snapshot.get("salePrice");
+    const regularPrice = snapshot.get("price");
+    const priceObject = (salePrice && typeof salePrice === "object" ? salePrice : regularPrice && typeof regularPrice === "object" ? regularPrice : null);
+    let amountValue = priceObject?.amount;
+    if (amountValue == null && typeof regularPrice === "number")
+        amountValue = regularPrice;
+    if (amountValue == null && snapshot.get("priceAmount") != null)
+        amountValue = snapshot.get("priceAmount");
+    if (amountValue == null && snapshot.get("priceMinor") != null)
+        amountValue = Number(snapshot.get("priceMinor")) / 100;
+    return {
+        amount: financeAmount(amountValue),
+        currency: financeCurrency(priceObject?.currency ?? snapshot.get("currency") ?? "UGX"),
+    };
+}
+async function resolveMarketplaceCoupon(input) {
+    if (!input.code)
+        return null;
+    const couponSnap = await db.collection("marketplaceCoupons").doc(input.code).get();
+    if (!couponSnap.exists)
+        throw new https_1.HttpsError("not-found", "Coupon code was not found.");
+    const status = financeText(couponSnap.get("status"), 20);
+    if (status !== "active")
+        throw new https_1.HttpsError("failed-precondition", "This coupon is not active.");
+    if (financeText(couponSnap.get("sellerId"), 128) !== input.sellerId)
+        throw new https_1.HttpsError("failed-precondition", "This coupon does not apply to this tutor.");
+    const scope = financeText(couponSnap.get("scope"), 20) || "store";
+    if (scope === "product" && financeText(couponSnap.get("targetId"), 180) !== input.productId)
+        throw new https_1.HttpsError("failed-precondition", "This coupon does not apply to this product.");
+    const currency = financeCurrency(couponSnap.get("currency") ?? input.currency);
+    if (currency !== input.currency)
+        throw new https_1.HttpsError("failed-precondition", "This coupon uses a different currency.");
+    const now = Date.now();
+    const startsAt = couponSnap.get("startsAt");
+    const endsAt = couponSnap.get("endsAt");
+    const toMillis = (value) => value && typeof value.toMillis === "function" ? value.toMillis() : typeof value === "string" && value ? Date.parse(value) : null;
+    const starts = toMillis(startsAt);
+    const ends = toMillis(endsAt);
+    if (starts && now < starts)
+        throw new https_1.HttpsError("failed-precondition", "This coupon is not active yet.");
+    if (ends && now > ends)
+        throw new https_1.HttpsError("failed-precondition", "This coupon has expired.");
+    const minimumSpend = Math.max(0, Number(couponSnap.get("minimumSpend") ?? 0));
+    if (input.amount < minimumSpend)
+        throw new https_1.HttpsError("failed-precondition", `A minimum spend of ${minimumSpend} ${input.currency} is required.`);
+    const usageLimit = Math.max(0, Number(couponSnap.get("usageLimit") ?? 0));
+    const redemptions = Math.max(0, Number(couponSnap.get("redemptions") ?? 0));
+    if (usageLimit > 0 && redemptions >= usageLimit)
+        throw new https_1.HttpsError("resource-exhausted", "This coupon has reached its usage limit.");
+    const perBuyerLimit = Math.max(1, Number(couponSnap.get("perBuyerLimit") ?? 1));
+    const redemptionId = safeFinanceId(`${couponSnap.id}_${input.buyerUid}`);
+    const buyerRedemption = await db.collection("marketplaceCouponRedemptions").doc(redemptionId).get();
+    if (buyerRedemption.exists && Number(buyerRedemption.get("count") ?? 0) >= perBuyerLimit)
+        throw new https_1.HttpsError("already-exists", "You have already used this coupon.");
+    const type = financeText(couponSnap.get("type"), 20);
+    const value = Number(couponSnap.get("value") ?? 0);
+    let discountAmount = type === "percentage" ? input.amount * Math.min(100, Math.max(0, value)) / 100 : Math.max(0, value);
+    const maxDiscount = Math.max(0, Number(couponSnap.get("maxDiscount") ?? 0));
+    if (maxDiscount > 0)
+        discountAmount = Math.min(discountAmount, maxDiscount);
+    discountAmount = Math.min(Math.max(0, input.amount - 1), Math.round(discountAmount * 100) / 100);
+    if (discountAmount <= 0)
+        throw new https_1.HttpsError("failed-precondition", "This coupon does not provide a valid discount.");
+    return { id: couponSnap.id, code: financeText(couponSnap.get("code"), 40) || couponSnap.id, discountAmount, totalAmount: Math.max(0, Math.round((input.amount - discountAmount) * 100) / 100) };
+}
 async function resolveCommerceItem(purpose, id) {
     if (purpose === "subscription") {
-        const snap = await db.collection("financePlans").doc(id).get();
-        if (!snap.exists || snap.get("active") === false)
+        const canonicalPlan = await db.collection("plans").doc(id).get();
+        if (canonicalPlan.exists) {
+            const active = canonicalPlan.get("isActive") === true || canonicalPlan.get("status") === "active";
+            const audience = String(canonicalPlan.get("audience") ?? "");
+            if (!active || audience !== "tutor")
+                throw new https_1.HttpsError("not-found", "The selected tutor subscription plan is unavailable.");
+            const amount = financeAmount(canonicalPlan.get("priceMinor"));
+            if (amount <= 0)
+                throw new https_1.HttpsError("failed-precondition", "Free Tutor does not require a payment checkout.");
+            return {
+                title: String(canonicalPlan.get("name") ?? "Medical Elites tutor subscription"),
+                amount,
+                currency: financeCurrency(canonicalPlan.get("currency") ?? "UGX"),
+                planId: canonicalPlan.id,
+            };
+        }
+        // Compatibility with older finance plan records while the platform migrates
+        // all paid tutor plans to the canonical `plans` collection.
+        const legacyPlan = await db.collection("financePlans").doc(id).get();
+        if (!legacyPlan.exists || legacyPlan.get("active") === false)
             throw new https_1.HttpsError("not-found", "The selected subscription plan is unavailable.");
-        const price = snap.get("price");
-        return { title: String(snap.get("name") ?? "Medical Elites subscription"), amount: financeAmount(price?.amount), currency: financeCurrency(price?.currency), planId: snap.id };
+        const price = legacyPlan.get("price");
+        return { title: String(legacyPlan.get("name") ?? "Medical Elites subscription"), amount: financeAmount(price?.amount), currency: financeCurrency(price?.currency), planId: legacyPlan.id };
     }
-    const snap = await db.collection("commerceProducts").doc(id).get();
-    if (!snap.exists || snap.get("status") !== "published")
+    let snap = await db.collection("marketplaceProducts").doc(id).get();
+    if (!snap.exists)
+        snap = await db.collection("commerceProducts").doc(id).get();
+    if (!snap.exists)
         throw new https_1.HttpsError("not-found", "The selected product is unavailable.");
-    const price = snap.get("price");
+    const productStatus = String(snap.get("status") ?? "").trim().toLowerCase();
+    if (productStatus !== "published" && snap.get("published") !== true)
+        throw new https_1.HttpsError("not-found", "The selected product is unavailable.");
+    const money = marketplaceMoney(snap);
+    const sellerId = financeText(snap.get("sellerId"), 128) || financeText(snap.get("ownerTutorUid"), 128) || financeText(snap.get("tutorId"), 128);
+    if (!sellerId)
+        throw new https_1.HttpsError("failed-precondition", "This product is missing its tutor ownership information.");
     return {
-        title: String(snap.get("title") ?? "Medical Elites product"), amount: financeAmount(price?.amount), currency: financeCurrency(price?.currency),
-        tenantId: financeText(snap.get("tenantId"), 128) || undefined, tutorId: financeText(snap.get("tutorId"), 128) || undefined,
+        title: String(snap.get("title") ?? "Medical Elites product"), amount: money.amount, currency: money.currency,
+        tenantId: financeText(snap.get("tenantId"), 128) || undefined, tutorId: sellerId,
         institutionId: financeText(snap.get("institutionId"), 128) || undefined, productId: snap.id,
+        productType: financeText(snap.get("type"), 40) || undefined,
+        courseUnitId: financeText(snap.get("courseUnitId"), 180) || undefined,
+        linkedResourceIds: Array.isArray(snap.get("linkedResourceIds")) ? snap.get("linkedResourceIds").map(value => financeText(value, 180)).filter(Boolean) : [],
+        accessType: financeText(snap.get("accessType"), 40) || "lifetime",
+        accessDays: Number(snap.get("accessDays") ?? 0) || 0,
     };
+}
+async function resolveTutorSubscriptionTenant(uid, profile) {
+    const preferred = financeText(profile.get("activeTenantId"), 128)
+        || financeText(profile.get("tenantId"), 128)
+        || financeText(profile.get("institutionId"), 128)
+        || `tutor_${uid}`;
+    const tenantRef = db.collection("tenants").doc(preferred);
+    const tenant = await tenantRef.get();
+    if (!tenant.exists) {
+        throw new https_1.HttpsError("failed-precondition", "Your tutor workspace could not be found. Refresh your account workspace and try again.");
+    }
+    const membership = await db.collection("tenantMemberships").doc(`${preferred}_${uid}`).get();
+    if (!membership.exists || membership.get("status") !== "active") {
+        throw new https_1.HttpsError("permission-denied", "You do not have active access to this tutor workspace.");
+    }
+    return preferred;
+}
+async function findTutorSubscription(tenantId) {
+    const canonical = await db.collection("subscriptions").doc(tenantId).get();
+    if (canonical.exists)
+        return canonical;
+    const legacy = await db.collection("subscriptions").where("tenantId", "==", tenantId).limit(20).get();
+    if (legacy.empty)
+        return null;
+    return legacy.docs.find(item => item.get("status") === "active")
+        ?? legacy.docs.find(item => item.get("status") === "trialing")
+        ?? legacy.docs[0];
+}
+async function assertTutorPlanCanBePurchased(tenantId, planId) {
+    const subscription = await findTutorSubscription(tenantId);
+    if (!subscription || subscription.get("status") !== "active" || String(subscription.get("planId") ?? "") !== planId)
+        return;
+    const endValue = subscription.get("currentPeriodEnd");
+    const endMillis = typeof endValue === "string" ? Date.parse(endValue) : endValue && typeof endValue.toMillis === "function" ? endValue.toMillis() : 0;
+    if (endMillis > Date.now() + 7 * 24 * 60 * 60 * 1000) {
+        throw new https_1.HttpsError("already-exists", "This subscription plan is already active. You can renew it during the final 7 days of the billing period.");
+    }
 }
 exports.createCommerceCheckout = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, secrets: [FLUTTERWAVE_SECRET_KEY] }, async (request) => {
     if (!request.auth)
@@ -863,6 +1132,27 @@ exports.createCommerceCheckout = (0, https_1.onCall)({ region: "us-central1", ti
         throw new https_1.HttpsError("invalid-argument", "A plan or product is required.");
     const profile = await financeProfile(request.auth.uid);
     const item = await resolveCommerceItem(purpose, itemId);
+    const customerTenantId = purpose === "subscription"
+        ? await resolveTutorSubscriptionTenant(request.auth.uid, profile)
+        : (item.tenantId ?? financeText(profile.get("activeTenantId"), 128) ?? financeText(profile.get("institutionId"), 128) ?? null);
+    if (purpose === "subscription" && item.planId)
+        await assertTutorPlanCanBePurchased(customerTenantId, item.planId);
+    const couponCode = financeText(data.couponCode, 40).toUpperCase();
+    const appliedCoupon = purpose === "marketplace" && item.productId && item.tutorId ? await resolveMarketplaceCoupon({ code: couponCode, buyerUid: request.auth.uid, productId: item.productId, sellerId: item.tutorId, amount: item.amount, currency: item.currency }) : null;
+    const checkoutAmount = appliedCoupon?.totalAmount ?? item.amount;
+    if (purpose === "marketplace" && item.tutorId === request.auth.uid) {
+        throw new https_1.HttpsError("failed-precondition", "You cannot purchase your own marketplace product.");
+    }
+    if (purpose === "marketplace" && item.productId) {
+        const entitlementId = safeFinanceId(`${request.auth.uid}_${item.productId}`);
+        const [commerceEntitlement, productEntitlement] = await Promise.all([
+            db.collection("commerceEntitlements").doc(entitlementId).get(),
+            db.collection("productEntitlements").doc(entitlementId).get(),
+        ]);
+        if ([commerceEntitlement, productEntitlement].some(entitlement => entitlement.exists && entitlement.get("status") === "active")) {
+            throw new https_1.HttpsError("already-exists", "You already own this product. Open it from My Purchases.");
+        }
+    }
     const fullName = financeText(data.fullName, 120) || String(profile.get("fullName") ?? profile.get("name") ?? "Medical Elites User");
     const email = financeText(data.email, 180) || String(profile.get("email") ?? request.auth.token.email ?? "");
     const phoneNumber = financeText(data.phoneNumber, 30);
@@ -873,7 +1163,7 @@ exports.createCommerceCheckout = (0, https_1.onCall)({ region: "us-central1", ti
         throw new https_1.HttpsError("invalid-argument", "Unsupported payment method.");
     if (paymentMethod === "mobile_money" && !phoneNumber)
         throw new https_1.HttpsError("invalid-argument", "A Mobile Money number is required.");
-    await consumeRateLimit(request.auth.uid, { scope: "commerce_checkout", limit: 10, windowSeconds: 3600 });
+    await consumeRateLimit(request.auth.uid, { scope: "commerce_checkout", limit: 50, windowSeconds: 3600 });
     const command = await claimFinanceCommand(request.auth.uid, "commerce_checkout", data.idempotencyKey);
     const txRef = `ME-COM-${request.auth.uid.slice(0, 8)}-${(0, node_crypto_1.randomUUID)().replaceAll("-", "").slice(0, 18)}`;
     const orderRef = db.collection("commerceOrders").doc(txRef);
@@ -886,25 +1176,29 @@ exports.createCommerceCheckout = (0, https_1.onCall)({ region: "us-central1", ti
         transaction.create(orderRef, {
             transactionReference: txRef, purpose, itemId, planId: item.planId ?? null, productId: item.productId ?? null,
             title: item.title, customerUid: request.auth.uid, customerEmail: email, customerName: fullName,
-            tenantId: item.tenantId ?? profile.get("institutionId") ?? null, tutorId: item.tutorId ?? null, institutionId: item.institutionId ?? profile.get("institutionId") ?? null,
-            amount: { amount: item.amount, currency: item.currency }, status: "pending", invoiceId: invoiceRef.id,
+            tenantId: customerTenantId, tutorId: item.tutorId ?? null, institutionId: item.institutionId ?? profile.get("institutionId") ?? null,
+            amount: { amount: checkoutAmount, currency: item.currency }, status: "pending", invoiceId: invoiceRef.id,
+            sellerId: item.tutorId ?? null,
+            items: item.productId ? [{ productId: item.productId, title: item.title, sellerId: item.tutorId ?? null, institutionId: item.institutionId ?? null, tenantId: item.tenantId ?? null, type: item.productType ?? null, courseUnitId: item.courseUnitId ?? null, linkedResourceIds: [...new Set([...(item.linkedResourceIds ?? []), ...(item.courseUnitId ? [item.courseUnitId] : [])])], accessType: item.accessType ?? "lifetime", accessDays: item.accessDays ?? 0, price: { amount: item.amount, currency: item.currency } }] : [],
+            productIds: item.productId ? [item.productId] : [], itemCount: item.productId ? 1 : 0,
+            couponId: appliedCoupon?.id ?? null, couponCode: appliedCoupon?.code ?? null, discountAmount: appliedCoupon?.discountAmount ?? 0, originalAmount: item.amount,
             billingCycle: financeText(data.billingCycle, 20) || null, createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp(),
         });
         transaction.create(invoiceRef, {
-            number: invoiceNumber, tenantId: item.tenantId ?? profile.get("institutionId") ?? request.auth.uid,
+            number: invoiceNumber, tenantId: customerTenantId ?? request.auth.uid,
             billedToUid: request.auth.uid, billedToEmail: email, orderId: txRef, purpose, status: "issued",
-            subtotal: { amount: item.amount, currency: item.currency }, discount: { amount: 0, currency: item.currency }, tax: { amount: 0, currency: item.currency }, total: { amount: item.amount, currency: item.currency },
+            subtotal: { amount: item.amount, currency: item.currency }, discount: { amount: appliedCoupon?.discountAmount ?? 0, currency: item.currency }, tax: { amount: 0, currency: item.currency }, total: { amount: checkoutAmount, currency: item.currency },
             issuedAt: firestore_1.FieldValue.serverTimestamp(), dueAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp(),
         });
         transaction.create(paymentRef, {
             orderId: txRef, invoiceId: invoiceRef.id, customerUid: request.auth.uid, provider: "flutterwave", providerReference: txRef,
-            status: "pending", amount: { amount: item.amount, currency: item.currency }, createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            status: "pending", amount: { amount: checkoutAmount, currency: item.currency }, createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp(),
         });
         transaction.create(paymentIntentRef, {
-            tenantId: item.tenantId ?? profile.get("institutionId") ?? null, payerUserId: request.auth.uid, provider: "flutterwave",
-            purpose, amountMinor: Math.round(item.amount * 100), currency: item.currency, status: "pending", externalReference: txRef,
+            tenantId: customerTenantId, payerUserId: request.auth.uid, provider: "flutterwave",
+            purpose, amountMinor: Math.round(checkoutAmount * 100), currency: item.currency, status: "pending", externalReference: txRef,
             idempotencyKey: financeText(data.idempotencyKey, 180), orderId: txRef, invoiceId: invoiceRef.id,
-            metadata: { planId: item.planId ?? null, productId: item.productId ?? null, paymentMethod },
+            metadata: { planId: item.planId ?? null, productId: item.productId ?? null, paymentMethod, couponId: appliedCoupon?.id ?? null, couponCode: appliedCoupon?.code ?? null, discountAmount: appliedCoupon?.discountAmount ?? 0 },
             createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp(),
         });
         transaction.update(command, { status: "checkout_created", orderId: txRef, invoiceId: invoiceRef.id, completedAt: firestore_1.FieldValue.serverTimestamp() });
@@ -918,12 +1212,12 @@ exports.createCommerceCheckout = (0, https_1.onCall)({ region: "us-central1", ti
         method: "POST",
         headers: { Authorization: `Bearer ${secretKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-            tx_ref: txRef, amount: item.amount, currency: item.currency,
+            tx_ref: txRef, amount: checkoutAmount, currency: item.currency,
             redirect_url: `${returnUrl}${returnUrl.includes("?") ? "&" : "?"}tx_ref=${encodeURIComponent(txRef)}`,
             payment_options: paymentMethod === "mobile_money" ? "mobilemoneyuganda" : "card",
             customer: { email, name: fullName, phonenumber: phoneNumber || undefined },
             customizations: { title: item.title, description: purpose === "subscription" ? "Medical Elites subscription" : "Medical Elites marketplace purchase", logo: `${appUrl}/images/logo.png` },
-            meta: { purpose, orderId: txRef, customerUid: request.auth.uid, planId: item.planId ?? null, productId: item.productId ?? null },
+            meta: { purpose, orderId: txRef, customerUid: request.auth.uid, planId: item.planId ?? null, productId: item.productId ?? null, couponCode: appliedCoupon?.code ?? null },
         }),
     });
     const result = await response.json();
@@ -933,7 +1227,16 @@ exports.createCommerceCheckout = (0, https_1.onCall)({ region: "us-central1", ti
             paymentRef.set({ status: "failed", gatewayMessage: result.message ?? null, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true }),
             paymentIntentRef.set({ status: "failed", lastError: result.message ?? null, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true }),
         ]);
-        throw new https_1.HttpsError("internal", "Unable to create payment checkout.");
+        const safeMessage = financeText(result.message, 300) || `Flutterwave returned HTTP ${response.status}.`;
+        console.error("Flutterwave checkout initialization failed", {
+            txRef,
+            purpose,
+            itemId,
+            statusCode: response.status,
+            gatewayStatus: result.status ?? null,
+            gatewayMessage: safeMessage,
+        });
+        throw new https_1.HttpsError("internal", `Unable to create payment checkout: ${safeMessage}`);
     }
     await Promise.all([
         orderRef.set({ checkoutUrlCreated: true, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true }),
@@ -978,7 +1281,7 @@ exports.createMarketplaceCartCheckout = (0, https_1.onCall)({ region: "us-centra
             sellerName: financeText(snapshot.get("sellerName"), 160),
             institutionId: financeText(snapshot.get("institutionId"), 128) || null,
             type: financeText(snapshot.get("type"), 40),
-            linkedResourceIds: Array.isArray(snapshot.get("linkedResourceIds")) ? snapshot.get("linkedResourceIds") : [],
+            linkedResourceIds: [...new Set([...(Array.isArray(snapshot.get("linkedResourceIds")) ? snapshot.get("linkedResourceIds") : []).map(value => financeText(value, 180)).filter(Boolean), ...(financeText(snapshot.get("courseUnitId"), 180) ? [financeText(snapshot.get("courseUnitId"), 180)] : [])])],
             accessType: financeText(snapshot.get("accessType"), 40) || "lifetime",
             accessDays: Number(snapshot.get("accessDays") ?? 0) || null,
             price: { amount: financeAmount(price?.amount), currency: financeCurrency(price?.currency) },
@@ -1052,16 +1355,36 @@ async function fulfilCommerceOrder(orderRef, transactionId, verified, eventName)
         const freshOrder = await transaction.get(orderRef);
         if (freshOrder.get("status") === "fulfilled")
             return;
+        const subscriptionTenantId = freshOrder.get("purpose") === "subscription" ? financeText(freshOrder.get("tenantId"), 128) : "";
+        const subscriptionRef = subscriptionTenantId ? db.collection("subscriptions").doc(subscriptionTenantId) : null;
+        const existingSubscription = subscriptionRef ? await transaction.get(subscriptionRef) : null;
         transaction.update(orderRef, { status: "fulfilled", fulfilledAt: firestore_1.FieldValue.serverTimestamp(), flutterwaveTransactionId: transactionId, flutterwaveReference: verified.flw_ref ?? null, updatedAt: firestore_1.FieldValue.serverTimestamp() });
         transaction.set(paymentRef, { status: "successful", providerTransactionId: transactionId, providerReference: verified.flw_ref ?? txRef, verifiedAmount: verified.amount ?? null, verifiedCurrency: verified.currency ?? null, paymentType: verified.payment_type ?? null, paidAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
         transaction.set(paymentIntentRef, { status: "successful", providerTransactionId: transactionId, providerReference: verified.flw_ref ?? txRef, verifiedAmountMinor: Math.round(Number(verified.amount ?? 0) * 100), verifiedCurrency: verified.currency ?? null, paidAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
         if (invoiceId)
             transaction.set(db.collection("invoices").doc(invoiceId), { status: "paid", paidAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
         transaction.set(receiptRef, { number: `ME-RCT-${txRef.slice(-12).toUpperCase()}`, orderId: txRef, invoiceId: invoiceId || null, customerUid: freshOrder.get("customerUid"), customerEmail: freshOrder.get("customerEmail"), amount: freshOrder.get("amount"), provider: "flutterwave", providerTransactionId: transactionId, event: eventName, issuedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+        const couponId = financeText(freshOrder.get("couponId"), 128);
+        if (couponId) {
+            const buyerUid = String(freshOrder.get("customerUid") ?? "");
+            const redemptionId = safeFinanceId(`${couponId}_${buyerUid}`);
+            transaction.set(db.collection("marketplaceCoupons").doc(couponId), { redemptions: firestore_1.FieldValue.increment(1), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+            transaction.set(db.collection("marketplaceCouponRedemptions").doc(redemptionId), { couponId, couponCode: freshOrder.get("couponCode") ?? couponId, buyerUid, orderId: txRef, count: firestore_1.FieldValue.increment(1), discountAmount: freshOrder.get("discountAmount") ?? 0, createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+        }
         if (freshOrder.get("purpose") === "subscription") {
-            const subscriptionId = safeFinanceId(`${freshOrder.get("customerUid")}_${freshOrder.get("planId")}`);
+            const tenantId = financeText(freshOrder.get("tenantId"), 128);
+            const customerUid = financeText(freshOrder.get("customerUid"), 128);
+            const planId = financeText(freshOrder.get("planId"), 128);
+            if (!tenantId || !customerUid || !planId)
+                throw new Error("Subscription order is missing tenant, customer, or plan information.");
+            if (!subscriptionRef || !existingSubscription)
+                throw new Error("Subscription transaction context was not initialized.");
             const now = new Date();
-            const end = new Date(now);
+            const existingEndValue = existingSubscription.get("currentPeriodEnd");
+            const existingEndMillis = typeof existingEndValue === "string" ? Date.parse(existingEndValue) : existingEndValue && typeof existingEndValue.toMillis === "function" ? existingEndValue.toMillis() : 0;
+            const isSameActivePlan = existingSubscription.exists && existingSubscription.get("status") === "active" && String(existingSubscription.get("planId") ?? "") === planId;
+            const start = isSameActivePlan && existingEndMillis > now.getTime() ? new Date(existingEndMillis) : now;
+            const end = new Date(start);
             const cycle = String(freshOrder.get("billingCycle") ?? "monthly");
             if (cycle === "annual")
                 end.setUTCFullYear(end.getUTCFullYear() + 1);
@@ -1069,8 +1392,27 @@ async function fulfilCommerceOrder(orderRef, transactionId, verified, eventName)
                 end.setUTCMonth(end.getUTCMonth() + 3);
             else
                 end.setUTCMonth(end.getUTCMonth() + 1);
-            transaction.set(db.collection("subscriptions").doc(subscriptionId), { tenantId: freshOrder.get("tenantId") ?? freshOrder.get("customerUid"), customerUid: freshOrder.get("customerUid"), planId: freshOrder.get("planId"), status: "active", startedAt: firestore_1.FieldValue.serverTimestamp(), currentPeriodStart: now.toISOString(), currentPeriodEnd: end.toISOString(), autoRenew: false, lastPaymentId: txRef, updatedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
-            transaction.set(db.collection("licenseGrants").doc(subscriptionId), { tenantId: freshOrder.get("tenantId") ?? freshOrder.get("customerUid"), userId: freshOrder.get("customerUid"), planId: freshOrder.get("planId"), status: "active", source: "flutterwave", expiresAt: end.toISOString(), updatedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+            transaction.set(subscriptionRef, {
+                tenantId, customerUid, planId, status: "active", source: "flutterwave",
+                startedAt: existingSubscription.exists ? existingSubscription.get("startedAt") ?? firestore_1.FieldValue.serverTimestamp() : firestore_1.FieldValue.serverTimestamp(),
+                currentPeriodStart: start.toISOString(), currentPeriodEnd: end.toISOString(), trialEndsAt: null,
+                cancelAtPeriodEnd: false, autoRenew: false, lastPaymentId: txRef, lastProviderTransactionId: transactionId,
+                updatedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: existingSubscription.exists ? existingSubscription.get("createdAt") ?? firestore_1.FieldValue.serverTimestamp() : firestore_1.FieldValue.serverTimestamp(),
+            }, { merge: true });
+            transaction.set(db.collection("licenseGrants").doc(tenantId), {
+                tenantId, userId: customerUid, planId, status: "active", source: "flutterwave",
+                startsAt: start.toISOString(), endsAt: end.toISOString(), expiresAt: end.toISOString(),
+                updatedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp(),
+            }, { merge: true });
+            transaction.set(db.collection("subscriptionHistory").doc(txRef), {
+                tenantId, customerUid, planId, orderId: txRef, paymentId: txRef, providerTransactionId: transactionId,
+                action: isSameActivePlan ? "renewed" : "activated", billingCycle: cycle, periodStart: start.toISOString(), periodEnd: end.toISOString(),
+                amount: freshOrder.get("amount"), createdAt: firestore_1.FieldValue.serverTimestamp(),
+            });
+            transaction.set(db.collection("tenants").doc(tenantId), {
+                planId, subscriptionStatus: "active", status: "active", trialEndsAt: null,
+                updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            }, { merge: true });
         }
         else {
             const customerUid = String(freshOrder.get("customerUid") ?? "");
@@ -1089,7 +1431,10 @@ async function fulfilCommerceOrder(orderRef, transactionId, verified, eventName)
                 transaction.set(db.collection("marketplaceEnrollments").doc(entitlementId), { customerUid, productId, orderId: txRef, linkedResourceIds: Array.isArray(item.linkedResourceIds) ? item.linkedResourceIds : [], productType: financeText(item.type, 40), status: "active", enrolledAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
                 transaction.set(db.collection("marketplaceProducts").doc(productId), { salesCount: firestore_1.FieldValue.increment(1), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
                 const linkedIds = Array.isArray(item.linkedResourceIds) ? item.linkedResourceIds.filter((value) => typeof value === "string") : [];
-                if (["course", "course_unit", "bundle"].includes(financeText(item.type, 40)) && linkedIds.length > 0) {
+                if (["course", "course_unit", "bundle", "clinical_skills", "lesson"].includes(financeText(item.type, 40)) && linkedIds.length > 0) {
+                    for (const courseUnitId of linkedIds) {
+                        transaction.set(db.collection("marketplaceCourseAccess").doc(`${customerUid}_${courseUnitId}`), { customerUid, courseUnitId, productId, orderId: txRef, status: "active", source: "marketplace_purchase", createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+                    }
                     transaction.set(db.collection("users").doc(customerUid), { assignedCourseUnitIds: firestore_1.FieldValue.arrayUnion(...linkedIds), enrolledCourses: firestore_1.FieldValue.arrayUnion(...linkedIds), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
                     transaction.set(db.collection("students").doc(customerUid), { assignedCourseUnitIds: firestore_1.FieldValue.arrayUnion(...linkedIds), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
                 }
@@ -1098,6 +1443,9 @@ async function fulfilCommerceOrder(orderRef, transactionId, verified, eventName)
         }
         transaction.set(db.collection("financeEvents").doc(), { type: "commerce.payment_verified", aggregateId: txRef, transactionId, purpose: freshOrder.get("purpose"), customerUid: freshOrder.get("customerUid"), amount: freshOrder.get("amount"), createdAt: firestore_1.FieldValue.serverTimestamp() });
     });
+    if (order.get("purpose") === "marketplace") {
+        await automaticallyDistributeMarketplaceRevenue(txRef);
+    }
 }
 exports.flutterwaveCommerceWebhook = (0, https_1.onRequest)({ region: "us-central1", timeoutSeconds: 60, secrets: [FLUTTERWAVE_SECRET_KEY, FLUTTERWAVE_WEBHOOK_SECRET] }, async (request, response) => {
     const secretHash = FLUTTERWAVE_WEBHOOK_SECRET.value();
@@ -1202,6 +1550,56 @@ exports.requestCommerceRefund = (0, https_1.onCall)({ region: "us-central1", tim
     await payment.ref.set({ refundStatus: "processing", refundedAmount: firestore_1.FieldValue.increment(amount), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
     await command.set({ status: "completed", refundId: refundRef.id, completedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
     return { refundId: refundRef.id, status: String(result.data?.status ?? "processing") };
+});
+exports.refreshTutorSubscriptionLifecycle = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 30, enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const profile = await financeProfile(request.auth.uid);
+    const tenantId = await resolveTutorSubscriptionTenant(request.auth.uid, profile);
+    const subscriptionRef = db.collection("subscriptions").doc(tenantId);
+    const subscription = await findTutorSubscription(tenantId);
+    if (!subscription)
+        return { tenantId, status: "free", planId: "tutor_free", changed: false };
+    const status = financeText(subscription.get("status"), 40);
+    const endValue = subscription.get("currentPeriodEnd");
+    const endMillis = typeof endValue === "string" ? Date.parse(endValue) : endValue && typeof endValue.toMillis === "function" ? endValue.toMillis() : 0;
+    const shouldExpire = ["active", "trialing", "past_due"].includes(status) && endMillis > 0 && endMillis <= Date.now();
+    if (!shouldExpire) {
+        const planId = financeText(subscription.get("planId"), 128) || "tutor_free";
+        if (subscription.id !== tenantId || (status === "active" && planId !== "tutor_free")) {
+            const batch = db.batch();
+            if (subscription.id !== tenantId)
+                batch.set(subscriptionRef, { ...subscription.data(), tenantId, migratedFromSubscriptionId: subscription.id, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+            if (status === "active")
+                batch.set(db.collection("tenants").doc(tenantId), { planId, subscriptionStatus: status, status: "active", updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+            await batch.commit();
+            return { tenantId, status, planId, changed: true, currentPeriodEnd: endValue ?? null };
+        }
+        return { tenantId, status, planId, changed: false, currentPeriodEnd: endValue ?? null };
+    }
+    const batch = db.batch();
+    batch.set(subscription.ref, { status: "expired", expiredAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    if (subscription.id !== tenantId)
+        batch.set(subscriptionRef, { ...subscription.data(), tenantId, status: "expired", migratedFromSubscriptionId: subscription.id, expiredAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    batch.set(db.collection("licenseGrants").doc(tenantId), { status: "suspended", updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    // Subscription expiry never disables the tutor account or workspace.
+    batch.set(db.collection("tenants").doc(tenantId), { planId: "tutor_free", subscriptionStatus: "expired", status: "active", updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    batch.set(db.collection("subscriptionHistory").doc(`expiry_${tenantId}_${Date.now()}`), { tenantId, customerUid: request.auth.uid, planId: subscription.get("planId") ?? null, action: "expired", previousStatus: status, createdAt: firestore_1.FieldValue.serverTimestamp() });
+    await batch.commit();
+    return { tenantId, status: "expired", planId: "tutor_free", changed: true };
+});
+exports.cancelTutorSubscriptionAtPeriodEnd = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 30, enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const profile = await financeProfile(request.auth.uid);
+    const tenantId = await resolveTutorSubscriptionTenant(request.auth.uid, profile);
+    const subscriptionRef = db.collection("subscriptions").doc(tenantId);
+    const subscription = await findTutorSubscription(tenantId);
+    if (!subscription || subscription.get("status") !== "active")
+        throw new https_1.HttpsError("failed-precondition", "There is no active paid subscription to cancel.");
+    await subscriptionRef.set({ ...subscription.data(), tenantId, cancelAtPeriodEnd: true, cancellationRequestedAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    await db.collection("subscriptionHistory").doc(`cancel_${tenantId}_${Date.now()}`).set({ tenantId, customerUid: request.auth.uid, planId: subscription.get("planId") ?? null, action: "cancel_at_period_end", createdAt: firestore_1.FieldValue.serverTimestamp() });
+    return { tenantId, status: "active", cancelAtPeriodEnd: true, currentPeriodEnd: subscription.get("currentPeriodEnd") ?? null };
 });
 function marketplaceNumber(value, min, max) {
     const parsed = Number(value);
@@ -1311,18 +1709,39 @@ exports.upsertMarketplacePromotion = (0, https_1.onCall)({ region: "us-central1"
     await db.collection("marketplacePromotions").doc(id).set({ name, kind, targetId, status: financeText(data.status, 20) || "draft", priority: Math.max(0, Number(data.priority ?? 0)), startsAt: data.startsAt ?? null, endsAt: data.endsAt ?? null, createdBy: request.auth.uid, createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
     return { promotionId: id };
 });
+exports.validateMarketplaceCoupon = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 20 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const data = (request.data ?? {});
+    const code = financeText(data.code, 40).toUpperCase();
+    const productId = financeText(data.productId, 160);
+    if (!code || !productId)
+        throw new https_1.HttpsError("invalid-argument", "Coupon code and product are required.");
+    const item = await resolveCommerceItem("marketplace", productId);
+    if (!item.productId || !item.tutorId)
+        throw new https_1.HttpsError("failed-precondition", "This product cannot accept coupons.");
+    const applied = await resolveMarketplaceCoupon({ code, buyerUid: request.auth.uid, productId: item.productId, sellerId: item.tutorId, amount: item.amount, currency: item.currency });
+    if (!applied)
+        throw new https_1.HttpsError("not-found", "Coupon code was not found.");
+    return { code: applied.code, discountAmount: applied.discountAmount, totalAmount: applied.totalAmount, currency: item.currency };
+});
 exports.upsertMarketplaceCoupon = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 20 }, async (request) => {
     if (!request.auth)
         throw new https_1.HttpsError("unauthenticated", "Please sign in.");
-    await assertFinancePlatformAdmin(request.auth.uid);
     const data = (request.data ?? {});
+    const profile = await financeProfile(request.auth.uid);
+    const role = financeText(profile.get("role"), 40);
+    const isPlatformAdmin = ["super_admin", "platform_admin", "platform_finance"].includes(role);
+    const requestedSellerId = financeText(data.sellerId, 128) || request.auth.uid;
+    if (!isPlatformAdmin && (role !== "tutor" || requestedSellerId !== request.auth.uid))
+        throw new https_1.HttpsError("permission-denied", "Only tutors may manage their own coupons.");
     const code = financeText(data.code, 40).toUpperCase();
     const type = financeText(data.type, 20);
     const value = marketplaceNumber(data.value, 0.01, 1000000000);
     if (!code || !["percentage", "fixed"].includes(type) || (type === "percentage" && value > 100))
         throw new https_1.HttpsError("invalid-argument", "A valid coupon is required.");
     const id = financeText(data.id, 128) || code;
-    await db.collection("marketplaceCoupons").doc(id).set({ code, type, value, currency: financeText(data.currency, 3) || "UGX", scope: financeText(data.scope, 30) || "global", targetId: financeText(data.targetId, 180) || null, minimumSpend: Math.max(0, Number(data.minimumSpend ?? 0)), maxDiscount: Math.max(0, Number(data.maxDiscount ?? 0)) || null, usageLimit: Math.max(0, Number(data.usageLimit ?? 0)) || null, redemptions: firestore_1.FieldValue.increment(0), status: financeText(data.status, 20) || "draft", startsAt: data.startsAt ?? null, endsAt: data.endsAt ?? null, createdBy: request.auth.uid, createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    await db.collection("marketplaceCoupons").doc(id).set({ code, name: financeText(data.name, 120) || code, sellerId: requestedSellerId, type, value, currency: financeText(data.currency, 3) || "UGX", scope: financeText(data.scope, 30) || "global", targetId: financeText(data.targetId, 180) || null, minimumSpend: Math.max(0, Number(data.minimumSpend ?? 0)), maxDiscount: Math.max(0, Number(data.maxDiscount ?? 0)) || null, usageLimit: Math.max(0, Number(data.usageLimit ?? 0)) || null, perBuyerLimit: Math.max(1, Number(data.perBuyerLimit ?? 1)), redemptions: firestore_1.FieldValue.increment(0), status: financeText(data.status, 20) || "draft", startsAt: data.startsAt ?? null, endsAt: data.endsAt ?? null, createdBy: request.auth.uid, createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
     return { couponId: id };
 });
 exports.reviewMarketplaceSellerVerification = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 20 }, async (request) => {
@@ -1362,6 +1781,260 @@ function callableDate(value) {
  * are committed in one transaction so refreshes, multiple browsers and direct
  * calls cannot exceed the tutor-defined limit.
  */
+function callableDateText(value) {
+    if (!value)
+        return null;
+    if (value instanceof Date)
+        return value.toISOString();
+    if (typeof value === "string")
+        return value;
+    if (typeof value === "object" && value !== null && "toDate" in value && typeof value.toDate === "function") {
+        try {
+            return value.toDate().toISOString();
+        }
+        catch {
+            return null;
+        }
+    }
+    return null;
+}
+function tutorOwnsQuizData(data, uid) {
+    return [data.ownerUserId, data.createdByUid, data.tutorUid, data.createdBy].some((value) => typeof value === "string" && value === uid)
+        || (Array.isArray(data.assignedTutorIds) && data.assignedTutorIds.includes(uid));
+}
+function serializeTutorAttempt(snapshot) {
+    const data = snapshot.data() ?? {};
+    return {
+        ...data,
+        id: snapshot.id,
+        startedAt: callableDateText(data.startedAt),
+        submittedAt: callableDateText(data.submittedAt),
+        createdAt: callableDateText(data.createdAt),
+        updatedAt: callableDateText(data.updatedAt),
+        releasedAt: callableDateText(data.releasedAt),
+    };
+}
+/**
+ * Trusted tutor assessment workspace loader. This intentionally supports both
+ * canonical attempts (which carry tutor ownership metadata) and older attempts
+ * that can only be associated through the tutor-owned quiz.
+ */
+exports.getTutorAssessmentAttempts = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const uid = request.auth.uid;
+    const profile = await financeProfile(uid);
+    if (!["tutor", "admin"].includes(String(profile.get("role") ?? ""))) {
+        throw new https_1.HttpsError("permission-denied", "Tutor access is required.");
+    }
+    const quizSnapshots = await Promise.all([
+        db.collection("quizzes").where("ownerUserId", "==", uid).get(),
+        db.collection("quizzes").where("createdByUid", "==", uid).get(),
+        db.collection("quizzes").where("tutorUid", "==", uid).get(),
+        db.collection("quizzes").where("assignedTutorIds", "array-contains", uid).get(),
+    ]);
+    const quizIds = [...new Set(quizSnapshots.flatMap((snapshot) => snapshot.docs.map((doc) => doc.id)))];
+    const attemptSnapshots = await Promise.all([
+        db.collection("quizAttempts").where("tutorUid", "==", uid).get(),
+        db.collection("quizAttempts").where("ownerUserId", "==", uid).get(),
+        db.collection("quizAttempts").where("createdByUid", "==", uid).get(),
+    ]);
+    const attempts = new Map();
+    for (const snapshot of attemptSnapshots)
+        for (const doc of snapshot.docs)
+            attempts.set(doc.id, doc);
+    for (let index = 0; index < quizIds.length; index += 30) {
+        const ids = quizIds.slice(index, index + 30);
+        if (!ids.length)
+            continue;
+        const snapshot = await db.collection("quizAttempts").where("quizId", "in", ids).get();
+        for (const doc of snapshot.docs)
+            attempts.set(doc.id, doc);
+    }
+    const rows = [...attempts.values()]
+        .filter((doc) => doc.get("completed") !== false)
+        .map(serializeTutorAttempt)
+        .sort((a, b) => Date.parse(String(b.submittedAt ?? b.createdAt ?? "")) - Date.parse(String(a.submittedAt ?? a.createdAt ?? "")));
+    return { attempts: rows };
+});
+exports.saveTutorAssessmentMarking = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const uid = request.auth.uid;
+    const profile = await financeProfile(uid);
+    if (!["tutor", "admin"].includes(String(profile.get("role") ?? ""))) {
+        throw new https_1.HttpsError("permission-denied", "Tutor access is required.");
+    }
+    const data = (request.data ?? {});
+    const attemptId = financeText(data.attemptId, 180);
+    if (!attemptId)
+        throw new https_1.HttpsError("invalid-argument", "Attempt ID is required.");
+    const attemptRef = db.collection("quizAttempts").doc(attemptId);
+    const attempt = await attemptRef.get();
+    if (!attempt.exists)
+        throw new https_1.HttpsError("not-found", "Assessment attempt was not found.");
+    let authorized = [attempt.get("tutorUid"), attempt.get("ownerUserId"), attempt.get("createdByUid")].includes(uid);
+    if (!authorized) {
+        const quizId = financeText(attempt.get("quizId"), 180);
+        if (quizId) {
+            const quiz = await db.collection("quizzes").doc(quizId).get();
+            authorized = quiz.exists && tutorOwnsQuizData(quiz.data() ?? {}, uid);
+        }
+    }
+    if (!authorized && profile.get("role") !== "admin")
+        throw new https_1.HttpsError("permission-denied", "This submission does not belong to you.");
+    const finalPercentage = Math.max(0, Math.min(100, finiteNumber(data.finalPercentage)));
+    const patch = {
+        manualMarks: Array.isArray(data.manualMarks) ? data.manualMarks : [],
+        manualScore: Math.max(0, finiteNumber(data.manualScore)),
+        finalScore: Math.max(0, finiteNumber(data.finalScore)),
+        finalPercentage,
+        tutorRemarks: financeText(data.tutorRemarks, 4000),
+        passed: typeof data.passed === "boolean" ? data.passed : finalPercentage >= 50,
+        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        tutorUid: uid,
+        ownerUserId: uid,
+        createdByUid: uid,
+    };
+    if (data.release === true) {
+        patch.released = true;
+        patch.releasedAt = firestore_1.FieldValue.serverTimestamp();
+    }
+    await attemptRef.set(patch, { merge: true });
+    return { success: true };
+});
+exports.getTutorAssessmentAttempt = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const uid = request.auth.uid;
+    const profile = await financeProfile(uid);
+    if (!["tutor", "admin"].includes(String(profile.get("role") ?? ""))) {
+        throw new https_1.HttpsError("permission-denied", "Tutor access is required.");
+    }
+    const data = (request.data ?? {});
+    const attemptId = financeText(data.attemptId, 180);
+    if (!attemptId)
+        throw new https_1.HttpsError("invalid-argument", "Attempt ID is required.");
+    const attempt = await db.collection("quizAttempts").doc(attemptId).get();
+    if (!attempt.exists)
+        return { attempt: null };
+    let authorized = [attempt.get("tutorUid"), attempt.get("ownerUserId"), attempt.get("createdByUid")].includes(uid);
+    if (!authorized) {
+        const quizId = financeText(attempt.get("quizId"), 180);
+        if (quizId) {
+            const quiz = await db.collection("quizzes").doc(quizId).get();
+            authorized = quiz.exists && tutorOwnsQuizData(quiz.data() ?? {}, uid);
+        }
+    }
+    if (!authorized && profile.get("role") !== "admin") {
+        throw new https_1.HttpsError("permission-denied", "This submission does not belong to you.");
+    }
+    return { attempt: serializeTutorAttempt(attempt) };
+});
+exports.reconcileTutorMarketplaceRevenue = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 120 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const uid = request.auth.uid;
+    const profile = await financeProfile(uid);
+    if (!["tutor", "admin"].includes(String(profile.get("role") ?? ""))) {
+        throw new https_1.HttpsError("permission-denied", "Tutor access is required.");
+    }
+    const purchases = await db.collection("marketplacePurchases").where("sellerId", "==", uid).get();
+    const orderIds = [...new Set(purchases.docs
+            .filter((doc) => String(doc.get("status") ?? "active") === "active")
+            .map((doc) => financeText(doc.get("orderId"), 180))
+            .filter(Boolean))];
+    let reconciled = 0;
+    for (const orderId of orderIds) {
+        await automaticallyDistributeMarketplaceRevenue(orderId);
+        reconciled += 1;
+    }
+    const walletId = safeFinanceId(`tutor_${uid}_UGX`);
+    const wallet = await db.collection("wallets").doc(walletId).get();
+    return {
+        reconciledOrders: reconciled,
+        walletId,
+        availableBalance: wallet.exists ? Number(wallet.get("availableBalance") ?? 0) : 0,
+        lifetimeCredits: wallet.exists ? Number(wallet.get("lifetimeCredits") ?? 0) : 0,
+    };
+});
+exports.getTutorMarketplaceAnalytics = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const uid = request.auth.uid;
+    const profile = await financeProfile(uid);
+    if (!["tutor", "admin"].includes(String(profile.get("role") ?? "")))
+        throw new https_1.HttpsError("permission-denied", "Tutor access is required.");
+    const productsSnap = await db.collection("marketplaceProducts").where("sellerId", "==", uid).get();
+    const products = productsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const productIds = products.map((item) => item.id);
+    const purchasesSnap = await db.collection("marketplacePurchases").where("sellerId", "==", uid).get();
+    const purchases = purchasesSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const viewDocs = new Map();
+    for (let index = 0; index < productIds.length; index += 30) {
+        const ids = productIds.slice(index, index + 30);
+        if (!ids.length)
+            continue;
+        const snapshot = await db.collection("recentlyViewed").where("productId", "in", ids).get();
+        for (const doc of snapshot.docs)
+            viewDocs.set(doc.id, doc);
+    }
+    const activePurchases = purchases.filter((row) => String(row.status ?? "active") === "active");
+    const refundedPurchases = purchases.filter((row) => ["refunded", "revoked"].includes(String(row.status ?? "")));
+    const revenueByCurrency = {};
+    const uniqueCustomers = new Set();
+    const productStats = new Map();
+    for (const row of activePurchases) {
+        const amount = row.amount;
+        const numeric = Math.max(0, Number(amount?.amount ?? 0));
+        const currency = financeText(amount?.currency, 3) || "UGX";
+        revenueByCurrency[currency] = (revenueByCurrency[currency] ?? 0) + numeric;
+        const customerUid = financeText(row.customerUid, 128);
+        if (customerUid)
+            uniqueCustomers.add(customerUid);
+        const productId = financeText(row.productId, 180);
+        if (productId) {
+            const current = productStats.get(productId) ?? { sales: 0, revenue: 0, currency, customers: new Set() };
+            current.sales += 1;
+            current.revenue += numeric;
+            if (customerUid)
+                current.customers.add(customerUid);
+            productStats.set(productId, current);
+        }
+    }
+    const viewersByProduct = new Map();
+    for (const doc of viewDocs.values()) {
+        const productId = financeText(doc.get("productId"), 180);
+        const customerUid = financeText(doc.get("customerUid"), 128);
+        if (!productId)
+            continue;
+        const set = viewersByProduct.get(productId) ?? new Set();
+        if (customerUid)
+            set.add(customerUid);
+        else
+            set.add(doc.id);
+        viewersByProduct.set(productId, set);
+    }
+    const uniqueViewers = new Set([...viewDocs.values()].map((doc) => financeText(doc.get("customerUid"), 128) || doc.id));
+    return {
+        totals: {
+            uniqueViewers: uniqueViewers.size,
+            orders: activePurchases.length,
+            customers: uniqueCustomers.size,
+            refunds: refundedPurchases.length,
+            revenueByCurrency,
+        },
+        products: products.map((product) => {
+            const stat = productStats.get(String(product.id));
+            return {
+                id: product.id, title: product.title ?? "Untitled product", status: product.status ?? "draft",
+                sales: stat?.sales ?? 0, revenue: stat?.revenue ?? 0, currency: stat?.currency ?? (financeText(product.price?.currency, 3) || "UGX"),
+                customers: stat?.customers.size ?? 0, uniqueViewers: viewersByProduct.get(String(product.id))?.size ?? 0,
+                ratingAverage: Number(product.ratingAverage ?? 0), ratingCount: Number(product.ratingCount ?? 0),
+            };
+        }),
+    };
+});
 exports.submitQuizAttempt = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "Please sign in before submitting this quiz.");
@@ -1524,12 +2197,13 @@ exports.completeModuleLearning = (0, https_1.onCall)({ region: "us-central1", ti
             }
         }
     }
-    const [byUser, byAuthUid] = await Promise.all([
+    const [byUser, byAuthUid, byStudentId] = await Promise.all([
         db.collection("enrollments").where("userId", "==", uid).get(),
         db.collection("enrollments").where("studentAuthUid", "==", uid).get(),
+        db.collection("enrollments").where("studentId", "==", uid).get(),
     ]);
     const refs = new Map();
-    for (const snapshot of [byUser, byAuthUid]) {
+    for (const snapshot of [byUser, byAuthUid, byStudentId]) {
         for (const item of snapshot.docs) {
             const enrollment = item.data();
             const belongs = !courseUnitId
@@ -1540,8 +2214,16 @@ exports.completeModuleLearning = (0, https_1.onCall)({ region: "us-central1", ti
                 refs.set(item.ref.path, item.ref);
         }
     }
+    if (refs.size === 0 && courseUnitId) {
+        const access = await db.collection("marketplaceCourseAccess").doc(`${uid}_${courseUnitId}`).get();
+        if (access.exists && access.get("customerUid") === uid && access.get("courseUnitId") === courseUnitId && access.get("status") === "active") {
+            const enrollmentRef = db.collection("enrollments").doc(`${uid}_${courseUnitId}`);
+            await enrollmentRef.set({ id: `${uid}_${courseUnitId}`, userId: uid, studentAuthUid: uid, courseId: courseUnitId, courseUnitId, courseUnitIds: [courseUnitId], status: "active", approvalStatus: "approved", source: "marketplace_purchase", progress: 0, completedModules: [], startedModules: [], enrolledAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+            refs.set(enrollmentRef.path, enrollmentRef);
+        }
+    }
     if (refs.size === 0)
-        throw new https_1.HttpsError("failed-precondition", "Active enrolment not found.");
+        throw new https_1.HttpsError("failed-precondition", "Active enrolment not found. Refresh My Library or contact support if you own this course.");
     const moduleQuery = courseUnitId
         ? await db.collection("modules").where("courseUnitId", "==", courseUnitId).get()
         : null;
@@ -1592,13 +2274,17 @@ exports.bootstrapTenantWorkspace = (0, https_1.onCall)({
     });
     const uid = request.auth.uid;
     const userRef = db.collection("users").doc(uid);
+    const studentRef = db.collection("students").doc(uid);
     return db.runTransaction(async (transaction) => {
-        const userSnapshot = await transaction.get(userRef);
+        const [userSnapshot, studentSnapshot] = await Promise.all([
+            transaction.get(userRef),
+            transaction.get(studentRef),
+        ]);
         if (!userSnapshot.exists || userSnapshot.get("isActive") === false) {
             throw new https_1.HttpsError("permission-denied", "Your active user profile is required.");
         }
         const role = String(userSnapshot.get("role") ?? "student");
-        const institutionId = String(userSnapshot.get("institutionId") ?? "").trim();
+        const institutionId = String(userSnapshot.get("institutionId") ?? studentSnapshot.get("institutionId") ?? "").trim();
         if (!institutionId && role !== "tutor") {
             throw new https_1.HttpsError("failed-precondition", "An institution assignment is required before this account can receive a workspace.");
         }
@@ -1611,7 +2297,7 @@ exports.bootstrapTenantWorkspace = (0, https_1.onCall)({
             transaction.get(membershipRef),
         ]);
         const tenantType = institutionId ? "institution" : "independent_tutor";
-        const institutionName = String(userSnapshot.get("institutionName") ?? "").trim();
+        const institutionName = String(userSnapshot.get("institutionName") ?? studentSnapshot.get("institutionName") ?? "").trim();
         const fullName = String(userSnapshot.get("fullName") ?? "").trim();
         const tenantName = institutionName || (institutionId ? "Institution workspace" : `${fullName || "Tutor"} workspace`);
         const tenantRole = !institutionId
@@ -1912,5 +2598,742 @@ exports.updateTenantSubscriptionStatus = (0, https_1.onCall)({ region: "us-centr
     await batch.commit();
     await writePlatformAudit(actor, "subscription.status_updated", tenantId, `Changed subscription status to ${status}.`, { status, reason: optionalString(data.reason, 500) });
     return { subscriptionId: tenantId, status };
+});
+/**
+ * Rebuilds durable course-unit access for marketplace products already owned by
+ * the authenticated learner. This is intentionally server-side so a buyer can
+ * never grant themselves access to an arbitrary tutor course.
+ */
+exports.refreshMarketplaceLearningAccess = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in before refreshing learning access.");
+    const uid = request.auth.uid;
+    const purchases = await db.collection("marketplacePurchases")
+        .where("customerUid", "==", uid)
+        .where("status", "==", "active")
+        .limit(250)
+        .get();
+    const productIds = [...new Set(purchases.docs.map((snap) => financeText(snap.get("productId"), 160)).filter(Boolean))];
+    const products = await Promise.all(productIds.map((productId) => db.collection("marketplaceProducts").doc(productId).get()));
+    const batch = db.batch();
+    const courseUnitIds = new Set();
+    products.forEach((product) => {
+        if (!product.exists)
+            return;
+        const type = financeText(product.get("type"), 40);
+        if (!["course", "course_unit", "bundle", "clinical_skills", "lesson"].includes(type))
+            return;
+        const directCourseUnitId = financeText(product.get("courseUnitId"), 180);
+        if (directCourseUnitId)
+            courseUnitIds.add(directCourseUnitId);
+        const linked = product.get("linkedResourceIds");
+        if (Array.isArray(linked)) {
+            linked.forEach((value) => {
+                const id = financeText(value, 180);
+                if (id)
+                    courseUnitIds.add(id);
+            });
+        }
+    });
+    courseUnitIds.forEach((courseUnitId) => {
+        const accessId = `${uid}_${courseUnitId}`;
+        batch.set(db.collection("marketplaceCourseAccess").doc(accessId), {
+            customerUid: uid,
+            courseUnitId,
+            status: "active",
+            source: "marketplace_purchase",
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            createdAt: firestore_1.FieldValue.serverTimestamp(),
+        }, { merge: true });
+    });
+    if (courseUnitIds.size > 0)
+        await batch.commit();
+    return { courseUnitIds: [...courseUnitIds], count: courseUnitIds.size };
+});
+/** Public, server-enriched course-unit catalogue used by public and student course cards. */
+exports.getPublicCourseCatalogueSnapshot = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "512MiB", enforceAppCheck: false }, async () => {
+    const courses = await db.collection("courses").where("published", "==", true).limit(100).get();
+    const rows = await Promise.all(courses.docs.map(async (course) => {
+        const data = course.data();
+        const aliases = Array.from(new Set([
+            course.id,
+            financeText(data.id, 180),
+            financeText(data.courseId, 180),
+            financeText(data.slug, 180),
+        ].filter(Boolean)));
+        async function queryAliases(collectionName, field) {
+            const results = await Promise.allSettled(aliases.map((alias) => db.collection(collectionName).where(field, "==", alias).get()));
+            const map = new Map();
+            results.forEach((result) => {
+                if (result.status === "fulfilled") {
+                    result.value.docs.forEach((item) => map.set(item.id, item));
+                }
+            });
+            return map;
+        }
+        const [modulesByUnit, modulesByCourse] = await Promise.all([
+            queryAliases("modules", "courseUnitId"),
+            queryAliases("modules", "courseId"),
+        ]);
+        const moduleMap = new Map([
+            ...modulesByUnit,
+            ...modulesByCourse,
+        ]);
+        const modules = [...moduleMap.values()].filter((item) => item.get("published") !== false);
+        const lessonMap = new Map();
+        const moduleLessonResults = await Promise.allSettled(modules.map((module) => db.collection("lessons").where("moduleId", "==", module.id).get()));
+        moduleLessonResults.forEach((result) => {
+            if (result.status === "fulfilled") {
+                result.value.docs.forEach((item) => lessonMap.set(item.id, item));
+            }
+        });
+        const [lessonsByUnit, lessonsByCourse] = await Promise.all([
+            queryAliases("lessons", "courseUnitId"),
+            queryAliases("lessons", "courseId"),
+        ]);
+        [...lessonsByUnit, ...lessonsByCourse].forEach(([id, item]) => lessonMap.set(id, item));
+        const lessons = [...lessonMap.values()].filter((item) => item.get("published") !== false).length;
+        const enrollmentMaps = await Promise.all([
+            queryAliases("enrollments", "courseId"),
+            queryAliases("enrollments", "courseUnitId"),
+        ]);
+        const enrollmentArrayResults = await Promise.allSettled(aliases.map((alias) => db.collection("enrollments").where("courseUnitIds", "array-contains", alias).get()));
+        const enrollmentMap = new Map();
+        enrollmentMaps.forEach((map) => map.forEach((item, id) => enrollmentMap.set(id, item)));
+        enrollmentArrayResults.forEach((result) => {
+            if (result.status === "fulfilled")
+                result.value.docs.forEach((item) => enrollmentMap.set(item.id, item));
+        });
+        const learnerIds = new Set();
+        enrollmentMap.forEach((item) => {
+            const row = item.data();
+            const status = String(row.status ?? row.approvalStatus ?? "active").toLowerCase();
+            if (!["active", "approved", "enrolled", "accepted", "completed"].includes(status))
+                return;
+            const learnerId = financeText(row.studentAuthUid ?? row.userId ?? row.authUid ?? row.studentId ?? item.id, 180);
+            if (learnerId)
+                learnerIds.add(learnerId);
+        });
+        const marketplaceMaps = await Promise.all([
+            queryAliases("marketplaceCourseAccess", "courseUnitId"),
+            queryAliases("marketplaceCourseAccess", "courseId"),
+        ]);
+        marketplaceMaps.forEach((map) => map.forEach((item) => {
+            if (String(item.get("status") ?? "active").toLowerCase() !== "active")
+                return;
+            const learnerId = financeText(item.get("customerUid") ?? item.get("userId"), 180);
+            if (learnerId)
+                learnerIds.add(learnerId);
+        }));
+        const tutorIds = new Set();
+        const addTutorId = (value) => {
+            const id = financeText(value, 180);
+            if (id)
+                tutorIds.add(id);
+        };
+        (Array.isArray(data.assignedTutorIds) ? data.assignedTutorIds : []).forEach(addTutorId);
+        [data.ownerUserId, data.createdByUid, data.createdBy, data.tutorId].forEach(addTutorId);
+        modules.forEach((module) => {
+            const row = module.data();
+            (Array.isArray(row.assignedTutorIds) ? row.assignedTutorIds : []).forEach(addTutorId);
+            [row.ownerUserId, row.createdByUid, row.createdBy, row.tutorId].forEach(addTutorId);
+        });
+        const assignedTutorIds = [...tutorIds];
+        let tutor = financeText(data.tutor ?? data.tutorName ?? data.assignedTutorName ?? data.createdByName, 160);
+        const genericTutorNames = ["", "unassigned", "assigned tutor", "medical elites tutor", "to be defined"];
+        if (genericTutorNames.includes(tutor.toLowerCase()) && assignedTutorIds.length > 0) {
+            for (const tutorUid of assignedTutorIds) {
+                const [userProfile, sellerProfile] = await Promise.all([
+                    db.collection("users").doc(tutorUid).get(),
+                    db.collection("sellerProfiles").doc(tutorUid).get(),
+                ]);
+                const resolved = financeText(userProfile.get("fullName") ?? userProfile.get("displayName") ?? sellerProfile.get("displayName"), 160);
+                if (resolved) {
+                    tutor = resolved;
+                    break;
+                }
+            }
+        }
+        if (!tutor || genericTutorNames.includes(tutor.toLowerCase()))
+            tutor = "Medical Elites Tutor";
+        const productMaps = await Promise.all([
+            queryAliases("marketplaceProducts", "courseUnitId"),
+            ...await Promise.all(aliases.map(async (alias) => {
+                const result = await db.collection("marketplaceProducts").where("linkedResourceIds", "array-contains", alias).get();
+                const map = new Map();
+                result.docs.forEach((item) => map.set(item.id, item));
+                return map;
+            })),
+        ]);
+        const productMap = new Map();
+        productMaps.forEach((map) => map.forEach((item, id) => productMap.set(id, item)));
+        let ratingTotal = 0;
+        let ratingCount = 0;
+        productMap.forEach((item) => {
+            const count = Math.max(0, finiteNumber(item.get("ratingCount"), 0));
+            const average = Math.max(0, finiteNumber(item.get("ratingAverage"), 0));
+            ratingTotal += average * count;
+            ratingCount += count;
+        });
+        const storedRating = Math.max(0, finiteNumber(data.rating ?? data.ratingAverage, 0));
+        const rating = ratingCount > 0 ? ratingTotal / ratingCount : storedRating;
+        const moduleHours = modules.reduce((sum, item) => sum + Math.max(0, finiteNumber(item.get("estimatedHours") ?? item.get("durationHours"), 0)), 0);
+        const durationWeeks = Math.max(0, finiteNumber(data.durationWeeks ?? data.weeks ?? data.semesterWeeks, 0));
+        const duration = financeText(data.duration, 80)
+            || (durationWeeks > 0 ? `${durationWeeks} weeks` : "")
+            || (moduleHours > 0 ? `${moduleHours} learning hours` : "Self-paced");
+        return {
+            id: course.id,
+            slug: financeText(data.slug, 180) || course.id,
+            title: financeText(data.title, 240) || "Untitled course unit",
+            category: financeText(data.category, 120) || "Health Sciences",
+            description: financeText(data.description, 2000) || "Explore this Medical Elites course unit.",
+            programmeId: financeText(data.programmeId, 180),
+            programmeTitle: financeText(data.programmeTitle, 240) || "Health Sciences",
+            image: financeText(data.image ?? data.imageUrl ?? data.thumbnailUrl, 1200) || "/images/course-placeholder.svg",
+            tutor,
+            duration,
+            modules: modules.length,
+            lessons,
+            level: financeText(data.level, 80) || "Diploma",
+            rating,
+            students: String(learnerIds.size),
+            certificate: data.certificate !== false,
+            isFeatured: data.isFeatured === true,
+            isNew: data.isNew === true,
+            published: true,
+            code: financeText(data.code, 80),
+            semester: data.semester ?? null,
+            yearOfStudy: data.yearOfStudy ?? null,
+            creditUnits: data.creditUnits ?? null,
+            assignedTutorIds,
+            ownerUserId: financeText(data.ownerUserId, 180) || undefined,
+            createdByUid: financeText(data.createdByUid, 180) || undefined,
+            institutionId: financeText(data.institutionId, 180) || null,
+        };
+    }));
+    return { courseUnits: rows, version: "3.1.9" };
+});
+/** Student learning summary and recent academic activity from canonical server records. */
+exports.getStudentLearningOverview = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "512MiB", enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in before loading learning progress.");
+    const uid = request.auth.uid;
+    const enrollmentResults = await Promise.all([
+        db.collection("enrollments").where("userId", "==", uid).get(),
+        db.collection("enrollments").where("studentAuthUid", "==", uid).get(),
+        db.collection("enrollments").where("studentId", "==", uid).get(),
+    ]);
+    const enrollmentMap = new Map();
+    enrollmentResults.forEach((snapshot) => snapshot.docs.forEach((item) => enrollmentMap.set(item.id, item)));
+    const marketplaceAccess = await db.collection("marketplaceCourseAccess").where("customerUid", "==", uid).where("status", "==", "active").get();
+    const courseUnitIds = new Set();
+    const started = new Set();
+    const completed = new Set();
+    enrollmentMap.forEach((item) => {
+        const row = item.data();
+        [row.courseId, row.courseUnitId].forEach((value) => { const id = financeText(value, 180); if (id)
+            courseUnitIds.add(id); });
+        [row.courseUnitIds, row.assignedCourseUnitIds].forEach((values) => { if (Array.isArray(values))
+            values.forEach((value) => { const id = financeText(value, 180); if (id)
+                courseUnitIds.add(id); }); });
+        if (Array.isArray(row.startedModules))
+            row.startedModules.forEach((value) => { const id = financeText(value, 180); if (id)
+                started.add(id); });
+        if (Array.isArray(row.completedModules))
+            row.completedModules.forEach((value) => { const id = financeText(value, 180); if (id)
+                completed.add(id); });
+    });
+    marketplaceAccess.docs.forEach((item) => { const id = financeText(item.get("courseUnitId"), 180); if (id)
+        courseUnitIds.add(id); });
+    const attempts = await db.collection("quizAttempts").where("studentId", "==", uid).limit(50).get();
+    attempts.docs.forEach((item) => { const moduleId = financeText(item.get("moduleId"), 180); if (moduleId)
+        started.add(moduleId); });
+    const moduleMap = new Map();
+    for (const courseUnitId of courseUnitIds) {
+        const [a, b] = await Promise.all([db.collection("modules").where("courseUnitId", "==", courseUnitId).get(), db.collection("modules").where("courseId", "==", courseUnitId).get()]);
+        [...a.docs, ...b.docs].forEach((item) => { if (item.get("published") !== false)
+            moduleMap.set(item.id, item); });
+    }
+    const moduleIds = new Set(moduleMap.keys());
+    const completedCount = [...completed].filter((id) => moduleIds.has(id)).length;
+    const startedOnlyCount = [...started].filter((id) => moduleIds.has(id) && !completed.has(id)).length;
+    const totalModules = moduleIds.size;
+    const overallProgress = totalModules > 0 ? Math.min(100, Math.round(((completedCount + startedOnlyCount * 0.5) / totalModules) * 100)) : 0;
+    const notifications = await db.collection("notifications").where("userUid", "==", uid).limit(20).get();
+    const activity = [];
+    attempts.docs.forEach((item) => { const row = item.data(); const timestamp = row.submittedAt?.toDate?.() ?? row.createdAt?.toDate?.() ?? new Date(0); activity.push({ id: `attempt-${item.id}`, title: `${financeText(row.quizTitle, 180) || "Assessment"} submitted`, detail: `${Math.round(finiteNumber(row.finalPercentage ?? row.percentage, 0))}% recorded`, at: timestamp.toISOString() }); });
+    notifications.docs.forEach((item) => { const row = item.data(); const timestamp = row.createdAt?.toDate?.() ?? new Date(0); activity.push({ id: `notification-${item.id}`, title: financeText(row.title, 180) || "Academic update", detail: financeText(row.body, 500), at: timestamp.toISOString() }); });
+    activity.sort((a, b) => b.at.localeCompare(a.at));
+    return { overallProgress, totalModules, completedModules: completedCount, startedModules: startedOnlyCount, activity: activity.slice(0, 8) };
+});
+/** Trusted academic identity synchronization for student accounts. */
+exports.synchronizeStudentIdentity = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in before synchronizing student access.");
+    const uid = request.auth.uid;
+    const email = String(request.auth.token.email ?? "").trim();
+    const emailNormalized = email.toLowerCase();
+    const userRef = db.collection("users").doc(uid);
+    const directRef = db.collection("students").doc(uid);
+    const [userSnap, directSnap, byAuthUid, byEmailNormalized, byEmail] = await Promise.all([
+        userRef.get(),
+        directRef.get(),
+        db.collection("students").where("authUid", "==", uid).limit(5).get(),
+        emailNormalized ? db.collection("students").where("emailNormalized", "==", emailNormalized).limit(5).get() : Promise.resolve(null),
+        email ? db.collection("students").where("email", "==", email).limit(5).get() : Promise.resolve(null),
+    ]);
+    if (!userSnap.exists || userSnap.get("role") !== "student") {
+        throw new https_1.HttpsError("permission-denied", "A student user profile is required.");
+    }
+    const sourceSnap = directSnap.exists
+        ? directSnap
+        : byAuthUid.docs[0] ?? byEmailNormalized?.docs[0] ?? byEmail?.docs[0] ?? null;
+    if (!sourceSnap)
+        return { linkedStudent: false, linkedEnrollments: 0 };
+    const studentData = sourceSnap.data();
+    const existingUid = financeText(studentData.authUid, 180);
+    if (existingUid && existingUid !== uid) {
+        throw new https_1.HttpsError("failed-precondition", "This student record is already linked to a different login account.");
+    }
+    const academicPatch = {
+        programmeIds: financeText(studentData.programmeId, 180) ? [financeText(studentData.programmeId, 180)] : [],
+        assignedCourseUnitIds: Array.isArray(studentData.assignedCourseUnitIds) ? studentData.assignedCourseUnitIds : [],
+        academicYear: studentData.academicYear ?? null,
+        yearOfStudy: studentData.yearOfStudy ?? null,
+        semester: studentData.semester ?? null,
+        institutionId: financeText(studentData.institutionId, 180) || null,
+        institutionName: financeText(studentData.institutionName, 240) || null,
+        linkedTutorIds: Array.isArray(studentData.assignedTutorIds) ? studentData.assignedTutorIds : [],
+        studentRecordId: uid,
+        academicAccessSyncedAt: firestore_1.FieldValue.serverTimestamp(),
+    };
+    const canonicalPayload = {
+        ...studentData,
+        authUid: uid,
+        emailNormalized,
+        identityLinkedAt: firestore_1.FieldValue.serverTimestamp(),
+        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+    };
+    const batch = db.batch();
+    batch.set(directRef, canonicalPayload, { merge: true });
+    batch.set(userRef, academicPatch, { merge: true });
+    if (sourceSnap.ref.path !== directRef.path) {
+        batch.set(sourceSnap.ref, { authUid: uid, emailNormalized, identityLinkedAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    }
+    await batch.commit();
+    const enrollmentResults = await Promise.allSettled([
+        db.collection("enrollments").where("studentId", "==", sourceSnap.id).get(),
+        db.collection("enrollments").where("studentAuthUid", "==", uid).get(),
+        db.collection("enrollments").where("userId", "==", uid).get(),
+    ]);
+    const enrollmentMap = new Map();
+    enrollmentResults.forEach((result) => {
+        if (result.status === "fulfilled")
+            result.value.docs.forEach((item) => enrollmentMap.set(item.id, item));
+    });
+    if (enrollmentMap.size > 0) {
+        const enrollmentBatch = db.batch();
+        enrollmentMap.forEach((item) => enrollmentBatch.set(item.ref, {
+            studentAuthUid: uid,
+            userId: uid,
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        }, { merge: true }));
+        await enrollmentBatch.commit();
+    }
+    return { linkedStudent: true, linkedEnrollments: enrollmentMap.size };
+});
+/** Safe self-service profile update for tutor public and professional details. */
+exports.updateOwnTutorProfile = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in before updating your tutor profile.");
+    const uid = request.auth.uid;
+    const profile = await db.collection("users").doc(uid).get();
+    if (!profile.exists || !["tutor", "admin"].includes(String(profile.get("role") ?? "")))
+        throw new https_1.HttpsError("permission-denied", "Only tutor accounts can update a tutor profile.");
+    const input = (request.data ?? {});
+    const specialties = Array.isArray(input.specialties) ? input.specialties.map((value) => financeText(value, 100)).filter(Boolean).slice(0, 20) : [];
+    const qualifications = Array.isArray(input.qualifications) ? input.qualifications.map((value) => financeText(value, 160)).filter(Boolean).slice(0, 20) : [];
+    const payload = { fullName: financeText(input.fullName, 160), phoneNumber: financeText(input.phoneNumber, 40), phone: financeText(input.phoneNumber, 40), professionalHeadline: financeText(input.professionalHeadline, 180), bio: financeText(input.bio, 2500), institutionName: financeText(input.institutionName, 240), specialties, qualifications, profilePhoto: financeText(input.profilePhoto, 1200), updatedAt: firestore_1.FieldValue.serverTimestamp() };
+    await db.collection("users").doc(uid).set(payload, { merge: true });
+    await db.collection("sellerProfiles").doc(uid).set({ id: uid, ownerUid: uid, displayName: payload.fullName, headline: payload.professionalHeadline, bio: payload.bio, institutionName: payload.institutionName, specialties, qualifications, profileImageUrl: payload.profilePhoto, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    return { updated: true };
+});
+/** Safe self-service profile update that also supports legacy student records. */
+exports.updateOwnStudentProfile = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in before updating your profile.");
+    const input = (request.data ?? {});
+    const payload = {
+        fullName: financeText(input.fullName, 160),
+        phoneNumber: financeText(input.phoneNumber, 40),
+        phone: financeText(input.phoneNumber, 40),
+        address: financeText(input.address, 300),
+        emergencyContact: financeText(input.emergencyContact, 120),
+        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+    };
+    const uid = request.auth.uid;
+    const userRef = db.collection("users").doc(uid);
+    const directStudentRef = db.collection("students").doc(uid);
+    const [userSnap, directStudentSnap, authUidStudents, emailStudents] = await Promise.all([
+        userRef.get(),
+        directStudentRef.get(),
+        db.collection("students").where("authUid", "==", uid).limit(10).get(),
+        request.auth.token.email
+            ? db.collection("students").where("email", "==", String(request.auth.token.email)).limit(10).get()
+            : Promise.resolve(null),
+    ]);
+    const refs = new Map();
+    if (userSnap.exists)
+        refs.set(userRef.path, userRef);
+    if (directStudentSnap.exists)
+        refs.set(directStudentRef.path, directStudentRef);
+    authUidStudents.docs.forEach((snap) => refs.set(snap.ref.path, snap.ref));
+    emailStudents?.docs.forEach((snap) => refs.set(snap.ref.path, snap.ref));
+    if (refs.size === 0)
+        throw new https_1.HttpsError("not-found", "No student profile is linked to this account.");
+    const batch = db.batch();
+    refs.forEach((ref) => batch.set(ref, payload, { merge: true }));
+    await batch.commit();
+    return { updated: true, recordsUpdated: refs.size };
+});
+/** Trusted tenant workspace resolver for legacy non-deterministic membership IDs. */
+exports.resolveTenantWorkspaceTrusted = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const uid = request.auth.uid;
+    const preferredTenantId = financeText(request.data?.preferredTenantId, 180);
+    const membershipsSnap = await db.collection("tenantMemberships")
+        .where("userId", "==", uid)
+        .where("status", "==", "active")
+        .get();
+    const memberships = membershipsSnap.docs.map((item) => ({ id: item.id, ...item.data() }));
+    const selected = memberships.find((item) => financeText(item.tenantId, 180) === preferredTenantId)
+        ?? memberships.find((item) => item.isDefault === true)
+        ?? memberships[0]
+        ?? null;
+    if (!selected)
+        return { memberships: [], selected: null, tenant: null, plan: null, subscription: null };
+    const tenantId = financeText(selected.tenantId, 180);
+    if (!tenantId)
+        return { memberships, selected, tenant: null, plan: null, subscription: null };
+    const tenantSnap = await db.collection("tenants").doc(tenantId).get();
+    const tenant = tenantSnap.exists ? { id: tenantSnap.id, ...tenantSnap.data() } : null;
+    let subscription = null;
+    const canonicalSubscription = await db.collection("subscriptions").doc(tenantId).get();
+    if (canonicalSubscription.exists) {
+        subscription = { id: canonicalSubscription.id, ...canonicalSubscription.data() };
+    }
+    else {
+        const legacy = await db.collection("subscriptions").where("tenantId", "==", tenantId).limit(10).get();
+        const docs = legacy.docs.map((item) => ({ id: item.id, ...item.data() }));
+        subscription = docs.find((item) => item.status === "active") ?? docs.find((item) => item.status === "trialing") ?? docs[0] ?? null;
+    }
+    const subscriptionStatus = String(subscription?.status ?? "");
+    const planId = (subscription && ["active", "trialing"].includes(subscriptionStatus)
+        ? financeText(subscription.planId, 180)
+        : "") || financeText(tenant?.planId, 180);
+    const planSnap = planId ? await db.collection("plans").doc(planId).get() : null;
+    const plan = planSnap?.exists ? { id: planSnap.id, ...planSnap.data(), isActive: planSnap.get("isActive") === true || planSnap.get("status") === "active" } : null;
+    return { memberships, selected, tenant, plan, subscription };
+});
+function normaliseAcademicKey(value) {
+    return String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+function isPublishedAcademicRecord(data) {
+    return [data.published, data.isPublished, data.status, data.publicationStatus].some((value) => value === true || ["true", "published", "active", "live", "yes", "1"].includes(String(value ?? "").trim().toLowerCase()));
+}
+/** Trusted tutor-facing course catalogue for Enrollment Manager. */
+exports.getTutorEnrollmentCourseUnits = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "512MiB", enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const uid = request.auth.uid;
+    const user = await db.collection("users").doc(uid).get();
+    const role = String(user.get("role") ?? "");
+    if (!user.exists || !["tutor", "admin"].includes(role)) {
+        throw new https_1.HttpsError("permission-denied", "Tutor or administrator access is required.");
+    }
+    const programmeIds = new Set();
+    const programmeKeys = new Set();
+    const programmeQueries = await Promise.allSettled([
+        db.collection("programmes").where("ownerUserId", "==", uid).get(),
+        db.collection("programmes").where("createdByUid", "==", uid).get(),
+        db.collection("programmes").where("createdBy", "==", uid).get(),
+        db.collection("programmes").where("assignedTutorIds", "array-contains", uid).get(),
+    ]);
+    programmeQueries.forEach((result) => {
+        if (result.status !== "fulfilled")
+            return;
+        result.value.docs.forEach((item) => {
+            programmeIds.add(item.id);
+            const data = item.data();
+            [item.id, data.id, data.code, data.title].forEach((value) => {
+                const key = normaliseAcademicKey(value);
+                if (key)
+                    programmeKeys.add(key);
+            });
+        });
+    });
+    const courseQueries = await Promise.allSettled([
+        db.collection("courses").where("ownerUserId", "==", uid).get(),
+        db.collection("courses").where("createdByUid", "==", uid).get(),
+        db.collection("courses").where("createdBy", "==", uid).get(),
+        db.collection("courses").where("assignedTutorIds", "array-contains", uid).get(),
+        ...[...programmeIds].slice(0, 40).map((programmeId) => db.collection("courses").where("programmeId", "==", programmeId).get()),
+    ]);
+    const map = new Map();
+    courseQueries.forEach((result) => {
+        if (result.status === "fulfilled")
+            result.value.docs.forEach((item) => map.set(item.id, item));
+    });
+    // Compatibility scan: include old tutor-created course units that have weak
+    // ownership metadata but clearly belong to one of this tutor's programmes.
+    if (programmeKeys.size > 0) {
+        const legacy = await db.collection("courses").limit(1000).get();
+        legacy.docs.forEach((item) => {
+            const data = item.data();
+            const keys = [data.programmeId, data.programmeTitle, data.programmeCode, data.programme, data.programmeName]
+                .map(normaliseAcademicKey).filter(Boolean);
+            if (keys.some((key) => programmeKeys.has(key)))
+                map.set(item.id, item);
+        });
+    }
+    const courseUnits = [...map.values()]
+        .filter((item) => isPublishedAcademicRecord(item.data()))
+        .map((item) => {
+        const data = item.data();
+        return {
+            id: item.id,
+            ...data,
+            published: true,
+            title: financeText(data.title, 240) || "Untitled course unit",
+            programmeId: financeText(data.programmeId, 180),
+            programmeTitle: financeText(data.programmeTitle, 240),
+            image: financeText(data.image ?? data.imageUrl ?? data.thumbnailUrl, 1200) || "/images/course-placeholder.svg",
+            tutor: financeText(data.tutor ?? data.tutorName ?? data.assignedTutorName ?? data.createdByName, 160) || "Medical Elites Tutor",
+            duration: financeText(data.duration, 80) || "Self-paced",
+            modules: finiteNumber(data.modules ?? data.moduleCount, 0),
+            lessons: finiteNumber(data.lessons ?? data.lessonCount, 0),
+            rating: finiteNumber(data.rating ?? data.ratingAverage, 0),
+            students: String(data.students ?? data.studentCount ?? data.enrollmentCount ?? "0"),
+        };
+    });
+    return { courseUnits };
+});
+/**
+ * Second-generation public catalogue. It deliberately loads the bounded source
+ * collections once and resolves relationships in memory, avoiding legacy query
+ * mismatches that previously produced 0 modules / 0 lessons on public cards.
+ */
+exports.getPublicCourseCatalogueSnapshotV2 = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "1GiB", enforceAppCheck: false }, async () => {
+    const [courseSnap, moduleSnap, lessonSnap, enrollmentSnap, accessSnap, productSnap, reviewSnap] = await Promise.all([
+        db.collection("courses").limit(500).get(),
+        db.collection("modules").limit(3000).get(),
+        db.collection("lessons").limit(8000).get(),
+        db.collection("enrollments").limit(5000).get(),
+        db.collection("marketplaceCourseAccess").limit(5000).get(),
+        db.collection("marketplaceProducts").limit(2000).get(),
+        db.collection("productReviews").where("status", "==", "published").limit(5000).get(),
+    ]);
+    const publishedCourses = courseSnap.docs.filter((item) => isPublishedAcademicRecord(item.data()));
+    const rows = await Promise.all(publishedCourses.map(async (course) => {
+        const data = course.data();
+        const aliasValues = [course.id, data.id, data.courseId, data.slug].map((v) => String(v ?? "").trim()).filter(Boolean);
+        const aliasKeys = new Set(aliasValues.map(normaliseAcademicKey));
+        const titleKey = normaliseAcademicKey(data.title);
+        const programmeKey = normaliseAcademicKey(data.programmeTitle ?? data.programmeId);
+        const matchesCourse = (row) => {
+            const values = [row.courseUnitId, row.courseId, row.courseUnit, row.courseSlug, row.slug, row.id]
+                .map((v) => String(v ?? "").trim()).filter(Boolean);
+            if (values.some((v) => aliasValues.includes(v) || aliasKeys.has(normaliseAcademicKey(v))))
+                return true;
+            const rowTitle = normaliseAcademicKey(row.courseUnitTitle ?? row.courseTitle);
+            const rowProgramme = normaliseAcademicKey(row.programmeTitle ?? row.programmeId);
+            return Boolean(titleKey && rowTitle === titleKey && (!programmeKey || !rowProgramme || rowProgramme === programmeKey));
+        };
+        const modules = moduleSnap.docs.filter((item) => {
+            const row = item.data();
+            return isPublishedAcademicRecord(row) && matchesCourse(row);
+        });
+        const moduleIds = new Set(modules.map((item) => item.id));
+        const lessons = lessonSnap.docs.filter((item) => {
+            const row = item.data();
+            if (!isPublishedAcademicRecord(row))
+                return false;
+            return moduleIds.has(String(row.moduleId ?? "")) || matchesCourse(row);
+        });
+        const learnerIds = new Set();
+        enrollmentSnap.docs.forEach((item) => {
+            const row = item.data();
+            const status = String(row.status ?? row.approvalStatus ?? "active").toLowerCase();
+            if (!["active", "approved", "enrolled", "accepted", "completed"].includes(status))
+                return;
+            const arrays = [row.courseUnitIds, row.courseIds, row.assignedCourseUnitIds].flatMap((value) => Array.isArray(value) ? value : []);
+            if (!matchesCourse(row) && !arrays.some((value) => aliasKeys.has(normaliseAcademicKey(value))))
+                return;
+            const learner = financeText(row.studentAuthUid ?? row.userId ?? row.authUid ?? row.studentId ?? item.id, 180);
+            if (learner)
+                learnerIds.add(learner);
+        });
+        accessSnap.docs.forEach((item) => {
+            const row = item.data();
+            if (String(row.status ?? "active").toLowerCase() !== "active" || !matchesCourse(row))
+                return;
+            const learner = financeText(row.customerUid ?? row.userId, 180);
+            if (learner)
+                learnerIds.add(learner);
+        });
+        const tutorIds = new Set();
+        const addTutor = (value) => { const id = financeText(value, 180); if (id)
+            tutorIds.add(id); };
+        (Array.isArray(data.assignedTutorIds) ? data.assignedTutorIds : []).forEach(addTutor);
+        [data.ownerUserId, data.createdByUid, data.createdBy, data.tutorId].forEach(addTutor);
+        modules.forEach((module) => {
+            const row = module.data();
+            (Array.isArray(row.assignedTutorIds) ? row.assignedTutorIds : []).forEach(addTutor);
+            [row.ownerUserId, row.createdByUid, row.createdBy, row.tutorId].forEach(addTutor);
+        });
+        let tutor = financeText(data.tutor ?? data.tutorName ?? data.assignedTutorName ?? data.createdByName, 160);
+        const generic = ["", "unassigned", "assigned tutor", "medical elites tutor", "to be defined"];
+        if (generic.includes(tutor.toLowerCase())) {
+            for (const tutorUid of tutorIds) {
+                const [userProfile, sellerProfile] = await Promise.all([
+                    db.collection("users").doc(tutorUid).get(),
+                    db.collection("sellerProfiles").doc(tutorUid).get(),
+                ]);
+                const resolved = financeText(userProfile.get("fullName") ?? userProfile.get("displayName") ?? sellerProfile.get("displayName"), 160);
+                if (resolved) {
+                    tutor = resolved;
+                    break;
+                }
+            }
+        }
+        if (!tutor || generic.includes(tutor.toLowerCase()))
+            tutor = "Medical Elites Tutor";
+        const matchingProductIds = new Set();
+        let ratingTotal = 0;
+        let ratingCount = 0;
+        productSnap.docs.forEach((item) => {
+            const row = item.data();
+            const linked = Array.isArray(row.linkedResourceIds) ? row.linkedResourceIds : [];
+            const linkedMatch = linked.some((value) => aliasKeys.has(normaliseAcademicKey(value)));
+            if (!matchesCourse(row) && !linkedMatch)
+                return;
+            matchingProductIds.add(item.id);
+            const count = Math.max(0, finiteNumber(row.ratingCount, 0));
+            const average = Math.max(0, finiteNumber(row.ratingAverage, 0));
+            ratingTotal += average * count;
+            ratingCount += count;
+        });
+        // Reviews are the authoritative learner-rating source. This also repairs
+        // older products whose ratingAverage/ratingCount counters were never backfilled.
+        const directReviewRatings = reviewSnap.docs
+            .filter((item) => matchingProductIds.has(financeText(item.get("productId"), 180)))
+            .map((item) => finiteNumber(item.get("rating"), 0))
+            .filter((value) => value >= 1 && value <= 5);
+        if (directReviewRatings.length > 0) {
+            ratingTotal = directReviewRatings.reduce((sum, value) => sum + value, 0);
+            ratingCount = directReviewRatings.length;
+        }
+        const storedRating = Math.max(0, finiteNumber(data.rating ?? data.ratingAverage, 0));
+        const rating = ratingCount > 0 ? ratingTotal / ratingCount : storedRating;
+        const moduleHours = modules.reduce((sum, item) => sum + Math.max(0, finiteNumber(item.get("estimatedHours") ?? item.get("durationHours"), 0)), 0);
+        const durationWeeks = Math.max(0, finiteNumber(data.durationWeeks ?? data.weeks ?? data.semesterWeeks, 0));
+        const duration = financeText(data.duration, 80) || (durationWeeks > 0 ? `${durationWeeks} weeks` : "") || (moduleHours > 0 ? `${moduleHours} learning hours` : "Self-paced");
+        return {
+            id: course.id,
+            slug: financeText(data.slug, 180) || course.id,
+            title: financeText(data.title, 240) || "Untitled course unit",
+            category: financeText(data.category, 120) || "Health Sciences",
+            description: financeText(data.description, 2000) || "Explore this Medical Elites course unit.",
+            programmeId: financeText(data.programmeId, 180),
+            programmeTitle: financeText(data.programmeTitle, 240) || "Health Sciences",
+            image: financeText(data.image ?? data.imageUrl ?? data.thumbnailUrl, 1200) || "/images/course-placeholder.svg",
+            tutor,
+            duration,
+            modules: modules.length,
+            lessons: lessons.length,
+            level: financeText(data.level, 80) || "Diploma",
+            rating,
+            students: String(learnerIds.size),
+            certificate: data.certificate !== false,
+            isFeatured: data.isFeatured === true,
+            isNew: data.isNew === true,
+            published: true,
+            code: financeText(data.code, 80),
+            semester: data.semester ?? null,
+            yearOfStudy: data.yearOfStudy ?? null,
+            creditUnits: data.creditUnits ?? null,
+            assignedTutorIds: [...tutorIds],
+            catalogueVersion: "v2",
+        };
+    }));
+    return { courseUnits: rows, version: "v2" };
+});
+/** Notify active learners whenever any tutor publishing workflow transitions a lesson to published. */
+exports.notifyStudentsWhenLessonPublished = (0, firestore_2.onDocumentUpdated)({ document: "lessons/{lessonId}", region: "us-central1", memory: "512MiB", timeoutSeconds: 120 }, async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (!after)
+        return;
+    const wasPublished = before ? isPublishedAcademicRecord(before) : false;
+    const isPublished = isPublishedAcademicRecord(after);
+    if (wasPublished || !isPublished)
+        return;
+    const lessonId = String(event.params.lessonId);
+    const courseId = financeText(after.courseUnitId ?? after.courseId, 180);
+    if (!courseId)
+        return;
+    const recipients = new Set();
+    const queries = await Promise.allSettled([
+        db.collection("enrollments").where("courseUnitId", "==", courseId).get(),
+        db.collection("enrollments").where("courseId", "==", courseId).get(),
+        db.collection("enrollments").where("courseUnitIds", "array-contains", courseId).get(),
+        db.collection("marketplaceCourseAccess").where("courseUnitId", "==", courseId).get(),
+        db.collection("users").where("assignedCourseUnitIds", "array-contains", courseId).get(),
+    ]);
+    queries.forEach((result, index) => {
+        if (result.status !== "fulfilled")
+            return;
+        result.value.docs.forEach((item) => {
+            const row = item.data();
+            if (index < 3) {
+                const status = String(row.status ?? row.approvalStatus ?? "active").toLowerCase();
+                if (!["active", "approved", "enrolled", "accepted", "completed"].includes(status))
+                    return;
+            }
+            if (index === 3 && String(row.status ?? "active").toLowerCase() !== "active")
+                return;
+            const uid = financeText(row.studentAuthUid ?? row.userId ?? row.customerUid ?? row.authUid ?? row.studentId ?? item.id, 180);
+            if (uid)
+                recipients.add(uid);
+        });
+    });
+    const title = financeText(after.title, 180) || "New lesson available";
+    const courseTitle = financeText(after.courseUnitTitle ?? after.courseTitle, 180) || "your course unit";
+    const recipientList = [...recipients];
+    for (let start = 0; start < recipientList.length; start += 400) {
+        const batch = db.batch();
+        recipientList.slice(start, start + 400).forEach((uid) => {
+            const ref = db.collection("notifications").doc(`lesson_${lessonId}_${uid}`);
+            batch.set(ref, {
+                createdByUid: financeText(after.ownerUserId ?? after.createdByUid ?? after.createdBy, 180) || "system",
+                userUid: uid,
+                title: `New lesson: ${title}`.slice(0, 160),
+                body: `${title} has been published in ${courseTitle}. Open the course unit to continue learning.`.slice(0, 2000),
+                type: "academic",
+                priority: "normal",
+                link: `/courses/${encodeURIComponent(courseId)}`,
+                eventKey: `lesson-published:${lessonId}`,
+                isRead: false,
+                isPinned: false,
+                isArchived: false,
+                createdAt: firestore_1.FieldValue.serverTimestamp(),
+                readAt: null,
+                archivedAt: null,
+            }, { merge: true });
+        });
+        await batch.commit();
+    }
 });
 //# sourceMappingURL=index.js.map

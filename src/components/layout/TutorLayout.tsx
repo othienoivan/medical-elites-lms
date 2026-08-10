@@ -25,15 +25,19 @@ import {
   Sparkles,
   Stethoscope,
   Users,
+  User,
   UploadCloud,
   WalletCards,
+  ReceiptText,
+  Tags,
+  Crown,
+  Store,
   LogOut,
   X,
 } from "lucide-react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { logoutUser } from "../../firebase/auth";
 
-import MediFloatingAssistant from "../MediFloatingAssistant";
 import HeaderActions from "../HeaderActions";
 
 type Props = {
@@ -103,8 +107,12 @@ const navigationGroups: NavigationGroup[] = [
       { name: "Commerce Centre", icon: ShoppingBag, path: "/tutor/commerce" },
       { name: "My Products", icon: PackageOpen, path: "/tutor/commerce/products" },
       { name: "Create Product", icon: PlusCircle, path: "/tutor/commerce/products/new" },
+      { name: "Orders & Sales", icon: ReceiptText, path: "/tutor/commerce/orders" },
+      { name: "Coupons", icon: Tags, path: "/tutor/commerce/coupons" },
+      { name: "My Storefront", icon: Store, path: "/tutor/commerce/storefront" },
       { name: "Marketplace Analytics", icon: BarChart3, path: "/marketplace/seller-analytics" },
       { name: "My Wallet", icon: WalletCards, path: "/tutor/finance" },
+      { name: "Plan & Subscription", icon: Crown, path: "/tutor/subscription" },
     ],
   },
   {
@@ -120,7 +128,7 @@ const navigationGroups: NavigationGroup[] = [
   },
   {
     title: "System",
-    items: [{ name: "Curriculum Explorer", icon: Settings, path: "/tutor/curriculum" }],
+    items: [{ name: "My Profile", icon: User, path: "/tutor/profile" }, { name: "Curriculum Explorer", icon: Settings, path: "/tutor/curriculum" }],
   },
 ];
 
@@ -143,6 +151,7 @@ const breadcrumbLabels: Record<string, string> = {
   attendance: "Attendance",
   timetable: "Timetable",
   finance: "Finance",
+  subscription: "Plan & Subscription",
   commerce: "Commerce Centre",
   products: "My Products",
   announcements: "Announcements",
@@ -155,6 +164,7 @@ const breadcrumbLabels: Record<string, string> = {
   builder: "Builder",
   preview: "Preview",
   analytics: "Analytics",
+  profile: "My Profile",
   mark: "Mark Submission",
   register: "Register Student",
   "registration-links": "Registration Links",
@@ -263,22 +273,22 @@ export default function TutorLayout({ title, subtitle, children }: Props) {
           </div>
         )}
 
-        <main className="min-w-0 flex-1">
-          <header className="border-b bg-white px-4 py-5 sm:px-6 lg:px-10 lg:py-8">
+        <main id="main-content" className="min-w-0 flex-1">
+          <header className="sticky top-0 z-30 border-b bg-white/95 px-4 py-3 backdrop-blur sm:px-6 sm:py-4 lg:px-10">
             <div className="mx-auto max-w-[1600px]">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex min-w-0 items-start gap-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-3">
                   <button
                     type="button"
                     aria-label="Open tutor navigation"
                     onClick={() => setMobileMenuOpen(true)}
-                    className="mt-0.5 rounded-xl border border-slate-200 p-2.5 text-slate-700 hover:bg-slate-50 lg:hidden"
+                    className="rounded-xl border border-slate-200 p-2.5 text-slate-700 hover:bg-slate-50 lg:hidden"
                   >
                     <Menu size={22} />
                   </button>
 
                   <div className="min-w-0">
-                    <nav aria-label="Breadcrumb" className="mb-2 flex flex-wrap items-center gap-1 text-sm text-slate-500">
+                    <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 overflow-hidden text-sm text-slate-500">
                       <Link to="/tutor" className="font-medium hover:text-blue-700">Dashboard</Link>
                       {breadcrumbItems.map((item, index) => (
                         <span key={`${item.path}-${index}`} className="flex items-center gap-1">
@@ -292,8 +302,8 @@ export default function TutorLayout({ title, subtitle, children }: Props) {
                       ))}
                     </nav>
 
-                    <h1 className="truncate text-2xl font-bold text-slate-950 sm:text-3xl">{title}</h1>
-                    {subtitle && <p className="mt-2 max-w-3xl text-sm text-slate-600 sm:text-base">{subtitle}</p>}
+                    <h1 className="mt-0.5 truncate text-lg font-bold text-slate-950 sm:text-2xl">{title}</h1>
+                    {subtitle && <p className="mt-1 hidden max-w-3xl text-sm text-slate-600 sm:block">{subtitle}</p>}
                   </div>
                 </div>
 
@@ -302,10 +312,36 @@ export default function TutorLayout({ title, subtitle, children }: Props) {
             </div>
           </header>
 
-          <section className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-10">{children}</section>
+          <section className="mx-auto max-w-[1600px] p-3 pb-24 sm:p-6 sm:pb-24 lg:p-10 lg:pb-10">{children}</section>
+
+          <nav aria-label="Tutor mobile navigation" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t bg-white px-2 py-2 shadow-2xl lg:hidden">
+            {[
+              { name: "Home", path: "/tutor", icon: Home },
+              { name: "Teach", path: "/tutor/course-units", icon: BookOpen },
+              { name: "Assess", path: "/tutor/submissions", icon: FileEdit },
+              { name: "Sales", path: "/tutor/commerce", icon: ShoppingBag },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  end={item.path === "/tutor"}
+                  className={({ isActive }) =>
+                    `flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-xs font-bold ${
+                      isActive ? "bg-blue-50 text-blue-700" : "text-slate-600"
+                    }`
+                  }
+                >
+                  <Icon size={19} />
+                  <span>{item.name}</span>
+                </NavLink>
+              );
+            })}
+          </nav>
         </main>
       </div>
-      <MediFloatingAssistant/>
+
     </div>
   );
 }

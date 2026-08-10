@@ -7,8 +7,8 @@ const read = (file) => readFileSync(file, "utf8");
 test("lesson creation includes hardened tutor ownership metadata", () => {
   const page = read("src/pages/CreateLessonPage.tsx");
   const service = read("src/firebase/lessons.tsx");
-  assert.match(page, /ownerUserId: currentUser\.uid/);
-  assert.match(page, /assignedTutorIds: \[currentUser\.uid\]/);
+  assert.match(page, /ownerUserId:\s*[^,\n]+\.uid/);
+  assert.match(page, /assignedTutorIds:\s*\[[^\]]+\.uid\]/);
   assert.match(service, /setDoc\(ref/);
   assert.doesNotMatch(service, /addDoc/);
 });

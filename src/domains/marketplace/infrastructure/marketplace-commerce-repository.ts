@@ -11,7 +11,7 @@ export const MarketplaceCommerceRepository = {
   },
   async saveCart(uid: string, items: MarketplaceCartItem[]): Promise<void> {
     const currencies = [...new Set(items.map((item) => item.price.currency))];
-    await setDoc(doc(db, "marketplaceCarts", uid), { customerUid: uid, items, currency: currencies.length === 1 ? currencies[0] : null, updatedAt: serverTimestamp() }, { merge: true });
+    await setDoc(doc(db, "marketplaceCarts", uid), { customerUid: uid, items: items.map((item) => ({ ...item, thumbnailUrl: item.thumbnailUrl ?? null })), currency: currencies.length === 1 ? currencies[0] : null, updatedAt: serverTimestamp() }, { merge: true });
   },
   async addToCart(uid: string, product: MarketplaceProduct): Promise<void> {
     const cart = await this.getCart(uid);

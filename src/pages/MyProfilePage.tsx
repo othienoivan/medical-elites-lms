@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { Save, UserRound } from "lucide-react";
 import StudentLayout from "../components/layout/StudentLayout";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
-import { db } from "../config/firebase";
+import { updateOwnStudentProfile } from "../firebase/studentProfile";
 import useAuth from "../hooks/useAuth";
 
 export default function MyProfilePage() {
@@ -30,9 +29,11 @@ export default function MyProfilePage() {
     if (!currentUser) return;
     setSaving(true); setMessage("");
     try {
-      await updateDoc(doc(db, "users", currentUser.uid), {
-        fullName: fullName.trim(), phoneNumber: phoneNumber.trim(), address: address.trim(),
-        emergencyContact: emergencyContact.trim(), updatedAt: serverTimestamp(),
+      await updateOwnStudentProfile({
+        fullName: fullName.trim(),
+        phoneNumber: phoneNumber.trim(),
+        address: address.trim(),
+        emergencyContact: emergencyContact.trim(),
       });
       setMessage("Profile updated successfully.");
     } catch (error) {

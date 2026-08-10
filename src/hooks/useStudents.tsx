@@ -2,11 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 import { createStudentRecord, deleteStudentRecord, getStudents, updateStudentRecord } from "../firebase/students";
 import type { Student } from "../models/Student";
 import useAccessScope from "./useAccessScope";
+import useTenant from "./useTenant";
+import { entitlementDecision } from "../utils/entitlements";
+import { planUpgradeMessage } from "../utils/planUpgradeMessage";
 
 type NewStudent = Omit<Student, "id" | "createdAt" | "updatedAt">;
 
 export default function useStudents() {
   const scope = useAccessScope();
+  const { activePlan } = useTenant();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +32,15 @@ export default function useStudents() {
 
   async function createStudent(student: NewStudent) {
     if (!scope) throw new Error("Your account access profile is not ready.");
+    if (scope.role === "tutor") {
+      const decision = entitlementDecision({
+        plan: activePlan,
+        audience: "tutor",
+        metric: "students",
+        currentUsage: students.length,
+      });
+      if (!decision.allowed) throw new Error(planUpgradeMessage(decision, "students"));
+    }
     const id = await createStudentRecord(student, scope);
     await loadStudents();
     return id;

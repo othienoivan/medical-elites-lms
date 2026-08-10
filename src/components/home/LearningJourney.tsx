@@ -21,12 +21,12 @@ const steps = [
   {
     icon: BookOpen,
     title: "Enroll",
-    text: "Choose a course and begin your structured learning path.",
+    text: "Join assigned course units or discover additional learning products in the marketplace.",
   },
   {
     icon: PenLine,
     title: "Study",
-    text: "Complete interactive lessons, notes, and guided activities.",
+    text: "Study lessons, resources and purchased content from your learning workspace and library.",
   },
   {
     icon: CheckCircle2,
@@ -35,18 +35,18 @@ const steps = [
   },
   {
     icon: Trophy,
-    title: "Score 80%+",
-    text: "Demonstrate mastery before progressing.",
+    title: "Meet the Pass Mark",
+    text: "Meet the tutor-defined assessment standard within the allowed number of attempts.",
   },
   {
     icon: LockOpen,
     title: "Unlock",
-    text: "Pass the quiz and unlock the next module automatically.",
+    text: "Progress through learning activities as completion and assessment requirements are met.",
   },
   {
     icon: GraduationCap,
-    title: "Certificate",
-    text: "Complete all modules and earn your certificate.",
+    title: "Track & Grow",
+    text: "Track progress, results, purchases and learning activity from your student dashboard.",
   },
 ];
 
@@ -56,7 +56,7 @@ export default function LearningJourney() {
       <Container>
         <Heading
           subtitle="Learning Journey"
-          title="How Medical Elites helps you master every module"
+          title="From registration to confident, connected learning"
           align="center"
         />
 

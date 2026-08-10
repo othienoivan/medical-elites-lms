@@ -31,6 +31,7 @@ const blockTypes: { label: string; type: LessonBlockType }[] = [
   { label: "Heading", type: "heading" },
   { label: "Objective", type: "objective" },
   { label: "Rich Text", type: "richtext" },
+  { label: "HTML5 / CSS", type: "html5" },
   { label: "Image", type: "image" },
   { label: "YouTube Video", type: "youtube" },
   { label: "PDF Resource", type: "pdf" },
@@ -50,6 +51,7 @@ export default function LessonBuilderPage() {
   const { lessonId } = useParams();
 
   const [lessonTitle, setLessonTitle] = useState("Visual Lesson Builder");
+  const [courseUnitId, setCourseUnitId] = useState<string | undefined>();
   const [blocks, setBlocks] = useState<LessonBlock[]>([]);
   const [loadingLesson, setLoadingLesson] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -75,6 +77,7 @@ export default function LessonBuilderPage() {
         }
 
         setLessonTitle(lesson.title);
+        setCourseUnitId(lesson.courseUnitId ?? lesson.courseId);
         setBlocks(lesson.blocks || []);
       } catch (error) {
         console.error("Failed to load lesson:", error);
@@ -274,6 +277,8 @@ export default function LessonBuilderPage() {
                         block={block}
                         onChange={updateBlock}
                         onDelete={() => deleteBlock(block.id)}
+                        lessonId={lessonId}
+                        courseUnitId={courseUnitId}
                       />
                     ))}
                   </div>
@@ -322,10 +327,14 @@ function SortableLessonBlock({
   block,
   onChange,
   onDelete,
+  lessonId,
+  courseUnitId,
 }: {
   block: LessonBlock;
   onChange: (updatedBlock: LessonBlock) => void;
   onDelete: () => void;
+  lessonId?: string;
+  courseUnitId?: string;
 }) {
   const {
     attributes,
@@ -362,6 +371,8 @@ function SortableLessonBlock({
         block={block}
         onChange={onChange}
         onDelete={onDelete}
+        lessonId={lessonId}
+        courseUnitId={courseUnitId}
       />
     </div>
   );

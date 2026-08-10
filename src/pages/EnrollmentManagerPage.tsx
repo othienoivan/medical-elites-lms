@@ -8,17 +8,19 @@ import {
   User,
   Users,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import TutorLayout from "../components/layout/TutorLayout";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import useCourseUnits from "../hooks/useCourseUnits";
+import { getTutorEnrollmentCourseUnits } from "../firebase/tutorEnrollmentCatalogue";
 import useEnrollments from "../hooks/useEnrollments";
 import useProgrammes from "../hooks/useProgrammes";
 import useStudents from "../hooks/useStudents";
 import type { EnrollmentStatus } from "../models/Enrollment";
+import type { CourseUnit } from "../models/CourseUnit";
 
 type EnrollmentForm = {
   studentId: string;
@@ -52,7 +54,26 @@ export default function EnrollmentManagerPage() {
   } = useEnrollments();
   const { students, loading: studentsLoading } = useStudents();
   const { programmes, loading: programmesLoading } = useProgrammes();
-  const { courseUnits, loading: courseUnitsLoading } = useCourseUnits();
+  const { courseUnits: scopedCourseUnits, loading: courseUnitsLoading } = useCourseUnits(true);
+  const [trustedCourseUnits, setTrustedCourseUnits] = useState<CourseUnit[]>([]);
+  const [trustedCourseUnitsLoading, setTrustedCourseUnitsLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    void getTutorEnrollmentCourseUnits()
+      .then((rows) => { if (active) setTrustedCourseUnits(rows); })
+      .catch((error) => {
+        console.warn("Trusted tutor enrollment catalogue could not be loaded; using scoped course units.", error);
+      })
+      .finally(() => { if (active) setTrustedCourseUnitsLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  const courseUnits = useMemo(() => {
+    const merged = new Map<string, CourseUnit>();
+    [...scopedCourseUnits, ...trustedCourseUnits].forEach((item) => merged.set(item.id, item));
+    return [...merged.values()];
+  }, [scopedCourseUnits, trustedCourseUnits]);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] =
@@ -70,13 +91,76 @@ export default function EnrollmentManagerPage() {
     [form.programmeId, programmes]
   );
 
-  const availableCourseUnits = useMemo(
-    () =>
-      courseUnits
-        .filter((courseUnit) => courseUnit.programmeId === form.programmeId)
-        .sort((a, b) => a.title.localeCompare(b.title)),
-    [courseUnits, form.programmeId]
-  );
+  const availableCourseUnits = useMemo(() => {
+    const normalize = (value: unknown) =>
+      String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+    if (!form.programmeId || !selectedProgramme) return [];
+
+    const programmeAliases = (programme: (typeof programmes)[number] | undefined) =>
+      new Set(
+        [programme?.id, programme?.code, programme?.title]
+          .map(normalize)
+          .filter(Boolean),
+      );
+
+    const selectedKeys = new Set(
+      [form.programmeId, selectedProgramme?.id, selectedProgramme?.code, selectedProgramme?.title]
+        .map(normalize)
+        .filter(Boolean),
+    );
+    const programmeKeys = selectedKeys;
+    const assignedToSelectedStudent = new Set(
+      [
+        ...((selectedStudent as typeof selectedStudent & { assignedCourseUnitIds?: string[] })?.assignedCourseUnitIds ?? []),
+        ...((selectedStudent as typeof selectedStudent & { courseUnitIds?: string[] })?.courseUnitIds ?? []),
+      ].map((value) => String(value ?? "").trim()).filter(Boolean),
+    );
+
+    return courseUnits
+      .filter((courseUnit) => {
+        const record = courseUnit as CourseUnit & {
+          programmeCode?: string;
+          programme?: string;
+          programmeName?: string;
+        };
+        const rawCourseProgrammeValues = [
+          courseUnit.programmeId,
+          courseUnit.programmeTitle,
+          record.programmeCode,
+          record.programme,
+          record.programmeName,
+        ];
+        const courseKeys = rawCourseProgrammeValues.map(normalize).filter(Boolean);
+
+        if (courseKeys.some((key) => programmeKeys.has(key))) return true;
+
+        // Resolve old programme IDs/codes through the currently visible
+        // programme catalogue. This covers duplicate/imported programme docs
+        // whose IDs changed while the title/code stayed the same.
+        const linkedProgramme = programmes.find((programme) => {
+          const aliases = programmeAliases(programme);
+          return courseKeys.some((key) => aliases.has(key));
+        });
+        if (linkedProgramme) {
+          const linkedKeys = programmeAliases(linkedProgramme);
+          if ([...linkedKeys].some((key) => programmeKeys.has(key))) return true;
+          if (normalize(linkedProgramme.title) === normalize(selectedProgramme.title)) return true;
+          if (linkedProgramme.code && selectedProgramme.code && normalize(linkedProgramme.code) === normalize(selectedProgramme.code)) return true;
+        }
+
+        // If the selected learner already has this course assignment, it must
+        // remain selectable even when the historical course document lacks the
+        // newer programme metadata.
+        if (assignedToSelectedStudent.has(courseUnit.id)) return true;
+
+        // Old tutor-created course units sometimes predate programme metadata.
+        // Keep these visible rather than falsely reporting that the programme
+        // has no course units; the tutor still explicitly chooses what to add.
+        return courseKeys.length === 0;
+      })
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [courseUnits, form.programmeId, programmes, selectedProgramme, selectedStudent]);
 
   const filteredEnrollments = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -98,7 +182,7 @@ export default function EnrollmentManagerPage() {
   }, [enrollments, search, statusFilter]);
 
   const loading =
-    enrollmentsLoading || studentsLoading || programmesLoading || courseUnitsLoading;
+    enrollmentsLoading || studentsLoading || programmesLoading || courseUnitsLoading || trustedCourseUnitsLoading;
 
   function updateField<K extends keyof EnrollmentForm>(
     field: K,

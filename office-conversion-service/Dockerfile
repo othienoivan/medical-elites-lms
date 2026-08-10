@@ -11,6 +11,7 @@ RUN apt-get update \
       fonts-dejavu-core \
       fonts-liberation \
       fonts-noto-core \
+      poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

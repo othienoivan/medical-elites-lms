@@ -34,6 +34,8 @@ export interface MarketplaceOrder {
   customerUid: string;
   customerEmail?: string;
   customerName?: string;
+  tutorId?: string;
+  sellerId?: string;
   purpose: "marketplace";
   title: string;
   amount: MarketplaceMoney;

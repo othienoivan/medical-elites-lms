@@ -93,6 +93,24 @@ export async function getAllModules(scope: AccessScope): Promise<Module[]> {
   return dedupe(rows);
 }
 export async function getModules(scope: AccessScope): Promise<Module[]> { return (await getAllModules(scope)).filter((m)=>m.published); }
+export async function getModulesForCourseUnit(courseUnitId: string): Promise<Module[]> {
+  const cleanId = String(courseUnitId || "").trim();
+  if (!cleanId) return [];
+  const results = await Promise.allSettled([
+    getDocs(query(collection(db, COLLECTION), where("courseUnitId", "==", cleanId))),
+    getDocs(query(collection(db, COLLECTION), where("courseId", "==", cleanId))),
+  ]);
+  const rows = results.flatMap((result) =>
+    result.status === "fulfilled"
+      ? result.value.docs.map((item) => fromDoc(item.id, item.data()))
+      : []
+  );
+  if (rows.length === 0 && results.every((result) => result.status === "rejected")) {
+    throw results[0].status === "rejected" ? results[0].reason : new Error("Unable to load course modules.");
+  }
+  return dedupe(rows).filter((module) => module.published);
+}
+
 export async function updateModule(id: string, data: Partial<Module>): Promise<void> { await updateDoc(doc(db,COLLECTION,id), {...data, updatedAt: serverTimestamp()}); }
 export async function deleteModule(id: string): Promise<void> { await deleteDoc(doc(db,COLLECTION,id)); }
 

@@ -6,13 +6,16 @@ import {
   type ReactNode,
 } from "react";
 
-import type { Plan } from "../models/Plan";
+import type { Plan, TenantSubscription } from "../models/Plan";
+import { effectivePlan } from "../models/defaultPlans";
 import type { Tenant, TenantMembership, TenantRole } from "../models/Tenant";
 import {
   bootstrapTenantWorkspace,
+  getPlan,
   resolveTenantWorkspace,
 } from "../firebase/tenants";
 import useAuth from "../hooks/useAuth";
+import { refreshTutorSubscriptionLifecycle } from "../domains/finance/infrastructure/commerceRepository";
 import { TenantContext, type TenantContextValue } from "../contexts/tenant-context";
 
 const STORAGE_PREFIX = "medical-elites.active-tenant";
@@ -30,6 +33,38 @@ function membershipRoleForUser(role: "student" | "tutor" | "admin"): TenantRole 
   return role;
 }
 
+function planAudienceForRole(role: "student" | "tutor" | "admin"): "student" | "tutor" | "institution" {
+  return role === "admin" ? "institution" : role;
+}
+
+type TutorLifecycleSnapshot = {
+  tenantId: string;
+  status: string;
+  planId: string;
+  changed: boolean;
+  currentPeriodEnd?: unknown;
+};
+
+function isPaidTutorLifecycle(snapshot: TutorLifecycleSnapshot | null | undefined): boolean {
+  return Boolean(
+    snapshot
+      && (snapshot.status === "active" || snapshot.status === "trialing")
+      && snapshot.planId
+      && snapshot.planId !== "tutor_free"
+  );
+}
+
+function lifecycleSubscription(snapshot: TutorLifecycleSnapshot): TenantSubscription {
+  return {
+    id: snapshot.tenantId,
+    tenantId: snapshot.tenantId,
+    planId: snapshot.planId,
+    status: snapshot.status as TenantSubscription["status"],
+    currentPeriodEnd: (snapshot.currentPeriodEnd ?? null) as TenantSubscription["currentPeriodEnd"],
+    source: "trusted_lifecycle_recovery",
+  };
+}
+
 function legacyWorkspace(
   uid: string,
   role: "student" | "tutor" | "admin",
@@ -40,9 +75,10 @@ function legacyWorkspace(
   selected: TenantMembership | null;
   tenant: Tenant | null;
   plan: Plan | null;
+  subscription: TenantSubscription | null;
 } {
   if (!institutionId && role !== "tutor") {
-    return { memberships: [], selected: null, tenant: null, plan: null };
+    return { memberships: [], selected: null, tenant: null, plan: null, subscription: null };
   }
 
   const tenantId = institutionId ?? `tutor_${uid}`;
@@ -66,7 +102,7 @@ function legacyWorkspace(
     legacyInstitutionId: institutionId,
   };
 
-  return { memberships: [membership], selected: membership, tenant, plan: null };
+  return { memberships: [membership], selected: membership, tenant, plan: null, subscription: null };
 }
 
 export default function TenantProvider({ children }: TenantProviderProps) {
@@ -75,6 +111,7 @@ export default function TenantProvider({ children }: TenantProviderProps) {
   const [activeMembership, setActiveMembership] = useState<TenantMembership | null>(null);
   const [activeTenant, setActiveTenant] = useState<Tenant | null>(null);
   const [activePlan, setActivePlan] = useState<Plan | null>(null);
+  const [activeSubscription, setActiveSubscription] = useState<TenantSubscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,6 +121,7 @@ export default function TenantProvider({ children }: TenantProviderProps) {
       setActiveMembership(null);
       setActiveTenant(null);
       setActivePlan(null);
+      setActiveSubscription(null);
       setLoading(false);
       setError(null);
       return;
@@ -94,17 +132,23 @@ export default function TenantProvider({ children }: TenantProviderProps) {
 
     try {
       let workspace = await resolveTenantWorkspace(currentUser.uid, preferredTenantId);
+      const canBootstrapWorkspace = role === "tutor" || Boolean(userProfile?.institutionId);
 
-      if (workspace.memberships.length === 0) {
+      // A legacy membership may be queryable while its tenant document is not
+      // readable under the deterministic v3 membership rule. Repair both the
+      // missing-membership and missing-tenant cases through the trusted server.
+      // Students without an institution intentionally remain in the legacy/
+      // marketplace learner context and should not receive a 400 bootstrap call.
+      if (canBootstrapWorkspace && (workspace.memberships.length === 0 || !workspace.tenant)) {
         try {
           await bootstrapTenantWorkspace();
           workspace = await resolveTenantWorkspace(currentUser.uid, preferredTenantId);
         } catch (bootstrapError) {
-          console.warn("Tenant bootstrap was unavailable; using the legacy workspace compatibility layer.", bootstrapError);
+          console.warn("Tenant workspace synchronization was unavailable; using compatibility access.", bootstrapError);
         }
       }
 
-      if (workspace.memberships.length === 0) {
+      if (workspace.memberships.length === 0 || !workspace.tenant) {
         workspace = legacyWorkspace(
           currentUser.uid,
           role,
@@ -113,10 +157,56 @@ export default function TenantProvider({ children }: TenantProviderProps) {
         );
       }
 
+      let resolvedPlan = workspace.plan;
+      let resolvedSubscription = workspace.subscription;
+      let resolvedTenant = workspace.tenant;
+
+      // For tutors, the trusted subscription lifecycle is authoritative for paid access.
+      // This deliberately overrides the hard-coded Free Tutor compatibility snapshot
+      // whenever an active/trialing paid subscription exists.
+      if (role === "tutor") {
+        try {
+          const lifecycle = await refreshTutorSubscriptionLifecycle();
+          if (isPaidTutorLifecycle(lifecycle)) {
+            const paidPlan = await getPlan(lifecycle.planId);
+            if (paidPlan) {
+              resolvedPlan = paidPlan;
+              resolvedSubscription = lifecycleSubscription(lifecycle);
+              if (!resolvedTenant || resolvedTenant.id !== lifecycle.tenantId) {
+                resolvedTenant = workspace.tenant
+                  ? { ...workspace.tenant, id: lifecycle.tenantId, planId: lifecycle.planId }
+                  : legacyWorkspace(
+                      currentUser.uid,
+                      role,
+                      userProfile?.institutionId,
+                      userProfile?.institutionName,
+                    ).tenant;
+                if (resolvedTenant) {
+                  resolvedTenant = { ...resolvedTenant, id: lifecycle.tenantId, planId: lifecycle.planId };
+                }
+              } else {
+                resolvedTenant = { ...resolvedTenant, planId: lifecycle.planId };
+              }
+            }
+          }
+        } catch (lifecycleError) {
+          console.warn("Trusted tutor subscription recovery was unavailable; using workspace plan resolution.", lifecycleError);
+        }
+      }
+
       setMemberships(workspace.memberships);
       setActiveMembership(workspace.selected);
-      setActiveTenant(workspace.tenant);
-      setActivePlan(workspace.plan);
+      setActiveTenant(resolvedTenant);
+      setActiveSubscription(resolvedSubscription);
+
+      const subscriptionAllowsPaidPlan = !resolvedSubscription
+        || resolvedSubscription.status === "active"
+        || resolvedSubscription.status === "trialing";
+      setActivePlan(
+        role === "tutor" && !subscriptionAllowsPaidPlan
+          ? effectivePlan(null, "tutor")
+          : effectivePlan(resolvedPlan, planAudienceForRole(role)),
+      );
 
       if (workspace.tenant) {
         localStorage.setItem(preferredTenantKey(currentUser.uid), workspace.tenant.id);
@@ -129,10 +219,38 @@ export default function TenantProvider({ children }: TenantProviderProps) {
         userProfile?.institutionId,
         userProfile?.institutionName,
       );
+
+      // A workspace read failure must not erase a verified paid tutor subscription.
+      // Recover the paid plan through the trusted callable, then use Free Tutor only
+      // when there truly is no active/trialing paid subscription.
+      if (role === "tutor") {
+        try {
+          const lifecycle = await refreshTutorSubscriptionLifecycle();
+          if (isPaidTutorLifecycle(lifecycle)) {
+            const paidPlan = await getPlan(lifecycle.planId);
+            if (paidPlan) {
+              const recoveredTenant = fallback.tenant
+                ? { ...fallback.tenant, id: lifecycle.tenantId, planId: lifecycle.planId }
+                : null;
+              setMemberships(fallback.memberships);
+              setActiveMembership(fallback.selected);
+              setActiveTenant(recoveredTenant);
+              setActiveSubscription(lifecycleSubscription(lifecycle));
+              setActivePlan(effectivePlan(paidPlan, "tutor"));
+              setError("Your workspace metadata could not be fully synchronized, but your verified paid tutor subscription remains active.");
+              return;
+            }
+          }
+        } catch (lifecycleError) {
+          console.warn("Paid tutor subscription recovery failed after workspace resolution error.", lifecycleError);
+        }
+      }
+
       setMemberships(fallback.memberships);
       setActiveMembership(fallback.selected);
       setActiveTenant(fallback.tenant);
-      setActivePlan(fallback.plan);
+      setActiveSubscription(null);
+      setActivePlan(effectivePlan(fallback.plan, planAudienceForRole(role)));
       setError("Your workspace could not be fully synchronized. Legacy institution access remains available.");
     } finally {
       setLoading(false);
@@ -162,6 +280,7 @@ export default function TenantProvider({ children }: TenantProviderProps) {
     activeMembership,
     activeTenant,
     activePlan,
+    activeSubscription,
     loading: authLoading || loading,
     error,
     switchTenant,
@@ -169,6 +288,7 @@ export default function TenantProvider({ children }: TenantProviderProps) {
   }), [
     activeMembership,
     activePlan,
+    activeSubscription,
     activeTenant,
     authLoading,
     error,

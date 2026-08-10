@@ -38,6 +38,46 @@ function removeUndefined<T>(value: T): T {
   return value;
 }
 
+/**
+ * Lesson blocks are persisted inside a Firestore array. Firestore rejects
+ * unsupported browser entities and nested arrays inside array members. Keep
+ * the persisted block schema deliberately plain while preserving HTML/CSS as
+ * an ordinary string.
+ */
+function firestoreSafeMetadata(value: unknown): unknown {
+  if (value === undefined) return undefined;
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (Array.isArray(value)) return JSON.stringify(value);
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, item]) => item !== undefined)
+        .map(([key, item]) => [key, firestoreSafeMetadata(item)])
+    );
+  }
+  return String(value);
+}
+
+function firestoreSafeLessonBlocks(blocks: unknown): unknown[] {
+  if (!Array.isArray(blocks)) return [];
+  return blocks.map((raw) => {
+    const block = (raw ?? {}) as Record<string, unknown>;
+    const safe: Record<string, unknown> = {
+      id: String(block.id ?? ""),
+      type: String(block.type ?? "richtext"),
+    };
+    for (const key of ["title", "content", "url"] as const) {
+      if (typeof block[key] === "string") safe[key] = block[key];
+    }
+    if (block.metadata && typeof block.metadata === "object") {
+      safe.metadata = firestoreSafeMetadata(block.metadata);
+    }
+    return safe;
+  });
+}
+
 export async function createLesson(lesson: Lesson): Promise<string> {
   const { id: _id, ...payload } = lesson;
   void _id;
@@ -118,5 +158,9 @@ export async function getLessonById(id: string): Promise<Lesson | null> {
 export async function updateLesson(id: string, data: Partial<Lesson>): Promise<void> {
   const { id: _id, ...payload } = data;
   void _id;
-  await updateDoc(doc(db, COLLECTION, id), removeUndefined({ ...payload, updatedAt: serverTimestamp() }));
+  const safePayload: Record<string, unknown> = { ...payload };
+  if (Object.prototype.hasOwnProperty.call(payload, "blocks")) {
+    safePayload.blocks = firestoreSafeLessonBlocks(payload.blocks);
+  }
+  await updateDoc(doc(db, COLLECTION, id), removeUndefined({ ...safePayload, updatedAt: serverTimestamp() }));
 }

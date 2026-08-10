@@ -21,6 +21,11 @@ export default function CreateCourseUnitPage() {
   const [description, setDescription] = useState("");
   const [duration, setDuration] = useState("");
   const [image, setImage] = useState("");
+  const [tutorName, setTutorName] = useState(userProfile?.fullName || currentUser?.displayName || "");
+  const [moduleCount, setModuleCount] = useState(0);
+  const [lessonCount, setLessonCount] = useState(0);
+  const [rating, setRating] = useState(0);
+  const [studentCount, setStudentCount] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const selectedProgramme = programmes.find(
@@ -65,15 +70,14 @@ export default function CreateCourseUnitPage() {
         category,
         description,
         image:
-          image ||
-          "https://placehold.co/900x600/1D4ED8/FFFFFF?text=Medical+Elites",
-        tutor: currentUser.email || "Medical Elites Tutor",
+          image || "/images/course-placeholder.svg",
+        tutor: tutorName.trim() || userProfile?.fullName || currentUser.displayName || "Medical Elites Tutor",
         duration,
-        modules: 0,
-        lessons: 0,
+        modules: moduleCount,
+        lessons: lessonCount,
         level: selectedProgramme.level,
-        rating: 0,
-        students: "0",
+        rating,
+        students: String(studentCount),
         certificate: true,
         isFeatured: false,
         published: true,
@@ -226,6 +230,18 @@ export default function CreateCourseUnitPage() {
                     placeholder="Optional image URL"
                   />
                 </Field>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                <h3 className="font-bold text-slate-950">Public catalogue details</h3>
+                <p className="mt-1 text-sm text-slate-600">These details appear on Featured Course Unit cards. Module and lesson totals can be updated as the course grows.</p>
+                <div className="mt-4 grid gap-5 md:grid-cols-2">
+                  <Field label="Tutor Name"><Input value={tutorName} onChange={(event) => setTutorName(event.target.value)} placeholder="Tutor's public name" /></Field>
+                  <Field label="Students / Learners"><Input type="number" min="0" value={studentCount} onChange={(event) => setStudentCount(Number(event.target.value))} /></Field>
+                  <Field label="Number of Modules"><Input type="number" min="0" value={moduleCount} onChange={(event) => setModuleCount(Number(event.target.value))} /></Field>
+                  <Field label="Number of Lessons"><Input type="number" min="0" value={lessonCount} onChange={(event) => setLessonCount(Number(event.target.value))} /></Field>
+                  <Field label="Public Rating (0–5)"><Input type="number" min="0" max="5" step="0.1" value={rating} onChange={(event) => setRating(Math.min(5, Math.max(0, Number(event.target.value))))} /></Field>
+                </div>
               </div>
 
               <div className="flex flex-col gap-3 border-t border-slate-200 pt-6 md:flex-row">

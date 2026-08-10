@@ -50,7 +50,7 @@ export default function Footer() {
             </p>
             <div className="mt-5 flex gap-4 text-2xl">
               <a
-                href="mailto:othienoivan@gmail.com"
+                href="mailto:admin@medicalelites.org"
                 className="transition hover:text-green-400"
                 aria-label="Email Medical Elites"
               >

@@ -3,7 +3,7 @@ import { Navigate } from "react-router-dom";
 import useAuth from "../../hooks/useAuth";
 
 const bootstrapEmails = new Set(
-  String(import.meta.env.VITE_PLATFORM_SUPER_ADMIN_EMAILS ?? "othienoivan@gmail.com")
+  String(import.meta.env.VITE_PLATFORM_SUPER_ADMIN_EMAILS ?? "admin@medicalelites.org")
     .split(",")
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean),

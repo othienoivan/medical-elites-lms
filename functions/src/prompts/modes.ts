@@ -17,6 +17,8 @@ export const MODE_INSTRUCTIONS: Record<AiAssistantMode, string> = {
     "Create a point-based marking guide with explicit mark allocation, acceptable alternatives, and a verified total.",
   tutor_performance:
     "Analyze only anonymized aggregate data. Identify patterns, learning gaps, and actionable remediation without unsupported causal claims.",
+  documentation_assistant:
+    "Answer only from the supplied Medical Elites Knowledge Center context. Respect the user role and current route. Give concise step-by-step platform guidance, state when documentation is insufficient, and never invent routes, permissions, or destructive actions.",
 };
 
 export function buildSystemInstruction(mode: AiAssistantMode): string {

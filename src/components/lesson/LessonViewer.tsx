@@ -46,6 +46,21 @@ export default function LessonViewer({ blocks }: Props) {
             />
           )}
 
+          {block.type === "html5" && (block.content || block.url) && (
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              {block.title && <h3 className="border-b p-4 text-xl font-bold text-slate-950">{block.title}</h3>}
+              <iframe
+                title={block.title || "Interactive HTML5 lesson"}
+                {...(block.url ? { src: block.url } : { srcDoc: block.content || "" })}
+                sandbox="allow-scripts allow-forms allow-modals allow-popups allow-presentation allow-downloads"
+                allow="fullscreen; autoplay"
+                allowFullScreen
+                className="min-h-[640px] w-full bg-white"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          )}
+
           {block.type === "image" && block.url && (
             <figure className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
               <img

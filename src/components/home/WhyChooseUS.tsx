@@ -15,18 +15,18 @@ import Section from "../ui/Section";
 const benefits = [
   {
     icon: BookOpenCheck,
-    title: "Structured Medical Courses",
-    text: "Lessons are organized into modules so learners move step by step through each subject.",
+    title: "Structured Health Sciences Learning",
+    text: "Programmes, course units, modules and lessons give learners a clear, structured learning path.",
   },
   {
     icon: TrophyIcon,
-    title: "80% Mastery Progression",
-    text: "Students must demonstrate competence before unlocking the next module.",
+    title: "Configurable Mastery & Attempts",
+    text: "Tutor-defined pass marks and attempt limits support accountable progression through assessments.",
   },
   {
     icon: Brain,
-    title: "Interactive Learning",
-    text: "PowerPoint lessons are transformed into modern digital learning experiences.",
+    title: "Modern Digital Learning",
+    text: "Learners access lessons, resources, quizzes, assessments and purchased learning products across devices.",
   },
   {
     icon: BarChart3,
@@ -35,8 +35,8 @@ const benefits = [
   },
   {
     icon: UserRoundCheck,
-    title: "Tutor-Guided Support",
-    text: "Courses are designed and supervised by health sciences educators.",
+    title: "Tutor & Medi AI Support",
+    text: "Health sciences educators guide learning while Medi AI and the Knowledge Centre provide contextual support.",
   },
   {
     icon: MonitorSmartphone,
@@ -45,8 +45,8 @@ const benefits = [
   },
   {
     icon: Award,
-    title: "Certificates",
-    text: "Learners can earn completion certificates after meeting course requirements.",
+    title: "Marketplace & Learning Library",
+    text: "Students can discover tutor products, complete secure checkout and access fulfilled purchases in My Library.",
   },
 ];
 

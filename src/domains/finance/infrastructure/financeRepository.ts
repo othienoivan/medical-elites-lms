@@ -1,7 +1,7 @@
 import { collection, getDocs, limit, orderBy, query, where, type QueryConstraint } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../../../config/firebase";
-import type { CommissionRule, CurrencyCode, Wallet, Withdrawal } from "../domain/finance";
+import type { CommissionRule, CurrencyCode, LedgerEntry, Wallet, Withdrawal } from "../domain/finance";
 
 export type FinanceCollection = "financePlans" | "subscriptions" | "wallets" | "ledgerAccounts" | "ledgerEntries" | "journals" | "invoices" | "payments" | "coupons" | "commissionRules" | "withdrawals" | "financeEvents" | "accountingPeriods";
 
@@ -13,6 +13,7 @@ export async function listFinanceRecords<T extends { id: string }>(name: Finance
 }
 export const listOwnerWallets = (ownerId: string) => listFinanceRecords<Wallet>("wallets", 50, [where("ownerId", "==", ownerId)]);
 export const listOwnerWithdrawals = (ownerId: string) => listFinanceRecords<Withdrawal>("withdrawals", 100, [where("ownerId", "==", ownerId)]);
+export const listOwnerLedgerEntries = (ownerId: string) => listFinanceRecords<LedgerEntry>("ledgerEntries", 200, [where("ownerId", "==", ownerId)]);
 
 type CallableResult<T> = { data: T };
 async function callFinance<TInput extends object, TOutput>(name: string, input: TInput): Promise<TOutput> {
@@ -26,3 +27,5 @@ export const requestWithdrawal = (input: { walletId: string; amount: number; cur
 export const reviewWithdrawal = (input: { withdrawalId: string; decision: "approve" | "reject"; reason?: string; idempotencyKey: string }) => callFinance<typeof input, { status: string }>("reviewFinanceWithdrawal", input);
 export const completeWithdrawal = (input: { withdrawalId: string; externalReference: string; idempotencyKey: string }) => callFinance<typeof input, { status: "paid" }>("completeFinanceWithdrawal", input);
 export const upsertCommissionRule = (input: { rule: Omit<CommissionRule, "id"> & { id?: string }; idempotencyKey: string }) => callFinance<typeof input, { ruleId: string }>("upsertFinanceCommissionRule", input);
+
+export const reconcileTutorMarketplaceRevenue = () => callFinance<Record<string, never>, { reconciledOrders: number; walletId: string; availableBalance: number; lifetimeCredits: number }>("reconcileTutorMarketplaceRevenue", {});

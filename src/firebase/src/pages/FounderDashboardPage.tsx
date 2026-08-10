@@ -28,7 +28,7 @@ import useAuth from "../hooks/useAuth";
 import usePlatformMetrics from "../hooks/usePlatformMetrics";
 
 const founderEmail = (
-  import.meta.env.VITE_FOUNDER_EMAIL || "othienoivan@gmail.com"
+  import.meta.env.VITE_FOUNDER_EMAIL || "admin@medicalelites.org"
 ).trim().toLowerCase();
 
 function money(value: number) {

@@ -52,7 +52,7 @@ service firebase.storage {
     function validDocument() {
       return validSize(50 * 1024 * 1024)
         && request.resource.contentType.matches(
-          '(application/pdf|application/msword|application/vnd\\.openxmlformats-officedocument\\.wordprocessingml\\.document|application/vnd\\.ms-powerpoint|application/vnd\\.openxmlformats-officedocument\\.presentationml\\.presentation|application/vnd\\.ms-excel|application/vnd\\.openxmlformats-officedocument\\.spreadsheetml\\.sheet|text/plain|text/csv)'
+          '(application/pdf|application/msword|application/vnd\\.openxmlformats-officedocument\\.wordprocessingml\\.document|application/vnd\\.ms-powerpoint|application/vnd\\.openxmlformats-officedocument\\.presentationml\\.presentation|application/vnd\\.ms-excel|application/vnd\\.openxmlformats-officedocument\\.spreadsheetml\\.sheet|text/plain|text/csv|text/html|application/xhtml\\+xml)'
         );
     }
 
@@ -148,10 +148,10 @@ service firebase.storage {
     // New client uploads no longer use these paths.
     match /{folder}/{fileName} {
       allow read: if signedIn()
-        && folder in ['images', 'pdfs', 'powerpoints', 'videos', 'audio', 'documents', 'lesson-resources'];
+        && folder in ['images', 'pdfs', 'powerpoints', 'videos', 'audio', 'documents', 'html5', 'lesson-resources'];
       allow create, update: if false;
       allow delete: if isTutorOrAdmin()
-        && folder in ['images', 'pdfs', 'powerpoints', 'videos', 'audio', 'documents', 'lesson-resources'];
+        && folder in ['images', 'pdfs', 'powerpoints', 'videos', 'audio', 'documents', 'html5', 'lesson-resources'];
     }
 
     match /{allPaths=**} {

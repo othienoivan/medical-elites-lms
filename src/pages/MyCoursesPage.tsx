@@ -7,11 +7,14 @@ import Card from "../components/ui/Card";
 import Container from "../components/ui/Container";
 import CourseCard from "../components/ui/CourseCard";
 import useCourseUnits from "../hooks/useCourseUnits";
+import usePublishedCourseUnits from "../hooks/usePublishedCourseUnits";
+import StudentLayout from "../components/layout/StudentLayout";
 import useStudentLearningAccess from "../hooks/useStudentLearningAccess";
 
 export default function MyCoursesPage() {
   const navigate = useNavigate();
   const { courseUnits, loading: coursesLoading } = useCourseUnits();
+  const { courseUnits: publicCourseUnits, loading: publicLoading } = usePublishedCourseUnits();
   const {
     enrollments,
     courseUnitIds,
@@ -20,20 +23,15 @@ export default function MyCoursesPage() {
     error,
   } = useStudentLearningAccess();
 
-  const assignedCourseUnits = useMemo(
-    () =>
-      courseUnits.filter(
-        (courseUnit) =>
-          courseUnitIds.has(courseUnit.id) ||
-          programmeIds.has(courseUnit.programmeId)
-      ),
-    [courseUnitIds, courseUnits, programmeIds]
-  );
+  const assignedCourseUnits = useMemo(() => {
+    const enrichedById = new Map(publicCourseUnits.map((courseUnit) => [courseUnit.id, courseUnit]));
+    return courseUnits.filter((courseUnit) => courseUnitIds.has(courseUnit.id) || programmeIds.has(courseUnit.programmeId)).map((courseUnit) => ({ ...courseUnit, ...(enrichedById.get(courseUnit.id) ?? {}) }));
+  }, [courseUnitIds, courseUnits, programmeIds, publicCourseUnits]);
 
-  const loading = coursesLoading || accessLoading;
+  const loading = coursesLoading || publicLoading || accessLoading;
 
   return (
-    <main className="min-h-screen bg-slate-100">
+    <StudentLayout><main className="min-h-screen bg-slate-100">
       <header className="border-b bg-white">
         <Container className="flex flex-col gap-4 py-5 md:flex-row md:items-center md:justify-between">
           <div>
@@ -99,7 +97,7 @@ export default function MyCoursesPage() {
           </div>
         )}
       </Container>
-    </main>
+    </main></StudentLayout>
   );
 }
 

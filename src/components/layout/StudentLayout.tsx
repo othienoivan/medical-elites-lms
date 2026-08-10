@@ -1,12 +1,11 @@
 import { useState, type ReactNode } from "react";
 import {
   Bell, BookOpen, CalendarCheck, CalendarDays, ChevronRight, ClipboardCheck,
-  Clock3, GraduationCap, Home, LogOut, Menu, MessageCircle, ReceiptText,
+  Clock3, GraduationCap, Home, LogOut, Menu, MessageCircle, ReceiptText, ShoppingBag, Library, Heart,
   Sparkles, Stethoscope, User, HeartHandshake, X,
 } from "lucide-react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 
-import MediFloatingAssistant from "../MediFloatingAssistant";
 import HeaderActions from "../HeaderActions";
 import { logoutUser } from "../../firebase/auth";
 
@@ -20,6 +19,12 @@ const groups: Group[] = [
     { name: "Course Units", path: "/student/course-units", icon: BookOpen },
     { name: "Assessments", path: "/assessments", icon: ClipboardCheck },
     { name: "Assessment History", path: "/assessment-history", icon: Clock3 },
+  ]},
+  { title: "Marketplace", items: [
+    { name: "Browse Marketplace", path: "/student/marketplace", icon: ShoppingBag },
+    { name: "My Purchases", path: "/student/purchases", icon: ReceiptText },
+    { name: "My Library", path: "/student/library", icon: Library },
+    { name: "My Wishlist", path: "/student/wishlist", icon: Heart },
   ]},
   { title: "Academic", items: [
     { name: "Timetable", path: "/timetable", icon: CalendarDays },
@@ -42,7 +47,7 @@ const labels: Record<string, string> = {
   dashboard: "Dashboard", "my-courses": "My Courses", "course-units": "Course Units", assessments: "Assessments",
   "assessment-history": "Assessment History", timetable: "Timetable", attendance: "Attendance",
   "clinical-logbook": "Clinical Logbook", finance: "Finance", messages: "Messages",
-  notifications: "Notifications", "ai-assistant": "Medi AI", lesson: "Lesson",
+  notifications: "Notifications", "ai-assistant": "Medi AI", lesson: "Lesson", marketplace: "Marketplace", purchases: "My Purchases", library: "My Library", wishlist: "My Wishlist",
 };
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
@@ -102,8 +107,9 @@ export default function StudentLayout({ children }: Props) {
             <HeaderActions/>
           </div>
         </header>
-        <div>{children}</div>
+        <div className="pb-20 lg:pb-0">{children}</div>
+        <nav aria-label="Student mobile navigation" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t bg-white px-2 py-2 shadow-2xl lg:hidden">{[{name:"Home",path:"/dashboard",icon:Home},{name:"Learn",path:"/student/course-units",icon:BookOpen},{name:"Market",path:"/student/marketplace",icon:ShoppingBag},{name:"Library",path:"/student/library",icon:Library}].map(item=>{const Icon=item.icon;return <NavLink key={item.path} to={item.path} className={({isActive})=>`flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-xs font-bold ${isActive?"bg-blue-50 text-blue-700":"text-slate-600"}`}><Icon size={19}/><span>{item.name}</span></NavLink>})}</nav>
       </main>
     </div>
-  <MediFloatingAssistant/></div>;
+</div>;
 }

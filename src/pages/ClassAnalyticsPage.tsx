@@ -15,7 +15,7 @@ import Card from "../components/ui/Card";
 import useTutorQuizAttempts from "../hooks/useTutorQuizAttempts";
 
 export default function ClassAnalyticsPage() {
-  const { attempts, loading } = useTutorQuizAttempts();
+  const { attempts, loading, error, reload } = useTutorQuizAttempts();
 
   const percentages = useMemo(
     () =>
@@ -64,8 +64,8 @@ export default function ClassAnalyticsPage() {
 
   const highest = percentages.length > 0 ? Math.max(...percentages) : 0;
   const lowest = percentages.length > 0 ? Math.min(...percentages) : 0;
-  const passed = percentages.filter((value) => value >= 50).length;
-  const failed = percentages.length - passed;
+  const passed = attempts.filter((attempt) => attempt.passed).length;
+  const failed = attempts.length - passed;
 
   const topPerformer = useMemo(() => {
     if (attempts.length === 0) return null;
@@ -78,12 +78,7 @@ export default function ClassAnalyticsPage() {
     );
   }, [attempts]);
 
-  const atRisk = useMemo(() => {
-    return attempts.filter(
-      (attempt) =>
-        (attempt.finalPercentage ?? attempt.percentage) < 50
-    );
-  }, [attempts]);
+  const atRisk = useMemo(() => attempts.filter((attempt) => !attempt.passed), [attempts]);
 
   const gradeDistribution = useMemo(() => {
     const grades = ["A", "B+", "B", "C+", "C", "D", "F"];
@@ -105,10 +100,7 @@ export default function ClassAnalyticsPage() {
       "Total Marks": attempt.totalMarks,
       Percentage: `${attempt.finalPercentage ?? attempt.percentage}%`,
       Grade: getGrade(attempt.finalPercentage ?? attempt.percentage),
-      Status:
-        (attempt.finalPercentage ?? attempt.percentage) >= 50
-          ? "Passed"
-          : "Failed",
+      Status: attempt.passed ? "Passed" : "Failed",
     }));
 
     const summaryRows = [
@@ -173,6 +165,15 @@ export default function ClassAnalyticsPage() {
           </Button>
         </div>
       </section>
+
+      {error && (
+        <Card className="mb-6 border border-red-200 bg-red-50 text-red-700">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span>{error}</span>
+            <Button variant="outline" onClick={() => void reload()}>Retry</Button>
+          </div>
+        </Card>
+      )}
 
       <section className="mb-8 grid gap-4 md:grid-cols-4 xl:grid-cols-8">
         <StatCard title="Attempts" value={attempts.length} icon={Users} />

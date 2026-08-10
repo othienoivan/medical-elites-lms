@@ -72,22 +72,9 @@ export default function TutorDashboardPage() {
   }, [currentUser?.uid, timetableEntries]);
 
   const recentActivity = useMemo(() => {
-    const reviewItems = clinicalEntries
-      .filter((entry) => entry.status === "submitted")
-      .slice(0, 2)
-      .map((entry) => ({
-        id: `clinical-${entry.id}`,
-        title: `${entry.studentName} submitted a clinical entry`,
-        detail: entry.procedureName,
-      }));
-    const submissionItems = attempts
-      .slice(0, 3)
-      .map((attempt) => ({
-        id: `attempt-${attempt.id}`,
-        title: `${attempt.studentName || "Student"} submitted an assessment`,
-        detail: attempt.quizTitle || "Assessment submission",
-      }));
-    return [...reviewItems, ...submissionItems].slice(0, 5);
+    const reviewItems = clinicalEntries.filter((entry) => entry.status === "submitted").map((entry) => ({ id: `clinical-${entry.id}`, title: `${entry.studentName} submitted a clinical entry`, detail: entry.procedureName, at: new Date((entry as typeof entry & { updatedAt?: Date; createdAt?: Date }).updatedAt ?? (entry as typeof entry & { createdAt?: Date }).createdAt ?? 0).getTime() }));
+    const submissionItems = attempts.map((attempt) => ({ id: `attempt-${attempt.id}`, title: `${attempt.studentName || "Student"} submitted an assessment`, detail: attempt.quizTitle || "Assessment submission", at: new Date(attempt.submittedAt ?? attempt.updatedAt ?? attempt.createdAt ?? 0).getTime() }));
+    return [...reviewItems, ...submissionItems].sort((a, b) => b.at - a.at).slice(0, 6).map(({ id, title, detail }) => ({ id, title, detail }));
   }, [attempts, clinicalEntries]);
 
   const loading =

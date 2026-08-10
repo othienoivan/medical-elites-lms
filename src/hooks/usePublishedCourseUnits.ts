@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 
-import { getPublishedCourseUnits } from "../firebase/courseUnits";
+import { getPublishedCourseUnits } from "../firebase/publicCourseCatalogue";
 import type { CourseUnit } from "../models/CourseUnit";
 
 /** Public catalogue hook. It deliberately does not depend on the signed-in user's academic scope. */
@@ -37,3 +37,4 @@ export default function usePublishedCourseUnits() {
 
   return { courseUnits, loading, error };
 }
+

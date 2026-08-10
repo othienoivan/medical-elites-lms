@@ -13,7 +13,7 @@ const sections = [
   ["Service availability", "We aim to provide reliable access but do not guarantee uninterrupted service. Maintenance, network failures, third-party outages, and security events may affect availability."],
   ["Account suspension", "Accounts may be restricted or suspended for security concerns, non-compliance, abuse, or institutional instruction."],
   ["Limitation of liability", "Medical Elites provides educational and administrative tools. It does not replace professional clinical judgment, institutional governance, or legally required records."],
-  ["Contact", "Questions about these terms may be sent to othienoivan@gmail.com."],
+  ["Contact", "Questions about these terms may be sent to admin@medicalelites.org."],
 ];
 
 export default function TermsPage() {

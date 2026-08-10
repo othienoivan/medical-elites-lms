@@ -10,6 +10,7 @@ import {
   PlayCircle,
   Sparkles,
   Stethoscope,
+  Store,
   TrendingUp,
   WalletCards,
 } from "lucide-react";
@@ -35,6 +36,7 @@ import useNotifications from "../hooks/useNotifications";
 import useQuizAttempts from "../hooks/useQuizAttempts";
 import useQuizzes from "../hooks/useQuizzes";
 import useStudentLearningAccess from "../hooks/useStudentLearningAccess";
+import useStudentLearningOverview from "../hooks/useStudentLearningOverview";
 import useTimetable from "../hooks/useTimetable";
 
 function currentDayName() {
@@ -51,12 +53,12 @@ export default function DashboardPage() {
   const { conversations, loading: messagesLoading } = useMessages();
   const { notifications, unreadCount, loading: notificationsLoading } = useNotifications();
   const {
-    enrollments,
     courseUnitIds,
     programmeIds,
     loading: accessLoading,
     canAccessQuiz,
   } = useStudentLearningAccess();
+  const { overallProgress, activity: academicActivity, loading: overviewLoading } = useStudentLearningOverview();
 
   const assignedCourseUnits = useMemo(
     () =>
@@ -89,14 +91,6 @@ export default function DashboardPage() {
     [canAccessQuiz, completedAssessmentKeys, quizzes]
   );
 
-  const overallProgress = useMemo(() => {
-    if (enrollments.length === 0) return 0;
-    return Math.round(
-      enrollments.reduce((sum, item) => sum + (item.progress ?? 0), 0) /
-        enrollments.length
-    );
-  }, [enrollments]);
-
   const todaySchedule = useMemo(() => {
     const day = currentDayName().toLowerCase();
     return timetableEntries
@@ -117,22 +111,11 @@ export default function DashboardPage() {
   }, [courseUnitIds, timetableEntries]);
 
   const recentActivity = useMemo(() => {
-    const attemptItems = attempts
-      .slice(0, 3)
-      .map((attempt) => ({
-        id: `attempt-${attempt.id}`,
-        title: `${attempt.quizTitle || "Assessment"} submitted`,
-        detail: `${Math.round(attempt.finalPercentage ?? attempt.percentage ?? 0)}% recorded`,
-      }));
-    const notificationItems = notifications
-      .slice(0, 2)
-      .map((notification) => ({
-        id: `notification-${notification.id}`,
-        title: notification.title,
-        detail: notification.body,
-      }));
-    return [...notificationItems, ...attemptItems].slice(0, 5);
-  }, [attempts, notifications]);
+    if (academicActivity.length > 0) return academicActivity.slice(0, 6).map((item) => ({ id: item.id, title: item.title, detail: item.detail }));
+    const attemptItems = attempts.slice(0, 3).map((attempt) => ({ id: `attempt-${attempt.id}`, title: `${attempt.quizTitle || "Assessment"} submitted`, detail: `${Math.round(attempt.finalPercentage ?? attempt.percentage ?? 0)}% recorded` }));
+    const notificationItems = notifications.slice(0, 3).map((notification) => ({ id: `notification-${notification.id}`, title: notification.title, detail: notification.body }));
+    return [...notificationItems, ...attemptItems].slice(0, 6);
+  }, [academicActivity, attempts, notifications]);
 
   const loading =
     quizzesLoading ||
@@ -141,7 +124,8 @@ export default function DashboardPage() {
     accessLoading ||
     timetableLoading ||
     messagesLoading ||
-    notificationsLoading;
+    notificationsLoading ||
+    overviewLoading;
 
   const displayName = userProfile?.fullName?.split(" ")[0] || currentUser?.email?.split("@")[0] || "Student";
 
@@ -161,6 +145,9 @@ export default function DashboardPage() {
           <div className="flex flex-wrap items-center gap-3">
             <Button className="bg-white text-blue-700 hover:bg-blue-50" onClick={() => navigate("/student/course-units")}>
               <PlayCircle size={18} /> Continue Learning
+            </Button>
+            <Button className="border-white/40 bg-white/10 text-white hover:bg-white/20" onClick={() => navigate("/student/marketplace")}>
+              <Store size={18} /> Marketplace
             </Button>
             <Button className="border-white/40 bg-white/10 text-white hover:bg-white/20" onClick={() => navigate("/ai-assistant")}>
               <Sparkles size={18} /> Ask Medi
@@ -189,7 +176,8 @@ export default function DashboardPage() {
               { label: "Ask Medi", description: "Get structured study support", icon: Sparkles, onClick: () => navigate("/ai-assistant") },
               { label: "Timetable", description: "See classes and venues", icon: CalendarDays, onClick: () => navigate("/timetable") },
               { label: "Messages", description: "Contact your tutors", icon: MessageCircle, onClick: () => navigate("/messages") },
-              { label: "Finance", description: "View statement and receipts", icon: WalletCards, onClick: () => navigate("/finance") },
+              { label: "Marketplace", description: "Discover tutor courses and resources", icon: Store, onClick: () => navigate("/student/marketplace") },
+              { label: "My Purchases", description: "Open purchased learning products", icon: WalletCards, onClick: () => navigate("/student/purchases") },
             ]}
           />
         </DashboardWidget>

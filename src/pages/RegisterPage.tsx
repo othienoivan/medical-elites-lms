@@ -11,6 +11,7 @@ import Logo from "../components/ui/Logo";
 import { logoutUser, registerUser } from "../firebase/auth";
 import { createUserProfile } from "../firebase/firestore";
 import { claimRegistrationLink } from "../firebase/registrationLinks";
+import { bootstrapTenantWorkspace } from "../firebase/tenants";
 
 type RegistrationRole = "student" | "tutor" | "admin";
 
@@ -94,6 +95,14 @@ export default function RegisterPage() {
         await logoutUser();
         alert("Tutor registration request submitted. An administrator must approve and activate the account before tutor access is granted.");
         navigate("/login?role=tutor&status=pending");
+      } else if (registeringTutor) {
+        try {
+          await bootstrapTenantWorkspace();
+        } catch (workspaceError) {
+          console.warn("Tutor workspace bootstrap will retry after login.", workspaceError);
+        }
+        alert("Tutor account created successfully. Your Free Tutor plan is ready and you can upgrade whenever you need more capacity or advanced tools.");
+        navigate("/tutor?welcome=1", { replace: true });
       } else if (registrationStatus === "approved") {
         alert("Registration and course-unit enrolment completed successfully. Your assigned learning content is now available.");
         navigate("/student/course-units", { replace: true });
@@ -101,11 +110,7 @@ export default function RegisterPage() {
         alert("Registration completed. Your course-unit enrolment is awaiting tutor or administrator approval.");
         navigate("/dashboard", { replace: true });
       } else {
-        alert(
-          registeringTutor
-            ? "Tutor account created successfully for the testing phase. Please verify your email, then log in through the Tutor portal."
-            : "Registration successful. Please verify your email before logging in."
-        );
+        alert("Registration successful. Please verify your email before logging in.");
         navigate(`/login?role=${selectedRole}`);
       }
     } catch (caughtError: unknown) {

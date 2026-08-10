@@ -10,7 +10,7 @@ const sections = [
   ["Data security", "We use authentication, access controls, encrypted connections, role-based permissions, and platform monitoring. No system can guarantee absolute security, so users must protect their passwords and report suspected misuse."],
   ["Data retention", "Records are retained for as long as required to provide services, meet academic and legal obligations, resolve disputes, and support institutional recordkeeping."],
   ["Your rights", "Depending on applicable law and institutional policy, users may request access, correction, restriction, or deletion of eligible personal information."],
-  ["Contact", "Privacy questions may be sent to othienoivan@gmail.com."],
+  ["Contact", "Privacy questions may be sent to admin@medicalelites.org."],
 ];
 
 export default function PrivacyPolicyPage() {

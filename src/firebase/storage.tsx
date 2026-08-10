@@ -15,6 +15,7 @@ export type UploadFolder =
   | "videos"
   | "audio"
   | "documents"
+  | "html5"
   | "lesson-resources";
 
 export type UploadResult = {
@@ -30,6 +31,7 @@ const MAX_UPLOAD_BYTES: Record<UploadFolder, number> = {
   pdfs: 50 * 1024 * 1024,
   powerpoints: 50 * 1024 * 1024,
   documents: 50 * 1024 * 1024,
+  html5: 50 * 1024 * 1024,
   "lesson-resources": 250 * 1024 * 1024,
   videos: 250 * 1024 * 1024,
   audio: 250 * 1024 * 1024,
@@ -67,6 +69,8 @@ function inferContentType(file: File): string {
     xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     csv: "text/csv",
     txt: "text/plain",
+    html: "text/html",
+    htm: "text/html",
     jpg: "image/jpeg",
     jpeg: "image/jpeg",
     png: "image/png",
@@ -97,6 +101,7 @@ function validateUpload(file: File, folder: UploadFolder, contentType: string) {
   if (folder === "audio" && !isAudio) throw new Error("Only audio files are allowed here.");
   if (folder === "videos" && !isVideo) throw new Error("Only video files are allowed here.");
   if (folder === "pdfs" && contentType !== "application/pdf") throw new Error("Only PDF files are allowed here.");
+  if (folder === "html5" && contentType !== "text/html") throw new Error("Only HTML/HTM files are allowed here.");
   if (
     folder === "powerpoints" &&
     ![
@@ -138,10 +143,12 @@ export async function uploadFileToStorage({
   file,
   folder,
   onProgress,
+  customMetadata,
 }: {
   file: File;
   folder: UploadFolder;
   onProgress?: (progress: number) => void;
+  customMetadata?: Record<string, string>;
 }): Promise<UploadResult> {
   const safeFileName = createSafeFileName(file.name);
   const contentType = inferContentType(file);
@@ -158,6 +165,7 @@ export async function uploadFileToStorage({
         uploadFolder: folder,
         originalFileName: file.name,
         ...(tenantId ? { tenantId } : {}),
+        ...(customMetadata ?? {}),
       },
     });
 

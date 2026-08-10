@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$ProjectId = "medical-elites-lms",
   [string]$Region = "us-central1",
   [string]$Bucket = "medical-elites-lms.firebasestorage.app"
@@ -6,7 +6,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ServiceName = "medical-elites-office-converter"
-$ServiceAccountName = "medical-elites-office-converter"
+$ServiceAccountName = "me-office-converter"
 $ServiceAccount = "$ServiceAccountName@$ProjectId.iam.gserviceaccount.com"
 $TriggerName = "medical-elites-office-uploaded"
 
@@ -51,13 +51,13 @@ finally {
   Pop-Location
 }
 
-$existingTrigger = gcloud eventarc triggers list --location=$Region --filter="name:$TriggerName" --format="value(name)"
+$existingTrigger = gcloud eventarc triggers list --location=$TriggerRegion --filter="name:$TriggerName" --format="value(name)"
 if ($existingTrigger) {
-  gcloud eventarc triggers delete $TriggerName --location=$Region --quiet
+  gcloud eventarc triggers delete $TriggerName --location=$TriggerRegion --quiet
 }
 
 gcloud eventarc triggers create $TriggerName `
-  --location=$Region `
+  --location=$TriggerRegion `
   --destination-run-service=$ServiceName `
   --destination-run-region=$Region `
   --event-filters="type=google.cloud.storage.object.v1.finalized" `
@@ -66,3 +66,6 @@ gcloud eventarc triggers create $TriggerName `
 
 Write-Host "Office converter deployed successfully." -ForegroundColor Green
 Write-Host "New .pptx and .docx files uploaded under powerpoints/ or documents/ will be converted automatically."
+
+
+

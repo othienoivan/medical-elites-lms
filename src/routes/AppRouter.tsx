@@ -16,6 +16,14 @@ import type { UserRole } from "../models/User";
 import StudentWorkspaceGate from "../components/layout/StudentWorkspaceGate";
 import PlatformAccessGate from "../components/platform/PlatformAccessGate";
 
+const KnowledgeCenterPage = lazy(() => import("../pages/help/KnowledgeCenterPage"));
+const KnowledgeSearchPage = lazy(() => import("../pages/help/KnowledgeSearchPage"));
+const KnowledgeArticlePage = lazy(() => import("../pages/help/KnowledgeArticlePage"));
+const KnowledgeCategoryPage = lazy(() => import("../pages/help/KnowledgeCategoryPage"));
+const KnowledgeFaqPage = lazy(() => import("../pages/help/KnowledgeFaqPage"));
+const KnowledgeTroubleshootingPage = lazy(() => import("../pages/help/KnowledgeTroubleshootingPage"));
+const KnowledgeWhatsNewPage = lazy(() => import("../pages/help/KnowledgeWhatsNewPage"));
+const GlobalSearchPage = lazy(() => import("../pages/GlobalSearchPage"));
 const StudentTranscriptPage = lazy(() => import("../pages/StudentTranscriptPage"));
 const MyProfilePage = lazy(() => import("../pages/MyProfilePage"));
 const HomePage = lazy(() => import("../pages/HomePage"));
@@ -41,6 +49,7 @@ const CourseUnitDetailsPage = lazy(() => import("../pages/CourseUnitDetailsPage"
 const LessonPage = lazy(() => import("../pages/LessonPage"));
 const EnrollmentManagerPage = lazy(() => import("../pages/EnrollmentManagerPage"));
 const TutorDashboardPage = lazy(() => import("../pages/TutorDashboardPage"));
+const TutorProfilePage = lazy(() => import("../pages/TutorProfilePage"));
 const CurriculumExplorerPage = lazy(() => import("../pages/CurriculumExplorerPage"));
 const ProgrammeManagerPage = lazy(() => import("../pages/ProgrammeManagerPage"));
 const CreateProgrammePage = lazy(() => import("../pages/CreateProgrammePage"));
@@ -86,6 +95,7 @@ const TutorClinicalLogbookPage = lazy(() => import("../pages/TutorClinicalLogboo
 const ClinicalReviewPage = lazy(() => import("../pages/ClinicalReviewPage"));
 const FinanceManagerPage = lazy(() => import("../pages/FinanceManagerPage"));
 const TutorWalletPage = lazy(() => import("../pages/TutorWalletPage"));
+const TutorSubscriptionPage = lazy(() => import("../pages/TutorSubscriptionPage"));
 const StudentFinancePage = lazy(() => import("../pages/StudentFinancePage"));
 const AiAssistantPage = lazy(() => import("../pages/AiAssistantPage"));
 const AboutPage = lazy(() => import("../pages/AboutPage"));
@@ -123,11 +133,16 @@ const MarketplaceHomePage = lazy(() => import("../pages/marketplace/MarketplaceH
 const MarketplaceProductPage = lazy(() => import("../pages/marketplace/MarketplaceProductPage"));
 const MarketplaceSellerPage = lazy(() => import("../pages/marketplace/MarketplaceSellerPage"));
 const MarketplaceSellPage = lazy(() => import("../pages/marketplace/MarketplaceSellPage"));
+const TutorProductEditPage = lazy(() => import("../pages/marketplace/TutorProductEditPage"));
 const TutorCommerceDashboardPage = lazy(() => import("../pages/marketplace/TutorCommerceDashboardPage"));
+const TutorStorefrontSettingsPage = lazy(() => import("../pages/marketplace/TutorStorefrontSettingsPage"));
 const TutorProductsPage = lazy(() => import("../pages/marketplace/TutorProductsPage"));
 const MarketplaceCartPage = lazy(() => import("../pages/marketplace/MarketplaceCartPage"));
 const MarketplaceWishlistPage = lazy(() => import("../pages/marketplace/MarketplaceWishlistPage"));
 const MarketplaceOrdersPage = lazy(() => import("../pages/marketplace/MarketplaceOrdersPage"));
+const StudentLearningLibraryPage = lazy(() => import("../pages/marketplace/StudentLearningLibraryPage"));
+const TutorSalesPage = lazy(() => import("../pages/marketplace/TutorSalesPage"));
+const TutorCouponsPage = lazy(() => import("../pages/marketplace/TutorCouponsPage"));
 const MarketplaceCheckoutPage = lazy(() => import("../pages/marketplace/MarketplaceCheckoutPage"));
 const PlatformMarketplacePage = lazy(() => import("../pages/platform/PlatformMarketplacePage"));
 const MarketplaceSellerAnalyticsPage = lazy(() => import("../pages/marketplace/MarketplaceSellerAnalyticsPage"));
@@ -204,20 +219,40 @@ export default function AppRouter() {
         <Route path="/platform/finance/operations" element={<PlatformAccessGate><FinanceOperationsPage /></PlatformAccessGate>} />
 
 
+        {/* v3.3 Knowledge Center */}
+        <Route path="/help" element={<ProtectedRoute><KnowledgeCenterPage /></ProtectedRoute>} />
+        <Route path="/help/search" element={<ProtectedRoute><KnowledgeSearchPage /></ProtectedRoute>} />
+        <Route path="/help/articles/:slug" element={<ProtectedRoute><KnowledgeArticlePage /></ProtectedRoute>} />
+        <Route path="/help/category/:category" element={<ProtectedRoute><KnowledgeCategoryPage /></ProtectedRoute>} />
+        <Route path="/help/faq" element={<ProtectedRoute><KnowledgeFaqPage /></ProtectedRoute>} />
+        <Route path="/help/troubleshooting" element={<ProtectedRoute><KnowledgeTroubleshootingPage /></ProtectedRoute>} />
+        <Route path="/help/whats-new" element={<ProtectedRoute><KnowledgeWhatsNewPage /></ProtectedRoute>} />
+
         {/* RC5 Marketplace Foundation */}
+        <Route path="/search" element={<ProtectedRoute><GlobalSearchPage /></ProtectedRoute>} />
         <Route path="/marketplace" element={<MarketplaceHomePage />} />
         <Route path="/marketplace/products/:productId" element={<MarketplaceProductPage />} />
         <Route path="/marketplace/sellers/:sellerId" element={<MarketplaceSellerPage />} />
+        <Route path="/store/:sellerId" element={<MarketplaceSellerPage />} />
         <Route path="/marketplace/sell" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><MarketplaceSellPage /></ProtectedRoute>} />
         <Route path="/marketplace/cart" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><MarketplaceCartPage /></ProtectedRoute>} />
         <Route path="/marketplace/wishlist" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><MarketplaceWishlistPage /></ProtectedRoute>} />
         <Route path="/marketplace/orders" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><MarketplaceOrdersPage /></ProtectedRoute>} />
+        <Route path="/student/marketplace" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><MarketplaceHomePage /></ProtectedRoute>} />
+        <Route path="/student/purchases" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><MarketplaceOrdersPage /></ProtectedRoute>} />
+        <Route path="/student/library" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><StudentLearningLibraryPage /></ProtectedRoute>} />
+        <Route path="/student/wishlist" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><MarketplaceWishlistPage /></ProtectedRoute>} />
         <Route path="/marketplace/checkout" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><MarketplaceCheckoutPage /></ProtectedRoute>} />
         <Route path="/marketplace/insights" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><MarketplaceBuyerInsightsPage /></ProtectedRoute>} />
         <Route path="/marketplace/seller-analytics" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><MarketplaceSellerAnalyticsPage /></ProtectedRoute>} />
+        <Route path="/tutor/subscription" element={<ProtectedRoute allowedRoles={["tutor"]}><TutorSubscriptionPage /></ProtectedRoute>} />
         <Route path="/tutor/commerce" element={<ProtectedRoute allowedRoles={["tutor"]}><TutorCommerceDashboardPage /></ProtectedRoute>} />
         <Route path="/tutor/commerce/products" element={<ProtectedRoute allowedRoles={["tutor"]}><TutorProductsPage /></ProtectedRoute>} />
+        <Route path="/tutor/commerce/storefront" element={<ProtectedRoute allowedRoles={["tutor"]}><TutorStorefrontSettingsPage /></ProtectedRoute>} />
         <Route path="/tutor/commerce/products/new" element={<ProtectedRoute allowedRoles={["tutor"]}><MarketplaceSellPage /></ProtectedRoute>} />
+        <Route path="/tutor/commerce/products/:productId/edit" element={<ProtectedRoute allowedRoles={["tutor"]}><TutorProductEditPage /></ProtectedRoute>} />
+        <Route path="/tutor/commerce/orders" element={<ProtectedRoute allowedRoles={["tutor"]}><TutorSalesPage /></ProtectedRoute>} />
+        <Route path="/tutor/commerce/coupons" element={<ProtectedRoute allowedRoles={["tutor"]}><TutorCouponsPage /></ProtectedRoute>} />
         <Route path="/platform/marketplace" element={<PlatformAccessGate><PlatformMarketplacePage /></PlatformAccessGate>} />
         <Route path="/platform/marketplace/intelligence" element={<PlatformAccessGate><MarketplaceIntelligencePage /></PlatformAccessGate>} />
         <Route path="/platform/marketplace/operations" element={<PlatformAccessGate><MarketplaceOperationsPage /></PlatformAccessGate>} />
@@ -500,6 +535,7 @@ export default function AppRouter() {
         />
 
         {/* Tutor */}
+        <Route path="/tutor/profile" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><TutorProfilePage /></ProtectedRoute>} />
         <Route
           path="/tutor"
           element={

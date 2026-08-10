@@ -40,7 +40,7 @@ export default function TestimonialsPage() {
         <Card className="mt-12 text-center">
           <h2 className="text-3xl font-bold text-slate-950">Share your experience</h2>
           <p className="mx-auto mt-3 max-w-2xl text-slate-600">
-            Testimonial submissions will be reviewed before they are published. Send your feedback to othienoivan@gmail.com.
+            Testimonial submissions will be reviewed before they are published. Send your feedback to admin@medicalelites.org.
           </p>
         </Card>
       </Container>

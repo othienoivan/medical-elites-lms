@@ -9,3 +9,6 @@ export * from "./domain/intelligence";
 export * from "./application/marketplace-intelligence-service";
 export { default as MarketplaceReviews } from "./presentation/MarketplaceReviews";
 export * from "./infrastructure/marketplace-intelligence-repository";
+
+export * from "./domain/commerceAsset";
+export * from "./application/commerce-asset-service";

@@ -1,0 +1,21 @@
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { BookOpen, GraduationCap, Search, ShoppingBag } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { collection, getDocs, limit, query } from "firebase/firestore";
+import { db } from "../config/firebase";
+import { MarketplaceService, type MarketplaceProduct } from "../domains/marketplace";
+type AcademicHit = { id: string; title: string; description: string; kind: "course_unit" | "programme" };
+export default function GlobalSearchPage() {
+  const [params, setParams] = useSearchParams(); const [term, setTerm] = useState(params.get("q") ?? "");
+  const [products, setProducts] = useState<MarketplaceProduct[]>([]); const [academic, setAcademic] = useState<AcademicHit[]>([]); const [loading, setLoading] = useState(true);
+  useEffect(() => { void (async () => { setLoading(true); const [marketplace, courseUnits, programmes] = await Promise.all([
+    MarketplaceService.listPublished(100).catch(() => []), getDocs(query(collection(db,"courseUnits"),limit(100))).catch(()=>null), getDocs(query(collection(db,"programmes"),limit(100))).catch(()=>null)]);
+    setProducts(marketplace); setAcademic([...(courseUnits?.docs??[]).map(d=>({id:d.id,title:String(d.get("title")??d.get("name")??"Course unit"),description:String(d.get("description")??""),kind:"course_unit" as const})), ...(programmes?.docs??[]).map(d=>({id:d.id,title:String(d.get("title")??d.get("name")??"Programme"),description:String(d.get("description")??""),kind:"programme" as const}))]); setLoading(false); })(); },[]);
+  const needle=term.trim().toLowerCase(); const productHits=useMemo(()=>products.filter(p=>!needle||[p.title,p.shortDescription,p.sellerName,...p.tags].join(" ").toLowerCase().includes(needle)),[products,needle]);
+  const academicHits=useMemo(()=>academic.filter(a=>!needle||`${a.title} ${a.description}`.toLowerCase().includes(needle)),[academic,needle]);
+  function submit(e:FormEvent){e.preventDefault();setParams(term.trim()?{q:term.trim()}:{});}
+  return <main className="mx-auto max-w-6xl px-4 py-10"><div className="flex items-center gap-3"><Search className="text-blue-700"/><div><h1 className="text-3xl font-black">Global search</h1><p className="text-slate-600">Search learning content and marketplace products you are permitted to view.</p></div></div>
+  <form onSubmit={submit} className="mt-7 flex gap-3"><input autoFocus value={term} onChange={e=>setTerm(e.target.value)} placeholder="Search courses, programmes, tutors and products" className="min-w-0 flex-1 rounded-2xl border bg-white px-5 py-4"/><button className="rounded-2xl bg-blue-700 px-6 py-4 font-bold text-white">Search</button></form>
+  {loading?<p className="mt-10 text-center">Searching available records…</p>:<div className="mt-8 space-y-8"><section><h2 className="flex items-center gap-2 text-xl font-black"><ShoppingBag size={20}/>Marketplace products <span className="text-sm text-slate-500">({productHits.length})</span></h2><div className="mt-4 grid gap-4 md:grid-cols-2">{productHits.slice(0,20).map(p=><Link key={p.id} to={`/marketplace/products/${p.id}`} className="rounded-2xl border bg-white p-5 hover:border-blue-400"><p className="font-black">{p.title}</p><p className="mt-1 text-sm text-slate-600">{p.sellerName}</p><p className="mt-3 font-bold text-blue-700">{p.price.currency} {p.price.amount.toLocaleString()}</p></Link>)}</div></section>
+  <section><h2 className="flex items-center gap-2 text-xl font-black"><BookOpen size={20}/>Academic catalogue <span className="text-sm text-slate-500">({academicHits.length})</span></h2><div className="mt-4 grid gap-4 md:grid-cols-2">{academicHits.slice(0,20).map(a=><Link key={`${a.kind}-${a.id}`} to={a.kind==="course_unit"?`/courses/${a.id}`:"/courses"} className="rounded-2xl border bg-white p-5 hover:border-blue-400"><p className="flex items-center gap-2 font-black">{a.kind==="programme"?<GraduationCap size={18}/>:<BookOpen size={18}/>} {a.title}</p><p className="mt-2 line-clamp-2 text-sm text-slate-600">{a.description||"Open record"}</p></Link>)}</div></section>{!productHits.length&&!academicHits.length&&<div className="rounded-3xl border bg-white p-12 text-center"><h2 className="text-xl font-black">No matching results</h2><p className="mt-2 text-slate-600">Try a broader term.</p></div>}</div>}</main>;
+}

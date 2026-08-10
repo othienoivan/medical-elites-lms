@@ -1,0 +1,55 @@
+﻿<!doctype html><html class="no-js"><head><meta charset="utf-8"><title>Checkout</title><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=0"><link rel="icon" type="image/x-icon" href="/favicon.ico"><link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png"><link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png"></head><body><p id="respmessage" style="display: none;"></p><script src="https://checkout.flutterwave.com/v3.js" type="text/javascript"></script><script type="text/javascript">
+;(function(window){
+    'use strict';
+
+    var transID = "flwlnk-01kzf0yq6fr5yw2hnkgb0rpzjj";
+    var referrer = "Unknown";
+
+    fetch("https://api.ravepay.co/flwv3-pug/getpaidx/api/hosted_pay/" + transID + '?json=1', { method: "get" })
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(res) {
+            var config_data = res;
+            var red_url = config_data.redirect_url;
+            var query_suffix = (red_url && ~red_url.indexOf('?')) ? '&' : '?';
+            var page_title = config_data.currency === 'KES' ? 'Checkout' : 'Flutterwave Checkout';
+            document.title = page_title;
+
+            config_data.is_hosted_page = 1;
+            config_data.init_url = referrer;
+
+            if (!('hosted_payment_unique_id' in config_data)) {
+                config_data['hosted_payment_unique_id'] = transID;
+            }
+
+            if (config_data.status === "error") {
+                var respmessage = document.getElementById('respmessage');
+                respmessage.style.display = "inline-block";
+                respmessage.innerText = "Whoops! This link has expired. Please request a new link to complete your payment.";
+                respmessage.style.backgroundColor = "#d44333";
+                respmessage.style.color = "#fff";
+                respmessage.style.width = "96%";
+                respmessage.style.padding = "10px 2%";
+                return;
+            }
+
+            if (red_url) {
+                config_data.onclose = function(cancelled) {
+                    if (cancelled === true) {
+                        window.location.href = parseRedirectUrl(red_url + query_suffix + "status=cancelled&tx_ref=" + encodeURIComponent(config_data.tx_ref));
+                    }
+                }
+            }
+
+            setTimeout(function() {
+                if (FlutterwaveCheckout(config_data)) {
+                    if ('history' in window && typeof history.replaceState === 'function') {
+                        history.replaceState(null, '', '/v3/hosted/pay');
+                    }
+                }
+            }, 500);
+        });
+})(window)
+</script></body></html>
+
