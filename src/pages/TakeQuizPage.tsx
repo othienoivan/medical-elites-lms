@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Flag, RotateCcw } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -15,8 +15,7 @@ import {
   getQuizAttemptUsage,
   saveQuizDraftAttempt,
 } from "../firebase/quizAttempts";
-import { getQuizById } from "../firebase/quizzes";
-import { getQuestionById } from "../firebase/questions";
+import { getStudentAssessmentPackage } from "../firebase/studentAssessments";
 import useAuth from "../hooks/useAuth";
 import type { Question } from "../models/Question";
 import type { Quiz } from "../models/Quiz";
@@ -63,28 +62,14 @@ export default function TakeQuizPage() {
       try {
         setLoadingQuiz(true);
 
-        const data = await getQuizById(quizId);
+        const assessmentPackage = await getStudentAssessmentPackage(quizId);
+        const data = assessmentPackage.quiz;
+        const questions = Array.isArray(assessmentPackage.questions)
+          ? assessmentPackage.questions
+          : [];
 
         setQuiz(data);
-
-        if (data) {
-          const embeddedQuestions = data.questions
-            .map((ref) => toEmbeddedQuestion(ref, data))
-            .filter((question): question is Question => Boolean(question));
-
-          if (embeddedQuestions.length === data.questions.length) {
-            setLinkedQuestions(embeddedQuestions);
-          } else {
-            const loaded = await Promise.all(
-              data.questions.map((ref) => getQuestionById(ref.questionId))
-            );
-            setLinkedQuestions(
-              loaded.filter((question): question is Question => Boolean(question))
-            );
-          }
-        } else {
-          setLinkedQuestions([]);
-        }
+        setLinkedQuestions(questions);
 
         if (data?.timeLimitMinutes) {
           setSecondsRemaining(data.timeLimitMinutes * 60);
@@ -778,36 +763,7 @@ function ReviewFeedback({
     </div>
   );
 }
-function toEmbeddedQuestion(
-  ref: Quiz["questions"][number],
-  quiz: Quiz
-): Question | null {
-  if (!ref.question || !Array.isArray(ref.options) || ref.options.length === 0) {
-    return null;
-  }
 
-  return {
-    id: ref.questionId,
-    programmeId: quiz.programmeId,
-    programmeTitle: quiz.programmeTitle,
-    courseUnitId: quiz.courseUnitId,
-    courseUnitTitle: quiz.courseUnitTitle,
-    moduleId: quiz.moduleId,
-    moduleTitle: quiz.moduleTitle,
-    topic: quiz.moduleTitle || quiz.courseUnitTitle || "Assessment",
-    type: "mcq",
-    difficulty: "medium",
-    bloomLevel: "understand",
-    questionText: ref.question,
-    options: ref.options.map((text, index) => ({
-      id: `${ref.questionId}-${index + 1}`,
-      label: String.fromCharCode(65 + index),
-      text,
-    })),
-    correctAnswer: ref.correctAnswer || "",
-    explanation: ref.explanation || "",
-    marks: ref.marks,
-    tags: [],
-    isPublished: true,
-  };
-}
+
+
+

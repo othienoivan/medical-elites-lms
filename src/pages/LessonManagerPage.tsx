@@ -5,7 +5,7 @@ import {
   Eye,
   Layers,
   Plus,
-  Search, ArrowUp, ArrowDown,
+  Search, ArrowUp, ArrowDown, Trash2, X, Save,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -15,8 +15,10 @@ import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import useLessons from "../hooks/useLessons";
 import useModules from "../hooks/useModules";
-import { updateLesson } from "../firebase/lessons";
+import { deleteLesson, moveLessonToModule, updateLesson } from "../firebase/lessons";
 import type { Lesson } from "../models/Lesson";
+import type { Module } from "../models/Module";
+import useAuth from "../hooks/useAuth";
 
 export default function LessonManagerPage() {
   const navigate = useNavigate();
@@ -101,7 +103,8 @@ export default function LessonManagerPage() {
           {modules.map((module) => (
             <ModuleLessonsCard
               key={module.id}
-              moduleId={module.id}
+              module={module}
+              modules={modules}
               search={search}
             />
           ))}
@@ -112,16 +115,27 @@ export default function LessonManagerPage() {
 }
 
 function ModuleLessonsCard({
-  moduleId,
+  module,
+  modules,
   search,
 }: {
-  moduleId: string;
+  module: Module;
+  modules: Module[];
   search: string;
 }) {
   const navigate = useNavigate();
-  const { lessons, loading } = useLessons(moduleId);
+  const { userProfile } = useAuth();
+  const { lessons, loading } = useLessons(module.id);
   const [orderedLessons, setOrderedLessons] = useState<Lesson[]>([]);
   const [moving, setMoving] = useState(false);
+  const [busyLessonId, setBusyLessonId] = useState<string | null>(null);
+  const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    title: "",
+    order: 1,
+    moduleId: "",
+    status: "draft" as "draft" | "published" | "unpublished",
+  });
   useEffect(() => setOrderedLessons([...lessons].sort((a,b)=>a.order-b.order)), [lessons]);
 
   async function moveLesson(lessonId: string, direction: -1 | 1) {
@@ -140,6 +154,79 @@ function ModuleLessonsCard({
       alert("Lesson order could not be saved.");
     } finally { setMoving(false); }
   }
+
+  function openLessonEditor(lesson: Lesson) {
+    setEditingLessonId(lesson.id);
+    setEditForm({
+      title: lesson.title,
+      order: Math.max(1, Number(lesson.order || 1)),
+      moduleId: lesson.moduleId,
+      status: lesson.isPublished === true || lesson.published === true ? "published" : "draft",
+    });
+  }
+
+  function closeLessonEditor() {
+    if (busyLessonId) return;
+    setEditingLessonId(null);
+  }
+
+  async function saveLessonDetails(lesson: Lesson) {
+    const title = editForm.title.trim();
+    const order = Math.max(1, Math.floor(Number(editForm.order || 1)));
+    const target = modules.find((item) => item.id === editForm.moduleId);
+    if (!title) { window.alert("Lesson title cannot be empty."); return; }
+    if (!target) { window.alert("Choose a valid module."); return; }
+    if (!userProfile) { window.alert("Your tutor profile is still loading. Try again."); return; }
+
+    const published = editForm.status === "published";
+    setBusyLessonId(lesson.id);
+    try {
+      if (target.id !== lesson.moduleId) {
+        await moveLessonToModule(lesson.id, target, {
+          uid: userProfile.uid,
+          role: userProfile.role,
+          institutionId: userProfile.institutionId,
+          assignedCourseUnitIds: userProfile.assignedCourseUnitIds,
+        });
+      }
+
+      await updateLesson(lesson.id, {
+        title,
+        order,
+        isPublished: published,
+        published,
+      });
+
+      if (target.id !== lesson.moduleId) {
+        setOrderedLessons((rows) => rows.filter((row) => row.id !== lesson.id));
+      } else {
+        setOrderedLessons((rows) =>
+          rows
+            .map((row) => row.id === lesson.id ? { ...row, title, order, isPublished: published, published } : row)
+            .sort((a, b) => a.order - b.order || a.title.localeCompare(b.title))
+        );
+      }
+      setEditingLessonId(null);
+    } catch (error) {
+      console.error("Failed to update lesson details", error);
+      window.alert("The lesson details could not be saved. Check your permissions and try again.");
+    } finally {
+      setBusyLessonId(null);
+    }
+  }
+
+  async function handleDelete(lesson: Lesson) {
+    if (!window.confirm(`Delete “${lesson.title}”? This removes the lesson from the module and cannot be undone.`)) return;
+    setBusyLessonId(lesson.id);
+    try {
+      await deleteLesson(lesson.id);
+      setOrderedLessons((rows) => rows.filter((row) => row.id !== lesson.id));
+    } catch (error) {
+      console.error("Failed to delete lesson", error);
+      window.alert("The lesson could not be deleted. Check that you own or are assigned to this lesson.");
+    } finally { setBusyLessonId(null); }
+  }
+
 
   const filteredLessons = useMemo(() => {
     const keyword = search.toLowerCase();
@@ -229,6 +316,79 @@ function ModuleLessonsCard({
                   </div>
                 </div>
 
+                {editingLessonId === lesson.id && (
+                  <div className="mt-6 rounded-2xl border border-blue-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h4 className="font-bold text-slate-950">Edit Lesson Details</h4>
+                        <p className="mt-1 text-sm text-slate-500">Change the lesson number, title, module and publication status together.</p>
+                      </div>
+                      <button type="button" onClick={closeLessonEditor} disabled={busyLessonId === lesson.id} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Close lesson editor">
+                        <X size={18} />
+                      </button>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="text-sm font-semibold text-slate-700">
+                        Lesson number
+                        <input
+                          type="number"
+                          min={1}
+                          value={editForm.order}
+                          onChange={(event) => setEditForm((current) => ({ ...current, order: Math.max(1, Number(event.target.value || 1)) }))}
+                          className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
+                        />
+                      </label>
+
+                      <label className="text-sm font-semibold text-slate-700">
+                        Publication status
+                        <select
+                          value={editForm.status}
+                          onChange={(event) => setEditForm((current) => ({ ...current, status: event.target.value as "draft" | "published" | "unpublished" }))}
+                          className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
+                        >
+                          <option value="draft">Draft</option>
+                          <option value="published">Published</option>
+                          <option value="unpublished">Unpublished</option>
+                        </select>
+                      </label>
+
+                      <label className="text-sm font-semibold text-slate-700 md:col-span-2">
+                        Lesson title
+                        <input
+                          value={editForm.title}
+                          onChange={(event) => setEditForm((current) => ({ ...current, title: event.target.value }))}
+                          className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
+                          placeholder="Lesson title"
+                        />
+                      </label>
+
+                      <label className="text-sm font-semibold text-slate-700 md:col-span-2">
+                        Module
+                        <select
+                          value={editForm.moduleId}
+                          onChange={(event) => setEditForm((current) => ({ ...current, moduleId: event.target.value }))}
+                          className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
+                        >
+                          {modules.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.courseUnitTitle ? `${item.courseUnitTitle} — ` : ""}{item.title}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      <Button disabled={busyLessonId === lesson.id} onClick={() => void saveLessonDetails(lesson)}>
+                        <Save size={16} />
+                        {busyLessonId === lesson.id ? "Saving..." : "Save changes"}
+                      </Button>
+                      <Button variant="outline" disabled={busyLessonId === lesson.id} onClick={closeLessonEditor}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-6 flex flex-wrap gap-3">
                   <Button
                     variant="outline"
@@ -251,6 +411,16 @@ function ModuleLessonsCard({
                   >
                     <BookOpen size={16} />
                     Learning Package
+                  </Button>
+
+                  <Button variant="outline" disabled={busyLessonId === lesson.id} onClick={() => openLessonEditor(lesson)}>
+                    <Edit size={16} />
+                    Edit Lesson Details
+                  </Button>
+
+                  <Button variant="outline" disabled={busyLessonId === lesson.id} onClick={() => void handleDelete(lesson)} className="border-red-200 text-red-700 hover:bg-red-50">
+                    <Trash2 size={16} />
+                    Delete Lesson
                   </Button>
                 </div>
               </div>

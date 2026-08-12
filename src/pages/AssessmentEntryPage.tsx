@@ -1,4 +1,4 @@
-import {
+﻿import {
   CalendarClock,
   CheckCircle,
   ClipboardCheck,
@@ -15,7 +15,7 @@ import Card from "../components/ui/Card";
 import Container from "../components/ui/Container";
 import Input from "../components/ui/Input";
 import { getQuizAttemptsByStudent } from "../firebase/quizAttempts";
-import { getQuizById } from "../firebase/quizzes";
+import { getStudentAssessmentPackage } from "../firebase/studentAssessments";
 import useAuth from "../hooks/useAuth";
 import type { AssessmentType, Quiz } from "../models/Quiz";
 import type { QuizAttempt } from "../models/QuizAttempt";
@@ -39,7 +39,7 @@ export default function AssessmentEntryPage() {
       try {
         setLoading(true);
 
-        const quizData = await getQuizById(quizId);
+        const { quiz: quizData } = await getStudentAssessmentPackage(quizId);
         setQuiz(quizData);
 
         if (currentUser) {
@@ -251,11 +251,11 @@ export default function AssessmentEntryPage() {
               </h2>
 
               <ul className="mt-4 space-y-2 text-sm leading-6 text-slate-700">
-                <li>• Answer all questions before submitting.</li>
-                <li>• Do not refresh the browser during the assessment.</li>
-                <li>• The timer starts immediately after you begin.</li>
-                <li>• Submit before the time expires.</li>
-                <li>• Your score will be recorded after submission.</li>
+                <li>â€¢ Answer all questions before submitting.</li>
+                <li>â€¢ Do not refresh the browser during the assessment.</li>
+                <li>â€¢ The timer starts immediately after you begin.</li>
+                <li>â€¢ Submit before the time expires.</li>
+                <li>â€¢ Your score will be recorded after submission.</li>
               </ul>
             </div>
 
@@ -414,3 +414,4 @@ function InfoBox({
     </div>
   );
 }
+

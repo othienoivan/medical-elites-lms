@@ -5,7 +5,7 @@ import TutorLayout from "../components/layout/TutorLayout";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
-import { createRegistrationLink, getMyRegistrationLinks, setRegistrationLinkStatus } from "../firebase/registrationLinks";
+import { createRegistrationLink, getMyRegistrationLinks, getTutorRegistrationLinkStudents, setRegistrationLinkStatus, type TutorRegistrationLinkStudent } from "../firebase/registrationLinks";
 import useAuth from "../hooks/useAuth";
 import useCourseUnits from "../hooks/useCourseUnits";
 import useModules from "../hooks/useModules";
@@ -44,6 +44,7 @@ export default function RegistrationLinksPage() {
   const { courseUnits } = useCourseUnits(true);
   const { modules } = useModules();
   const [links, setLinks] = useState<RegistrationLink[]>([]);
+  const [registeredStudents, setRegisteredStudents] = useState<TutorRegistrationLinkStudent[]>([]);
   const [name, setName] = useState("Student registration link");
   const [linkType, setLinkType] = useState<RegistrationLinkType>("class");
   const [programmeId, setProgrammeId] = useState("");
@@ -132,6 +133,9 @@ export default function RegistrationLinksPage() {
   useEffect(() => {
     if (!userProfile) return;
     getMyRegistrationLinks(userProfile.uid).then(setLinks).catch((error) => setMessage(error instanceof Error ? error.message : "Failed to load links."));
+    if (userProfile.role === "tutor") {
+      getTutorRegistrationLinkStudents().then(setRegisteredStudents).catch((error) => console.warn("Failed to load registration-link students:", error));
+    }
   }, [userProfile]);
 
   function toggleSelection(id: string, selected: string[], setter: React.Dispatch<React.SetStateAction<string[]>>) {
@@ -161,8 +165,8 @@ export default function RegistrationLinksPage() {
         name: name.trim(),
         linkType,
         status: "active",
-        institutionId: userProfile.institutionId,
-        institutionName: userProfile.institutionName,
+        institutionId: userProfile.role === "admin" ? userProfile.institutionId : undefined,
+        institutionName: userProfile.role === "admin" ? userProfile.institutionName : undefined,
         programmeId: programmeId || undefined,
         programmeTitle: selectedProgramme?.title,
         academicYear: academicYear.trim() || undefined,
@@ -176,6 +180,9 @@ export default function RegistrationLinksPage() {
         expiresAt: expiresAt ? new Date(`${expiresAt}T23:59:59`) : null,
       });
       setLinks((current) => [created, ...current]);
+      if (userProfile.role === "tutor") {
+        void getTutorRegistrationLinkStudents().then(setRegisteredStudents).catch(() => undefined);
+      }
       setMessage(`Registration link created successfully.${validCourseUnitIds.length ? ` ${validCourseUnitIds.length} course unit${validCourseUnitIds.length === 1 ? "" : "s"} and ${validModuleIds.length} module${validModuleIds.length === 1 ? "" : "s"} were assigned.` : " Students can now join using this link."}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not create the link.");
@@ -246,6 +253,18 @@ export default function RegistrationLinksPage() {
                 <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-bold">{link.name}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${link.status === "active" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>{link.status}</span></div><p className="mt-2 break-all text-sm text-blue-700">{url}</p><p className="mt-2 text-sm text-slate-600">{link.programmeTitle || "Programme not specified"} · {(link.allocationMode || "manual") === "automatic" ? "Automatic allocation" : "Manual allocation"} · Year {link.yearOfStudy || "Any"} · Semester {link.semester || "Any"} · {link.courseUnitIds?.length || 0} course units · {link.moduleIds?.length || 0} modules · {link.registrationCount || 0} registrations</p></div>
                 <div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={() => navigator.clipboard.writeText(url)}><Copy size={16} /> Copy</Button><Button type="button" variant="secondary" onClick={() => window.open(`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(url)}`, "_blank", "noopener,noreferrer")}><QrCode size={16} /> QR</Button><Button type="button" variant="secondary" onClick={() => toggle(link)}><Power size={16} /> {link.status === "active" ? "Disable" : "Enable"}</Button></div>
               </div>
+              {(() => {
+                const learners = registeredStudents.filter((student) => student.registrationLinkCode === link.code);
+                return <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                  <p className="text-sm font-bold text-emerald-900">Registered learners ({learners.length})</p>
+                  {learners.length === 0 ? <p className="mt-2 text-sm text-slate-600">No learners have been resolved for this link yet.</p> : <div className="mt-2 divide-y divide-emerald-100">
+                    {learners.map((student) => <div key={student.enrollmentId} className="flex flex-col justify-between gap-1 py-2 text-sm sm:flex-row sm:items-center">
+                      <div><span className="font-semibold text-slate-900">{student.studentName}</span><span className="ml-2 text-slate-500">{student.studentEmail}</span></div>
+                      <span className={`w-fit rounded-full px-2 py-1 text-xs font-bold ${student.approvalStatus === "approved" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{student.approvalStatus}</span>
+                    </div>)}
+                  </div>}
+                </div>;
+              })()}
             </Card>;
           })}
         </div>

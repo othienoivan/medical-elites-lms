@@ -5,6 +5,7 @@ import {
   Plus,
   Search,
   Target,
+  Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -15,6 +16,7 @@ import Card from "../components/ui/Card";
 import useModules from "../hooks/useModules";
 import useAccessScope from "../hooks/useAccessScope";
 import { getLessons } from "../firebase/lessons";
+import { deleteModule } from "../firebase/modules";
 
 export default function ModuleManagerPage() {
   const navigate = useNavigate();
@@ -24,6 +26,8 @@ export default function ModuleManagerPage() {
   const { modules, loading } = useModules(courseUnitId, true);
   const scope = useAccessScope();
   const [lessonCounts, setLessonCounts] = useState<Record<string, number>>({});
+  const [deletedModuleIds, setDeletedModuleIds] = useState<Set<string>>(new Set());
+  const [deletingModuleId, setDeletingModuleId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!scope || modules.length === 0) { setLessonCounts({}); return; }
@@ -40,6 +44,7 @@ export default function ModuleManagerPage() {
     const keyword = search.toLowerCase();
 
     return modules.filter((module) => {
+      if (deletedModuleIds.has(module.id)) return false;
       return (
         module.title.toLowerCase().includes(keyword) ||
         module.description.toLowerCase().includes(keyword) ||
@@ -48,7 +53,39 @@ export default function ModuleManagerPage() {
         module.duration.toLowerCase().includes(keyword)
       );
     });
-  }, [modules, search]);
+  }, [modules, search, deletedModuleIds]);
+
+
+  async function handleDeleteModule(moduleId: string, moduleTitle: string) {
+    const linkedLessons = lessonCounts[moduleId] ?? 0;
+
+    if (linkedLessons > 0) {
+      window.alert(`This module has ${linkedLessons} linked lesson${linkedLessons === 1 ? "" : "s"}. Delete or move those lessons first, then delete the module.`);
+      return;
+    }
+
+    if (!window.confirm(`Delete module "${moduleTitle}"? This action cannot be undone.`)) return;
+
+    try {
+      setDeletingModuleId(moduleId);
+      await deleteModule(moduleId);
+      setDeletedModuleIds((current) => {
+        const next = new Set(current);
+        next.add(moduleId);
+        return next;
+      });
+      setLessonCounts((current) => {
+        const next = { ...current };
+        delete next[moduleId];
+        return next;
+      });
+    } catch (error) {
+      console.error("Failed to delete module:", error);
+      window.alert(error instanceof Error ? error.message : "The module could not be deleted. Please try again.");
+    } finally {
+      setDeletingModuleId(null);
+    }
+  }
 
   return (
     <TutorLayout
@@ -169,9 +206,12 @@ export default function ModuleManagerPage() {
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button
                   variant="outline"
-                  onClick={() => navigate(courseUnitId ? `/tutor/lessons/new?courseUnitId=${encodeURIComponent(courseUnitId)}` : "/tutor/lessons/new")}
+                  className="border-red-200 text-red-700 hover:bg-red-50"
+                  disabled={deletingModuleId === module.id}
+                  onClick={() => void handleDeleteModule(module.id, module.title)}
                 >
-                  Add Lesson
+                  <Trash2 size={16} />
+                  {deletingModuleId === module.id ? "Deleting..." : "Delete Module"}
                 </Button>
 
                 <Button

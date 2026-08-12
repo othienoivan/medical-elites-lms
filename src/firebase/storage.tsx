@@ -1,4 +1,4 @@
-import {
+﻿import {
   deleteObject,
   getDownloadURL,
   ref,
@@ -24,17 +24,6 @@ export type UploadResult = {
   downloadUrl: string;
   contentType: string;
   size: number;
-};
-
-const MAX_UPLOAD_BYTES: Record<UploadFolder, number> = {
-  images: 10 * 1024 * 1024,
-  pdfs: 50 * 1024 * 1024,
-  powerpoints: 50 * 1024 * 1024,
-  documents: 50 * 1024 * 1024,
-  html5: 50 * 1024 * 1024,
-  "lesson-resources": 250 * 1024 * 1024,
-  videos: 250 * 1024 * 1024,
-  audio: 250 * 1024 * 1024,
 };
 
 function createSafeFileName(fileName: string) {
@@ -88,10 +77,6 @@ function inferContentType(file: File): string {
 
 function validateUpload(file: File, folder: UploadFolder, contentType: string) {
   if (file.size <= 0) throw new Error("The selected file is empty.");
-  if (file.size > MAX_UPLOAD_BYTES[folder]) {
-    const maximumMb = Math.round(MAX_UPLOAD_BYTES[folder] / (1024 * 1024));
-    throw new Error(`This file exceeds the ${maximumMb} MB upload limit.`);
-  }
 
   const isImage = contentType.startsWith("image/");
   const isAudio = contentType.startsWith("audio/");
@@ -202,3 +187,4 @@ export async function deleteFileFromStorage(filePath: string) {
   const fileRef = ref(storage, filePath);
   await deleteObject(fileRef);
 }
+

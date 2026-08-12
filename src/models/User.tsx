@@ -23,6 +23,7 @@ export interface AppUser {
   studentGroupId?: string;
   onboardingSource?: "direct" | "registration-link" | "admin" | "tutor";
   registrationLinkId?: string;
+  workspaceMode?: "independent" | "institution";
   profilePhoto?: string;
   enrolledCourses: string[];
   isActive: boolean;

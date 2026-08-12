@@ -1018,6 +1018,16 @@ service cloud.firestore {
         || (signedIn() && resource.data.tenantId is string && canManageTenant(resource.data.tenantId));
       allow create, update, delete: if isPlatformAdmin();
     }
+    // Storage metering ledger.
+    // Members may read usage for their own active tenant.
+    // All mutations are performed exclusively by trusted Cloud Functions.
+    match /tenantStorageUsage/{tenantId} {
+      allow read: if isPlatformAdmin()
+        || hasTenantMembership(tenantId);
+
+      allow create, update, delete: if false;
+    }
+
     match /plans/{documentId} {
       allow read: if signedIn();
       // Plans are written only by trusted Cloud Functions.

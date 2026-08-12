@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -163,4 +164,42 @@ export async function updateLesson(id: string, data: Partial<Lesson>): Promise<v
     safePayload.blocks = firestoreSafeLessonBlocks(payload.blocks);
   }
   await updateDoc(doc(db, COLLECTION, id), removeUndefined({ ...safePayload, updatedAt: serverTimestamp() }));
+}
+
+
+export async function deleteLesson(id: string): Promise<void> {
+  await deleteDoc(doc(db, COLLECTION, id));
+}
+
+export async function renameLesson(id: string, title: string): Promise<void> {
+  const cleanTitle = title.trim();
+  if (!cleanTitle) throw new Error("Lesson title is required.");
+  await updateLesson(id, { title: cleanTitle });
+}
+
+export async function moveLessonToModule(
+  lessonId: string,
+  target: {
+    id: string;
+    title: string;
+    courseUnitId?: string;
+    courseId?: string;
+    courseUnitTitle?: string;
+    programmeId?: string;
+    programmeTitle?: string;
+  },
+  scope: AccessScope
+): Promise<void> {
+  const existing = await getLessons(target.id, scope, true);
+  const nextOrder = existing.reduce((max, lesson) => Math.max(max, Number(lesson.order || 0)), 0) + 1;
+  await updateLesson(lessonId, {
+    moduleId: target.id,
+    moduleTitle: target.title,
+    courseUnitId: target.courseUnitId ?? target.courseId,
+    courseId: target.courseId ?? target.courseUnitId,
+    courseUnitTitle: target.courseUnitTitle,
+    programmeId: target.programmeId,
+    programmeTitle: target.programmeTitle,
+    order: nextOrder,
+  });
 }

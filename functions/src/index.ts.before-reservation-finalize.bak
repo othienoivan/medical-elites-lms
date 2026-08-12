@@ -968,7 +968,7 @@ export const upsertFinanceCommissionRule = onCall({ region: "us-central1", timeo
 });
 
 
-// RC4 Batch 3 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Flutterwave Commerce
+// RC4 Batch 3 â€” Flutterwave Commerce
 
 type CommercePurpose = "subscription" | "marketplace";
 type CommerceCheckoutData = {
@@ -4723,25 +4723,11 @@ export const onStorageObjectFinalized = onObjectFinalized(
     const usageRef = db.collection("tenantStorageUsage").doc(tenantId);
     const assetRef = db.collection("storageAssets").doc(ledgerId);
 
-    const reservationId =
-      financeText(metadata.storageReservationId, 180);
-
-    const reservationRef = reservationId
-      ? db.collection("storageReservations").doc(reservationId)
-      : null;
-
-    const quota = await resolveTenantStorageQuota(tenantId);
-
     await db.runTransaction(async (transaction) => {
-      const assetSnapshot =
-        await transaction.get(assetRef);
-
-      const usageSnapshot =
-        await transaction.get(usageRef);
-
-      const reservationSnapshot = reservationRef
-        ? await transaction.get(reservationRef)
-        : null;
+      const [assetSnapshot, usageSnapshot] = await Promise.all([
+        transaction.get(assetRef),
+        transaction.get(usageRef),
+      ]);
 
       // Cloud Storage events may be delivered more than once.
       if (assetSnapshot.exists) return;
@@ -4750,26 +4736,11 @@ export const onStorageObjectFinalized = onObjectFinalized(
         usageSnapshot.get("usedBytes"),
       );
 
-      const currentReserved = storageSafeNumber(
-        usageSnapshot.get("reservedBytes"),
-      );
-
       const currentCount = storageSafeNumber(
         usageSnapshot.get("objectCount"),
       );
 
-      const reservationBytes =
-        reservationSnapshot?.exists &&
-        financeText(reservationSnapshot.get("status"), 40) === "reserved"
-          ? storageSafeNumber(
-              reservationSnapshot.get("reservedBytes"),
-            )
-          : 0;
-
-      const nextReserved = Math.max(
-        0,
-        currentReserved - reservationBytes,
-      );
+      const quota = await resolveTenantStorageQuota(tenantId);
 
       transaction.set(
         assetRef,
@@ -4798,7 +4769,6 @@ export const onStorageObjectFinalized = onObjectFinalized(
         {
           tenantId,
           usedBytes: currentUsed + sizeBytes,
-          reservedBytes: nextReserved,
           objectCount: currentCount + 1,
           quotaBytes: quota.quotaBytes,
           planId: quota.planId,
@@ -4816,25 +4786,6 @@ export const onStorageObjectFinalized = onObjectFinalized(
         },
         { merge: true },
       );
-
-      if (
-        reservationRef &&
-        reservationSnapshot?.exists &&
-        financeText(reservationSnapshot.get("status"), 40) === "reserved"
-      ) {
-        transaction.set(
-          reservationRef,
-          {
-            status: "committed",
-            actualBytes: sizeBytes,
-            objectName,
-            generation: generation || null,
-            committedAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-          },
-          { merge: true },
-        );
-      }
     });
   },
 );
@@ -5233,7 +5184,4 @@ export const cancelStorageUploadReservation = onCall(
     return result;
   },
 );
-
-
-
 

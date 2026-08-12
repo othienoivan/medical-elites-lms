@@ -1,4 +1,4 @@
-import {
+﻿import {
   collection,
   doc,
   getDoc,
@@ -155,10 +155,26 @@ export async function markModuleStarted({
 
 
 /** Securely complete a module after backend progression validation. */
-export async function completeModuleLearning(moduleId: string): Promise<void> {
-  const callable = httpsCallable<{ moduleId: string }, { completed: boolean }>(
+export interface CompleteModuleLearningResult {
+  moduleId?: string;
+  completed: boolean;
+  requiresQuiz?: boolean;
+  quizId?: string;
+  passMark?: number;
+}
+
+export async function completeModuleLearning(
+  moduleId: string
+): Promise<CompleteModuleLearningResult> {
+  const callable = httpsCallable<
+    { moduleId: string },
+    CompleteModuleLearningResult
+  >(
     functions,
     "completeModuleLearning",
   );
-  await callable({ moduleId });
+
+  const result = await callable({ moduleId });
+  return result.data;
 }
+

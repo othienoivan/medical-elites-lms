@@ -95,6 +95,7 @@ const navigationGroups: NavigationGroup[] = [
     items: [
       { name: "Students", icon: Users, path: "/tutor/students" },
       { name: "Registration Links", icon: Link2, path: "/tutor/registration-links" },
+      { name: "Registered Learners", icon: Users, path: "/tutor/registered-learners" },
       { name: "Enrolments", icon: GraduationCap, path: "/tutor/enrollments" },
       { name: "Clinical Logbook", icon: Stethoscope, path: "/tutor/clinical-logbook" },
       { name: "Attendance", icon: CalendarCheck, path: "/tutor/attendance" },
@@ -168,6 +169,7 @@ const breadcrumbLabels: Record<string, string> = {
   mark: "Mark Submission",
   register: "Register Student",
   "registration-links": "Registration Links",
+  "registered-learners": "Registered Learners",
 };
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {

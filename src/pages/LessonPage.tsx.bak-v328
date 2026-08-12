@@ -1,4 +1,3 @@
-﻿import { getPublishedModuleLessonsV2 } from "../firebase/publicModuleLessons";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
@@ -14,6 +13,7 @@ import LessonViewer from "../components/lesson/LessonViewer";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Container from "../components/ui/Container";
+import { getLessons } from "../firebase/lessons";
 import { completeModuleLearning } from "../firebase/enrollments";
 import type { Lesson } from "../models/Lesson";
 import type { LessonBlock } from "../models/LessonBlock";
@@ -41,7 +41,7 @@ export default function LessonPage() {
       try {
         setLoading(true);
 
-        const data = (await getPublishedModuleLessonsV2(moduleId)).lessons;
+        const data = await getLessons(moduleId, scope);
 
         setLessons(
           data.sort((a: Lesson, b: Lesson) => {
@@ -89,16 +89,8 @@ export default function LessonPage() {
     if (!moduleId) return;
     try {
       setCompletingModule(true);
-      const result = await completeModuleLearning(moduleId);
-
-      if (!result.completed && result.requiresQuiz && result.quizId) {
-        navigate(`/assessments/quizzes/${result.quizId}`);
-        return;
-      }
-
-      if (result.completed) {
-        navigate("/dashboard");
-      }
+      await completeModuleLearning(moduleId);
+      navigate("/dashboard");
     } catch (error) {
       console.error("Failed to complete module:", error);
       window.alert(error instanceof Error ? error.message : "Unable to complete this module.");
@@ -220,7 +212,7 @@ export default function LessonPage() {
                         <span>
                           <span className="block">{resource.title}</span>
                           <span className="block text-xs font-normal text-slate-500">
-                            {resource.type === "pdf" ? "PDF document" : "PowerPoint presentation"} â€¢ Download only
+                            {resource.type === "pdf" ? "PDF document" : "PowerPoint presentation"} • Download only
                           </span>
                         </span>
                       </button>
@@ -367,8 +359,3 @@ function convertLegacyLessonToBlocks(lesson: Lesson): LessonBlock[] {
 
   return blocks;
 }
-
-
-
-
-

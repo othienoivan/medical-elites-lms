@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { LessonBlock } from "../../models/LessonBlock";
 import InteractiveQuestion from "./InteractiveQuestion";
-import OfficeDocumentViewer from "./OfficeDocumentViewer";
 import { Download, FileDown, FileText } from "lucide-react";
 import Button from "../ui/Button";
 import { getLessonResourceAccessUrl } from "../../firebase/lessonResourceAccess";
@@ -125,11 +124,18 @@ export default function LessonViewer({ blocks, lessonId, courseUnitId }: Props) 
           )}
 
           {block.type === "document" && block.url && (
-            <OfficeDocumentViewer
-              originalUrl={block.url}
+            <DownloadAttachment
+              url={block.url}
+              title={block.title || block.metadata?.fileName || "Word document"}
+              fileName={block.metadata?.fileName as string | undefined}
+              fileType="Word document"
+              fileSize={block.metadata?.size as number | undefined}
+              icon={<FileText className="text-blue-700" size={44} />}
+              buttonLabel="Download Word Document"
+              note="Browser preview has been disabled. Download the original document to read it."
               filePath={block.metadata?.filePath as string | undefined}
-              title={block.title || "Word document"}
-              originalLabel="Download Word document"
+              lessonId={lessonId}
+              courseUnitId={courseUnitId}
             />
           )}
 

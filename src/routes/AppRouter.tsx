@@ -31,6 +31,7 @@ const LoginPage = lazy(() => import("../pages/LoginPage"));
 const RegisterPage = lazy(() => import("../pages/RegisterPage"));
 const JoinPage = lazy(() => import("../pages/JoinPage"));
 const RegistrationLinksPage = lazy(() => import("../pages/RegistrationLinksPage"));
+const TutorRegisteredLearnersPage = lazy(() => import("../pages/TutorRegisteredLearnersPage"));
 const StudentDirectoryPage = lazy(() => import("../pages/StudentDirectoryPage"));
 const BulkImportStudentsPage = lazy(() => import("../pages/BulkImportStudentsPage"));
 const DashboardPage = lazy(() => import("../pages/DashboardPage"));
@@ -586,6 +587,7 @@ export default function AppRouter() {
         />
         <Route path="/tutor/curriculum-import" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><TutorCurriculumImportPage /></ProtectedRoute>} />
         <Route path="/tutor/registration-links" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><RegistrationLinksPage /></ProtectedRoute>} />
+        <Route path="/tutor/registered-learners" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><TutorRegisteredLearnersPage /></ProtectedRoute>} />
 
         <Route
           path="/tutor/programmes"
