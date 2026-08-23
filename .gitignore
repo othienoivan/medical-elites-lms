@@ -10,3 +10,7 @@ functions/node_modules/
 *.log
 .DS_Store
 coverage/
+
+# Local repair scripts and temporary backups
+*.ps1
+*-backup-*/
