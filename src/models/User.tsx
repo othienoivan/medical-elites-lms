@@ -7,7 +7,7 @@ export interface AppUser {
   fullName: string;
   email: string;
   role: UserRole;
-  platformRole?: "super_admin" | "platform_support" | "platform_finance";
+  platformRole?: "super_admin" | "platform_admin" | "platform_support" | "platform_finance";
   requestedRole?: UserRole;
   tenantId?: string;
   tenantIds?: string[];
@@ -25,6 +25,7 @@ export interface AppUser {
   registrationLinkId?: string;
   workspaceMode?: "independent" | "institution";
   profilePhoto?: string;
+  profilePhotoPath?: string;
   enrolledCourses: string[];
   isActive: boolean;
   createdAt?: Date | Timestamp | null;

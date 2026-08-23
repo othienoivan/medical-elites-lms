@@ -12,6 +12,7 @@ import { createQuiz, getQuizById, updateQuiz } from "../firebase/quizzes";
 import useAuth from "../hooks/useAuth";
 import useCourseUnits from "../hooks/useCourseUnits";
 import useModules from "../hooks/useModules";
+import useLessons from "../hooks/useLessons";
 import useProgrammes from "../hooks/useProgrammes";
 import type { Question } from "../models/Question";
 import type { AssessmentType, QuizQuestionRef } from "../models/Quiz";
@@ -43,6 +44,8 @@ export default function QuizBuilderPage() {
   const [programmeId, setProgrammeId] = useState("");
   const [courseUnitId, setCourseUnitId] = useState("");
   const [moduleId, setModuleId] = useState("");
+  const [lessonId, setLessonId] = useState("");
+  const { lessons } = useLessons(moduleId, true);
 
   const [assessmentType, setAssessmentType] =
     useState<AssessmentType>("lesson-quiz");
@@ -96,6 +99,7 @@ export default function QuizBuilderPage() {
         setProgrammeId(existing.programmeId || "");
         setCourseUnitId(existing.courseUnitId || "");
         setModuleId(existing.moduleId || "");
+        setLessonId(existing.lessonId || "");
         setAssessmentType(existing.assessmentType || "lesson-quiz");
         setAssessmentCode(existing.assessmentCode || "");
         setWeightPercentage(existing.weightPercentage ?? undefined);
@@ -144,6 +148,7 @@ export default function QuizBuilderPage() {
     (item) => item.id === courseUnitId
   );
   const selectedModule = modules.find((item) => item.id === moduleId);
+  const selectedLesson = lessons.find((item) => item.id === lessonId);
 
   const selectedAssessmentLabel =
     assessmentTypes.find((type) => type.value === assessmentType)?.label ||
@@ -234,6 +239,8 @@ export default function QuizBuilderPage() {
 
         moduleId: moduleId || undefined,
         moduleTitle: selectedModule?.title || undefined,
+        lessonId: lessonId || undefined,
+        lessonTitle: selectedLesson?.title || undefined,
 
         questions: selectedQuestions,
         totalMarks,
@@ -309,7 +316,7 @@ export default function QuizBuilderPage() {
                 Academic Hierarchy
               </h3>
 
-              <div className="grid gap-5 md:grid-cols-3">
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
                 <SelectField
                   label="Programme"
                   value={programmeId}
@@ -317,6 +324,7 @@ export default function QuizBuilderPage() {
                     setProgrammeId(value);
                     setCourseUnitId("");
                     setModuleId("");
+                    setLessonId("");
                   }}
                   options={[
                     { value: "", label: "Select Programme" },
@@ -333,6 +341,7 @@ export default function QuizBuilderPage() {
                   onChange={(value) => {
                     setCourseUnitId(value);
                     setModuleId("");
+                    setLessonId("");
                   }}
                   options={[
                     { value: "", label: "Select Course Unit" },
@@ -346,13 +355,23 @@ export default function QuizBuilderPage() {
                 <SelectField
                   label="Module"
                   value={moduleId}
-                  onChange={setModuleId}
+                  onChange={(value) => { setModuleId(value); setLessonId(""); }}
                   options={[
                     { value: "", label: "Select Module" },
                     ...filteredModules.map((module) => ({
                       value: module.id,
                       label: module.title,
                     })),
+                  ]}
+                />
+
+                <SelectField
+                  label="Lesson (optional)"
+                  value={lessonId}
+                  onChange={setLessonId}
+                  options={[
+                    { value: "", label: moduleId ? "Module-level / no lesson" : "Select module first" },
+                    ...lessons.map((lesson) => ({ value: lesson.id, label: lesson.title })),
                   ]}
                 />
               </div>

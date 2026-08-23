@@ -1,7 +1,6 @@
 import {
   addDoc,
   collection,
-  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -11,7 +10,8 @@ import {
   where,
 } from "firebase/firestore";
 
-import { auth, db } from "../config/firebase";
+import { httpsCallable } from "firebase/functions";
+import { auth, db, functions } from "../config/firebase";
 import type { Quiz, QuizQuestionRef } from "../models/Quiz";
 import { requireAccessScope, type AccessScope } from "./accessScope";
 
@@ -85,6 +85,26 @@ async function validateQuizQuestions(questions: QuizQuestionRef[] | undefined) {
   await assertQuestionDocumentsExist(validReferences);
 }
 
+async function syncQuizPlacement(quizId: string, next: Partial<Quiz>, previous?: Quiz | null) {
+  const previousLessonId = previous?.lessonId;
+  const previousModuleId = previous?.moduleId;
+  if (previousLessonId && previousLessonId !== next.lessonId) {
+    const ref = doc(db, "lessons", previousLessonId);
+    const snap = await getDoc(ref);
+    if (snap.exists() && snap.data().quizId === quizId) await updateDoc(ref, { quizId: null, updatedAt: serverTimestamp() });
+  }
+  if (previousModuleId && previousModuleId !== next.moduleId && !previousLessonId) {
+    const ref = doc(db, "modules", previousModuleId);
+    const snap = await getDoc(ref);
+    if (snap.exists() && snap.data().quizId === quizId) await updateDoc(ref, { quizId: null, updatedAt: serverTimestamp() });
+  }
+  if (next.lessonId) {
+    await updateDoc(doc(db, "lessons", next.lessonId), { quizId, quizRequired: true, updatedAt: serverTimestamp() });
+  } else if (next.moduleId) {
+    await updateDoc(doc(db, "modules", next.moduleId), { quizId, quizRequired: true, updatedAt: serverTimestamp() });
+  }
+}
+
 export async function createQuiz(quiz: Quiz): Promise<string> {
   await validateQuizQuestions(quiz.questions);
 
@@ -107,6 +127,7 @@ export async function createQuiz(quiz: Quiz): Promise<string> {
   });
 
   const docRef = await addDoc(collection(db, COLLECTION), payload);
+  await syncQuizPlacement(docRef.id, quiz);
   return docRef.id;
 }
 
@@ -174,6 +195,7 @@ export async function updateQuiz(
   id: string,
   data: Partial<Quiz>
 ): Promise<void> {
+  const previous = await getQuizById(id);
   if (data.questions !== undefined) {
     await validateQuizQuestions(data.questions);
   }
@@ -185,8 +207,10 @@ export async function updateQuiz(
       updatedAt: serverTimestamp(),
     })
   );
+  await syncQuizPlacement(id, { ...previous, ...data }, previous);
 }
 
 export async function deleteQuiz(id: string): Promise<void> {
-  await deleteDoc(doc(db, COLLECTION, id));
+  const callable = httpsCallable<{ quizId: string }, { success: boolean }>(functions, "permanentlyDeleteQuizTrusted");
+  await callable({ quizId: id });
 }

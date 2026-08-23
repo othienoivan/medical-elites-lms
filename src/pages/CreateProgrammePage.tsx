@@ -2,10 +2,12 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import TutorLayout from "../components/layout/TutorLayout";
+import FileUpload from "../components/upload/FileUpload";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import { createProgramme } from "../firebase/programmes";
+import { deleteFileFromStorage } from "../firebase/storage";
 import useAuth from "../hooks/useAuth";
 import type { ProgrammeLevel } from "../models/Programme";
 
@@ -20,6 +22,7 @@ export default function CreateProgrammePage() {
   const [description, setDescription] = useState("");
   const [duration, setDuration] = useState("");
   const [image, setImage] = useState("");
+  const [imagePath, setImagePath] = useState("");
   const [loading, setLoading] = useState(false);
 
   function createSlug(value: string) {
@@ -51,6 +54,7 @@ export default function CreateProgrammePage() {
         description,
         duration,
         image,
+        imagePath: imagePath || undefined,
         createdBy: currentUser.uid,
         ownerUserId: currentUser.uid,
         createdByUid: currentUser.uid,
@@ -167,12 +171,48 @@ export default function CreateProgrammePage() {
 
           <div>
             <label className="mb-2 block font-semibold text-slate-700">
-              Image URL
+              Programme Cover Image
             </label>
-            <Input
-              placeholder="Optional image URL"
-              value={image}
-              onChange={(e) => setImage(e.target.value)}
+
+            {image && (
+              <div className="mb-4 overflow-hidden rounded-2xl border bg-slate-50">
+                <img src={image} alt="Programme cover" className="aspect-[16/7] w-full object-cover" />
+                <div className="p-3">
+                  <button
+                    type="button"
+                    className="text-sm font-bold text-red-600"
+                    onClick={() => {
+                      const pending = imagePath;
+                      setImage("");
+                      setImagePath("");
+                      if (pending) {
+                        void deleteFileFromStorage(pending).catch((error) =>
+                          console.warn("Unsaved programme cover could not be deleted.", error),
+                        );
+                      }
+                    }}
+                  >
+                    Remove cover
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <FileUpload
+              folder="images"
+              accept="image/jpeg,image/png,image/webp"
+              label={image ? "Replace Programme Cover" : "Upload Programme Cover"}
+              customMetadata={{ imagePurpose: "programme-cover" }}
+              onUploaded={(file) => {
+                const previous = imagePath;
+                setImage(file.downloadUrl);
+                setImagePath(file.filePath);
+                if (previous && previous !== file.filePath) {
+                  void deleteFileFromStorage(previous).catch((error) =>
+                    console.warn("Previous unsaved programme cover could not be deleted.", error),
+                  );
+                }
+              }}
             />
           </div>
 

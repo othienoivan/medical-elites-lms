@@ -12,6 +12,7 @@ import { bulkCreateQuestions } from "../firebase/questions";
 import { getLessons } from "../firebase/lessons";
 import useAccessScope from "../hooks/useAccessScope";
 import type { Question } from "../models/Question";
+import { buildLessonAiContext } from "../utils/lessonAiContext";
 import useAuth from "../hooks/useAuth";
 import useCourseUnits from "../hooks/useCourseUnits";
 import useModules from "../hooks/useModules";
@@ -52,6 +53,11 @@ export default function CreateQuizPage() {
 
   const [saving, setSaving] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiMcqCount, setAiMcqCount] = useState(10);
+  const [aiShortAnswerCount, setAiShortAnswerCount] = useState(0);
+  const [aiTrueFalseCount, setAiTrueFalseCount] = useState(0);
+  const [aiCrossMatchingCount, setAiCrossMatchingCount] = useState(0);
+  const [aiEssayCount, setAiEssayCount] = useState(0);
 
   useEffect(() => {
     const requestedModuleId = searchParams.get("moduleId") || "";
@@ -140,39 +146,81 @@ export default function CreateQuizPage() {
       alert("Select a module before asking AI to create questions.");
       return;
     }
+    const requestedCounts = {
+      mcq: Math.max(0, Math.floor(aiMcqCount || 0)),
+      shortAnswer: Math.max(0, Math.floor(aiShortAnswerCount || 0)),
+      trueFalse: Math.max(0, Math.floor(aiTrueFalseCount || 0)),
+      crossMatching: Math.max(0, Math.floor(aiCrossMatchingCount || 0)),
+      essay: Math.max(0, Math.floor(aiEssayCount || 0)),
+    };
+    const requestedTotal = Object.values(requestedCounts).reduce((sum, value) => sum + value, 0);
+    if (requestedTotal < 1) {
+      alert("Specify at least one AI-generated question.");
+      return;
+    }
+    if (requestedTotal > 50) {
+      alert("Generate a maximum of 50 questions at a time for reliable review and saving.");
+      return;
+    }
     try {
       setAiGenerating(true);
       const lessonRows = await getLessons(selectedModule.id, scope, true);
-      const context = lessonRows.map((lesson) => {
-        const blockText = (lesson.blocks || [])
-          .map((block) =>
-            [block.title, block.content, block.metadata?.fileName]
-              .filter(Boolean)
-              .join(" "),
-          )
-          .join("\n");
-
-        return `${lesson.title}\n${lesson.description ?? ""}\n${blockText}`;
-      })
-      .join("\n\n")
-      .slice(0, 40000);
+      const context = lessonRows
+        .map((lesson) => buildLessonAiContext(lesson))
+        .filter(Boolean)
+        .join("\n\n")
+        .slice(0, 44000);
       if (context.trim().length < 80) {
-        alert("This module has insufficient lesson text for reliable AI question generation. Add lesson content or extracted document text first.");
+        alert("This module has insufficient readable lesson text for reliable AI question generation. Add lesson descriptions, objectives, rich text, structured clinical content, or readable HTML text first.");
         return;
       }
+
+      const composition = [
+        `${requestedCounts.mcq} MCQ`,
+        `${requestedCounts.shortAnswer} short-answer`,
+        `${requestedCounts.trueFalse} true/false`,
+        `${requestedCounts.crossMatching} cross-matching/EMQ`,
+        `${requestedCounts.essay} essay`,
+      ].join(", ");
       const response = await generateAiResponse({
         mode: "tutor_questions",
-        prompt: "Create exactly 10 single-best-answer MCQs strictly from the supplied module content. Return ONLY valid JSON as an array. Each object must contain questionText, options (exactly 4 strings), correctIndex (0-3), explanation, difficulty (easy|medium|hard), bloomLevel (remember|understand|apply|analyze), topic, and marks.",
+        prompt: `Create exactly ${requestedTotal} questions strictly from the supplied module content with this exact composition: ${composition}. Return ONLY valid JSON as an array and do not add or omit any requested type. Every object must contain type (mcq|short-answer|true-false|emq|essay), questionText, options, correctAnswer, explanation, difficulty (easy|medium|hard), bloomLevel (remember|understand|apply|analyze|evaluate|create), topic, and marks. MCQ must have exactly 4 options labelled A-D and correctAnswer must be the correct label. True/false must use options ["True","False"] and correctAnswer must be True or False. For short-answer and essay, options must be [] and correctAnswer must contain a concise model answer or marking guide. For cross-matching, use type "emq" and create an extended-matching/best-match item with a clearly stated option pool, exactly 4 plausible options A-D, and correctAnswer as the correct option label.`,
         context,
       });
       const cleaned = response.text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
       const parsed = JSON.parse(cleaned) as Array<Record<string, unknown>>;
       if (!Array.isArray(parsed) || parsed.length === 0) throw new Error("AI returned no usable questions.");
-      const generated = parsed.slice(0, 20).map<Question>((item) => {
-        const optionTexts = Array.isArray(item.options) ? item.options.map(String).slice(0, 4) : [];
-        if (optionTexts.length !== 4) throw new Error("AI returned a question without four options.");
-        const correctIndex = Math.max(0, Math.min(3, Number(item.correctIndex) || 0));
+
+      const normalizeType = (value: unknown): Question["type"] => {
+        const raw = String(value || "").trim().toLowerCase();
+        if (["mcq", "multiple-choice", "multiple choice"].includes(raw)) return "mcq";
+        if (["true-false", "true/false", "true false", "tf"].includes(raw)) return "true-false";
+        if (["short-answer", "short answer", "saq"].includes(raw)) return "short-answer";
+        if (["essay", "long-answer", "long answer"].includes(raw)) return "essay";
+        if (["emq", "cross-matching", "cross matching", "matching"].includes(raw)) return "emq";
+        return "mcq";
+      };
+
+      const generated = parsed.slice(0, requestedTotal).map<Question>((item) => {
+        const type = normalizeType(item.type);
+        let optionTexts = Array.isArray(item.options) ? item.options.map(String).filter(Boolean) : [];
+        if (type === "mcq" || type === "emq") {
+          optionTexts = optionTexts.slice(0, 4);
+          if (optionTexts.length !== 4) throw new Error(`AI returned a ${type === "mcq" ? "MCQ" : "cross-matching/EMQ"} without exactly four options.`);
+        } else if (type === "true-false") {
+          optionTexts = ["True", "False"];
+        } else {
+          optionTexts = [];
+        }
         const optionIds = optionTexts.map((_, index) => String.fromCharCode(65 + index));
+        let correctAnswer = String(item.correctAnswer || "").trim();
+        if ((type === "mcq" || type === "emq") && !optionIds.includes(correctAnswer.toUpperCase())) {
+          const correctIndex = Number(item.correctIndex);
+          if (Number.isInteger(correctIndex) && correctIndex >= 0 && correctIndex < optionIds.length) correctAnswer = optionIds[correctIndex];
+        }
+        if (type === "true-false") {
+          correctAnswer = /^t(rue)?$/i.test(correctAnswer) ? "True" : /^f(alse)?$/i.test(correctAnswer) ? "False" : correctAnswer;
+        }
         return {
           id: "",
           programmeId: selectedProgramme?.id ?? selectedModule.programmeId,
@@ -182,14 +230,14 @@ export default function CreateQuizPage() {
           moduleId: selectedModule.id,
           moduleTitle: selectedModule.title,
           topic: String(item.topic || selectedModule.title),
-          type: "mcq",
+          type,
           difficulty: (["easy","medium","hard"].includes(String(item.difficulty)) ? String(item.difficulty) : "medium") as Question["difficulty"],
           bloomLevel: (["remember","understand","apply","analyze","evaluate","create"].includes(String(item.bloomLevel)) ? String(item.bloomLevel) : "understand") as Question["bloomLevel"],
           questionText: String(item.questionText || "").trim(),
-          options: optionTexts.map((text, index) => ({ id: optionIds[index], label: String.fromCharCode(65 + index), text })),
-          correctAnswer: optionIds[correctIndex],
+          options: optionTexts.map((text, index) => ({ id: optionIds[index], label: type === "true-false" ? text : optionIds[index], text })),
+          correctAnswer,
           explanation: String(item.explanation || ""),
-          marks: Math.max(1, Number(item.marks) || 1),
+          marks: Math.max(1, Number(item.marks) || (type === "essay" ? 10 : type === "short-answer" ? 5 : 1)),
           tags: [selectedModule.title, "AI-generated"],
           isPublished: true,
           ownerUserId: currentUser.uid,
@@ -199,10 +247,26 @@ export default function CreateQuizPage() {
           assignedTutorIds: [currentUser.uid],
         };
       }).filter(item => item.questionText.length > 10);
+
+      const actualCounts = generated.reduce((counts, question) => {
+        counts[question.type] = (counts[question.type] || 0) + 1;
+        return counts;
+      }, {} as Record<string, number>);
+      const mismatches = [
+        ["mcq", requestedCounts.mcq],
+        ["short-answer", requestedCounts.shortAnswer],
+        ["true-false", requestedCounts.trueFalse],
+        ["emq", requestedCounts.crossMatching],
+        ["essay", requestedCounts.essay],
+      ].filter(([type, expected]) => (actualCounts[String(type)] || 0) !== Number(expected));
+      if (mismatches.length > 0 || generated.length !== requestedTotal) {
+        throw new Error("AI did not return the exact requested question composition. No questions were saved; please generate again.");
+      }
+
       const ids = await bulkCreateQuestions(generated);
       setSelectedQuestions(ids.map((questionId, index) => ({ id: crypto.randomUUID(), questionId, order: index + 1, marks: generated[index]?.marks || 1 })));
       await refreshQuestions();
-      alert(`${ids.length} AI-generated questions were added to the Question Bank and selected for this quiz.`);
+      alert(`${ids.length} AI-generated questions were added to the Question Bank and selected for this quiz with the requested composition.`);
     } catch (error) {
       console.error("AI quiz generation failed", error);
       alert(error instanceof Error ? error.message : "AI could not generate the quiz questions.");
@@ -289,12 +353,27 @@ assessmentType: "lesson-quiz",
       title="Create Quiz"
       subtitle="Build a medical quiz using reusable questions from the Question Bank."
     >
-      <div className="mb-6 flex flex-wrap gap-3">
-        <Button type="button" variant="outline" disabled={aiGenerating || !moduleId} onClick={() => void generateQuestionsWithAi()}>
-          {aiGenerating ? <Loader2 size={18} className="animate-spin"/> : <Sparkles size={18}/>} {aiGenerating ? "Generating from lesson content..." : "Generate Quiz with AI"}
-        </Button>
-        <p className="self-center text-sm text-slate-600">AI uses the selected module's saved lesson text and extracted document content.</p>
-      </div>
+      <Card className="mb-6 border-blue-100 bg-blue-50/40">
+        <div className="flex flex-col gap-4">
+          <div>
+            <h2 className="font-bold text-slate-950">AI Quiz Composition</h2>
+            <p className="mt-1 text-sm text-slate-600">Specify exactly how many questions of each type AI should generate from the selected module.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <AiCountField label="MCQs" value={aiMcqCount} onChange={setAiMcqCount} />
+            <AiCountField label="Short Answers" value={aiShortAnswerCount} onChange={setAiShortAnswerCount} />
+            <AiCountField label="True / False" value={aiTrueFalseCount} onChange={setAiTrueFalseCount} />
+            <AiCountField label="Cross Matching / EMQ" value={aiCrossMatchingCount} onChange={setAiCrossMatchingCount} />
+            <AiCountField label="Essay Questions" value={aiEssayCount} onChange={setAiEssayCount} />
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="button" variant="outline" disabled={aiGenerating || !moduleId} onClick={() => void generateQuestionsWithAi()}>
+              {aiGenerating ? <Loader2 size={18} className="animate-spin"/> : <Sparkles size={18}/>} {aiGenerating ? "Generating requested composition..." : "Generate Quiz with AI"}
+            </Button>
+            <p className="text-sm text-slate-600">Requested total: {aiMcqCount + aiShortAnswerCount + aiTrueFalseCount + aiCrossMatchingCount + aiEssayCount} question(s). AI uses saved lesson text and extracted document content.</p>
+          </div>
+        </div>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -548,6 +627,29 @@ function SelectField({
     </div>
   );
 }
+function AiCountField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div>
+      <label className="mb-2 block text-sm font-semibold text-slate-700">{label}</label>
+      <Input
+        type="number"
+        min="0"
+        max="50"
+        value={value}
+        onChange={(event) => onChange(Math.max(0, Number(event.target.value) || 0))}
+      />
+    </div>
+  );
+}
+
 function NumberField({
   label,
   value,

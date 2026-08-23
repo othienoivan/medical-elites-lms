@@ -1,4 +1,4 @@
-import { BarChart3, CalendarClock, ClipboardList, Lock, Plus, Search } from "lucide-react";
+import { BarChart3, CalendarClock, ClipboardList, Lock, Plus, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -6,6 +6,7 @@ import TutorLayout from "../components/layout/TutorLayout";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import useQuizzes from "../hooks/useQuizzes";
+import { deleteQuiz } from "../firebase/quizzes";
 import type { AssessmentType } from "../models/Quiz";
 
 const assessmentTypes: {
@@ -24,16 +25,25 @@ const assessmentTypes: {
 
 export default function QuizBankPage() {
   const navigate = useNavigate();
-  const { quizzes, loading } = useQuizzes();
+  const { quizzes, loading, refresh } = useQuizzes();
 
   const [search, setSearch] = useState("");
   const [assessmentType, setAssessmentType] =
     useState<"all" | AssessmentType>("all");
+  const [courseUnitFilter, setCourseUnitFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<"updated" | "course-unit" | "title">("updated");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const courseUnitOptions = useMemo<Array<[string, string]>>(() => {
+    const map = new Map<string, string>();
+    quizzes.forEach((quiz) => { if (quiz.courseUnitId) map.set(quiz.courseUnitId, quiz.courseUnitTitle || quiz.courseUnitId); });
+    return [...map.entries()].sort((a,b)=>a[1].localeCompare(b[1]));
+  }, [quizzes]);
 
   const filteredQuizzes = useMemo(() => {
     const keyword = search.toLowerCase();
 
-    return quizzes.filter((quiz) => {
+    const matched = quizzes.filter((quiz) => {
       const matchesSearch =
         quiz.title.toLowerCase().includes(keyword) ||
         quiz.description.toLowerCase().includes(keyword) ||
@@ -47,9 +57,21 @@ export default function QuizBankPage() {
         quiz.assessmentType === assessmentType ||
         (!quiz.assessmentType && assessmentType === "lesson-quiz");
 
-      return matchesSearch && matchesType;
+      return matchesSearch && matchesType && (courseUnitFilter === "all" || quiz.courseUnitId === courseUnitFilter);
     });
-  }, [quizzes, search, assessmentType]);
+    return matched.sort((a, b) => {
+      if (sortBy === "course-unit") return (a.courseUnitTitle || "").localeCompare(b.courseUnitTitle || "") || a.title.localeCompare(b.title);
+      if (sortBy === "title") return a.title.localeCompare(b.title);
+      const aTime = a.updatedAt instanceof Date ? a.updatedAt.getTime() : a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
+      const bTime = b.updatedAt instanceof Date ? b.updatedAt.getTime() : b.createdAt instanceof Date ? b.createdAt.getTime() : 0;
+      return bTime - aTime;
+    });
+  }, [quizzes, search, assessmentType, courseUnitFilter, sortBy]);
+
+  async function handlePermanentDelete(id: string, title: string) {
+    if (!window.confirm(`Permanently delete ${title}? It will be removed from lesson/module placement and student assessment availability. This cannot be undone.`)) return;
+    try { setDeletingId(id); await deleteQuiz(id); await refresh(); } catch (error) { console.error("Quiz deletion failed:", error); alert(error instanceof Error ? error.message : "Quiz deletion failed."); } finally { setDeletingId(null); }
+  }
 
   return (
     <TutorLayout
@@ -69,6 +91,17 @@ export default function QuizBankPage() {
         </div>
 
         <div className="flex flex-col gap-3 md:flex-row">
+          <select value={courseUnitFilter} onChange={(event) => setCourseUnitFilter(event.target.value)} className="rounded-xl border border-slate-300 px-4 py-3" aria-label="Filter assessments by Course Unit">
+            <option value="all">All Course Units</option>
+            {courseUnitOptions.map(([id, title]) => <option key={id} value={id}>{title}</option>)}
+          </select>
+
+          <select value={sortBy} onChange={(event) => setSortBy(event.target.value as typeof sortBy)} className="rounded-xl border border-slate-300 px-4 py-3" aria-label="Sort Quiz Bank">
+            <option value="updated">Newest / Updated First</option>
+            <option value="course-unit">Sort by Course Unit</option>
+            <option value="title">Sort by Assessment Title</option>
+          </select>
+
           <select
             aria-label="Filter by assessment type"
             title="Filter by assessment type"
@@ -210,6 +243,8 @@ export default function QuizBankPage() {
                   >
                     Open Builder
                   </Button>
+                  <Button variant="outline" onClick={() => navigate(`/tutor/quizzes/${quiz.id}/builder`)}>Assign to Lesson / Module</Button>
+                  <Button variant="outline" disabled={deletingId === quiz.id} onClick={() => void handlePermanentDelete(quiz.id, quiz.title)}><Trash2 size={16}/>{deletingId === quiz.id ? "Deleting..." : "Delete Permanently"}</Button>
                 </div>
               </div>
             </Card>

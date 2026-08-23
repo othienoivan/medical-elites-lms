@@ -1,4 +1,4 @@
-﻿import {
+import {
   CalendarClock,
   CheckCircle,
   ClipboardCheck,
@@ -48,7 +48,7 @@ export default function AssessmentEntryPage() {
           );
 
           setAttempts(
-            studentAttempts.filter((attempt) => attempt.quizId === quizId)
+            studentAttempts.filter((attempt) => attempt.quizId === quizData.id)
           );
         }
       } catch (error) {
@@ -251,11 +251,11 @@ export default function AssessmentEntryPage() {
               </h2>
 
               <ul className="mt-4 space-y-2 text-sm leading-6 text-slate-700">
-                <li>â€¢ Answer all questions before submitting.</li>
-                <li>â€¢ Do not refresh the browser during the assessment.</li>
-                <li>â€¢ The timer starts immediately after you begin.</li>
-                <li>â€¢ Submit before the time expires.</li>
-                <li>â€¢ Your score will be recorded after submission.</li>
+                <li>• Answer all questions before submitting.</li>
+                <li>• Do not refresh the browser during the assessment.</li>
+                <li>• The timer starts immediately after you begin.</li>
+                <li>• Submit before the time expires.</li>
+                <li>• Your score will be recorded after submission.</li>
               </ul>
             </div>
 

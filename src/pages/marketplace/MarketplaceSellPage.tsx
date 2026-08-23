@@ -7,6 +7,7 @@ import useAccessScope from "../../hooks/useAccessScope";
 import useCourseUnits from "../../hooks/useCourseUnits";
 import { MarketplaceService, marketplaceSku, normalizeMarketplaceSlug, type MarketplaceCategory, type MarketplaceProductType } from "../../domains/marketplace";
 
+import FileUpload from "../../components/upload/FileUpload";
 const TYPES: Array<{ value: MarketplaceProductType; label: string }> = [
   { value: "course_unit", label: "Course unit" },
   { value: "course", label: "Digital course" },
@@ -39,6 +40,7 @@ export default function MarketplaceSellPage() {
   const [tags, setTags] = useState("");
   const [outcomes, setOutcomes] = useState("");
   const [thumbnailUrl, setThumbnailUrl] = useState("");
+  const [thumbnailPath, setThumbnailPath] = useState("");
   const [accessType, setAccessType] = useState<"lifetime" | "fixed_term" | "subscription" | "institution_license" | "promotional">("lifetime");
   const [accessDays, setAccessDays] = useState("365");
   const [visibility, setVisibility] = useState<"public" | "institution_only" | "private_link">("public");
@@ -86,6 +88,7 @@ export default function MarketplaceSellPage() {
         semester: selectedCourseUnit?.semester != null ? String(selectedCourseUnit.semester) : undefined,
         yearOfStudy: selectedCourseUnit?.yearOfStudy != null ? String(selectedCourseUnit.yearOfStudy) : undefined,
         thumbnailUrl: thumbnailUrl.trim(),
+        thumbnailPath: thumbnailPath || undefined,
         linkedResourceIds: selectedCourseUnit ? [selectedCourseUnit.id] : [],
         accessType,
         accessDays: accessType === "fixed_term" ? Number(accessDays) || 365 : undefined,
@@ -121,7 +124,7 @@ export default function MarketplaceSellPage() {
 
         <section className="grid gap-5 rounded-2xl border bg-white p-6 md:grid-cols-2">
           <div className="md:col-span-2"><p className="text-xs font-black uppercase tracking-wider text-cyan-700">2. Academic content</p></div>
-          <label className="md:col-span-2"><span className="mb-2 block font-bold">Linked course unit {(type === "course_unit" || type === "course") && "*"}</span><select disabled={loadingCourseUnits} className="w-full rounded-xl border px-4 py-3" value={courseUnitId} onChange={(e)=>setCourseUnitId(e.target.value)}><option value="">No linked course unit</option>{courseUnits.map((course)=><option key={course.id} value={course.id}>{course.code ? `${course.code} — ` : ""}{course.title}</option>)}</select><p className="mt-1 text-xs text-slate-500">A successful purchase can use this link to grant access automatically.</p></label>
+          <label className="md:col-span-2"><span className="mb-2 block font-bold">Linked course unit {(type === "course_unit" || type === "course") && "*"}</span><select disabled={loadingCourseUnits} className="w-full rounded-xl border px-4 py-3" value={courseUnitId} onChange={(e)=>setCourseUnitId(e.target.value)}><option value="">No linked course unit</option>{courseUnits.map((course)=><option key={course.id} value={course.id}>{course.code ? `${course.code} Ã¢â‚¬â€ ` : ""}{course.title}</option>)}</select><p className="mt-1 text-xs text-slate-500">A successful purchase can use this link to grant access automatically.</p></label>
           <label className="md:col-span-2"><span className="mb-2 block font-bold">Learning outcomes (one per line)</span><textarea className="min-h-28 w-full rounded-xl border px-4 py-3" value={outcomes} onChange={(e)=>setOutcomes(e.target.value)}/></label>
           <label className="md:col-span-2"><span className="mb-2 block font-bold">Tags (comma separated)</span><input className="w-full rounded-xl border px-4 py-3" value={tags} onChange={(e)=>setTags(e.target.value)}/></label>
         </section>
@@ -133,13 +136,50 @@ export default function MarketplaceSellPage() {
           <label><span className="mb-2 block font-bold">Access type</span><select className="w-full rounded-xl border px-4 py-3" value={accessType} onChange={(e)=>setAccessType(e.target.value as typeof accessType)}><option value="lifetime">Lifetime</option><option value="fixed_term">Fixed term</option><option value="subscription">Monthly membership</option><option value="institution_license">Institution licence</option><option value="promotional">Promotional</option></select></label>
           {accessType === "fixed_term" && <label><span className="mb-2 block font-bold">Access days</span><input type="number" className="w-full rounded-xl border px-4 py-3" value={accessDays} onChange={(e)=>setAccessDays(e.target.value)}/></label>}
           <label><span className="mb-2 block font-bold">Visibility</span><select className="w-full rounded-xl border px-4 py-3" value={visibility} onChange={(e)=>setVisibility(e.target.value as typeof visibility)}><option value="public">Public marketplace</option><option value="institution_only">Institution only</option><option value="private_link">Private link</option></select></label>
-          <label><span className="mb-2 block font-bold">Thumbnail URL</span><input className="w-full rounded-xl border px-4 py-3" value={thumbnailUrl} onChange={(e)=>setThumbnailUrl(e.target.value)}/></label>
+          <div>
+  <span className="mb-2 block font-bold">Product thumbnail</span>
+
+  {thumbnailUrl && (
+    <div className="mb-3 overflow-hidden rounded-2xl border bg-slate-50">
+      <img
+        src={thumbnailUrl}
+        alt="Product thumbnail"
+        className="aspect-video w-full object-cover"
+      />
+      <div className="p-3">
+        <button
+          type="button"
+          className="text-sm font-bold text-red-600"
+          onClick={() => {
+            setThumbnailUrl("");
+            setThumbnailPath("");
+          }}
+        >
+          Remove thumbnail
+        </button>
+      </div>
+    </div>
+  )}
+
+  <FileUpload
+    folder="images"
+    accept="image/jpeg,image/png,image/webp"
+    label={thumbnailUrl ? "Replace Thumbnail" : "Upload Thumbnail"}
+    customMetadata={{ imagePurpose: "marketplace-thumbnail" }}
+    onUploaded={(file) => {
+      setThumbnailUrl(file.downloadUrl);
+      setThumbnailPath(file.filePath);
+    }}
+  />
+</div>
           <div className="md:col-span-2 grid gap-3 sm:grid-cols-3"><label className="flex items-center gap-2"><input type="checkbox" checked={allowReviews} onChange={(e)=>setAllowReviews(e.target.checked)}/>Allow reviews</label><label className="flex items-center gap-2"><input type="checkbox" checked={certificateIncluded} onChange={(e)=>setCertificateIncluded(e.target.checked)}/>Certificate included</label><label className="flex items-center gap-2"><input type="checkbox" checked={downloadAllowed} onChange={(e)=>setDownloadAllowed(e.target.checked)}/>Downloads allowed</label></div>
         </section>
 
         {error && <div className="rounded-xl bg-red-50 p-4 text-red-700">{error}</div>}
-        <div className="flex flex-wrap justify-end gap-3 rounded-2xl border bg-white p-5"><button disabled={saving} onClick={()=>void submit("draft")} className="flex items-center gap-2 rounded-xl border px-5 py-3 font-bold disabled:opacity-50"><Save size={18}/>Save draft</button><button disabled={saving} onClick={()=>void submit("submitted")} className="flex items-center gap-2 rounded-xl bg-cyan-700 px-5 py-3 font-bold text-white disabled:opacity-50"><Send size={18}/>{saving ? "Saving…" : "Submit for review"}</button></div>
+        <div className="flex flex-wrap justify-end gap-3 rounded-2xl border bg-white p-5"><button disabled={saving} onClick={()=>void submit("draft")} className="flex items-center gap-2 rounded-xl border px-5 py-3 font-bold disabled:opacity-50"><Save size={18}/>Save draft</button><button disabled={saving} onClick={()=>void submit("submitted")} className="flex items-center gap-2 rounded-xl bg-cyan-700 px-5 py-3 font-bold text-white disabled:opacity-50"><Send size={18}/>{saving ? "SavingÃ¢â‚¬Â¦" : "Submit for review"}</button></div>
       </div>
     </TutorLayout>
   );
 }
+
+

@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resolveTenantWorkspaceTrusted = exports.updateOwnStudentProfile = exports.updateOwnTutorProfile = exports.synchronizeStudentIdentity = exports.getStudentLearningOverview = exports.getPublicCourseCatalogueSnapshot = exports.refreshMarketplaceLearningAccess = exports.updateTenantSubscriptionStatus = exports.assignTenantSubscription = exports.saveSubscriptionPlan = exports.assignTenantOwner = exports.updateTenantStatus = exports.updateTenantProfile = exports.createTenant = exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.submitQuizAttempt = exports.getTutorMarketplaceAnalytics = exports.reconcileTutorMarketplaceRevenue = exports.getTutorAssessmentAttempt = exports.saveTutorAssessmentMarking = exports.getTutorAssessmentAttempts = exports.getTutorQuizAnalytics = exports.getLessonResourceAccessUrl = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.validateMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.cancelTutorSubscriptionAtPeriodEnd = exports.refreshTutorSubscriptionLifecycle = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.completeFinanceWithdrawal = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = exports.removeTutorFromInstitution = exports.setInstitutionTutorAccess = exports.getInstitutionTutorMemberships = void 0;
-exports.cancelStorageUploadReservation = exports.reserveStorageUpload = exports.onStorageObjectDeleted = exports.onStorageObjectFinalized = exports.getStudentAssessmentPackage = exports.getPublishedModuleLessonsV2 = exports.getTutorRegistrationLinkStudents = exports.claimRegistrationLinkTrusted = exports.listSubscriptionPlansTrusted = exports.getPlatformOverviewSnapshot = exports.notifyStudentsWhenLessonPublished = exports.getPublicCourseCatalogueSnapshotV2 = exports.getPublishedCourseModulesV2 = exports.getTutorEnrollmentCourseUnits = void 0;
+exports.assignTenantOwner = exports.updateTenantStatus = exports.updateTenantProfile = exports.createTenant = exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.aiMarkEssayAttempt = exports.completeLessonLearning = exports.getLessonModuleProgress = exports.submitQuizAttempt = exports.getStudentPostQuizDestination = exports.requestStudentQuizReattempt = exports.grantStudentLearningProgressionOverride = exports.permanentlyDeleteQuizTrusted = exports.permanentlyDeleteQuestionTrusted = exports.grantStudentQuizReattempt = exports.getStudentQuizAttemptUsage = exports.getTutorMarketplaceAnalytics = exports.reconcileTutorMarketplaceRevenue = exports.getTutorAssessmentAttempt = exports.saveTutorAssessmentMarking = exports.getTutorAssessmentAttempts = exports.getTutorQuizAnalytics = exports.getLessonResourceAccessUrl = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.validateMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.cancelTutorSubscriptionAtPeriodEnd = exports.refreshTutorSubscriptionLifecycle = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.completeFinanceWithdrawal = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = exports.removeTutorFromInstitution = exports.setInstitutionTutorAccess = exports.getInstitutionTutorMemberships = void 0;
+exports.decideMarketplaceProductApproval = exports.reviewMarketplaceCourseUnitForApproval = exports.cancelStorageUploadReservation = exports.reserveStorageUpload = exports.onStorageObjectDeleted = exports.onStorageObjectFinalized = exports.getStudentAssessmentPackage = exports.getPublishedModuleLessonsV2 = exports.getTutorRegistrationLinkStudents = exports.claimRegistrationLinkTrusted = exports.listSubscriptionPlansTrusted = exports.getPlatformOverviewSnapshot = exports.notifyStudentsWhenLessonPublished = exports.getPublicCourseCatalogueSnapshotV2 = exports.getPublishedCourseModulesV2 = exports.getTutorEnrollmentCourseUnits = exports.resolveTenantWorkspaceTrusted = exports.updateOwnStudentProfile = exports.updateOwnTutorProfile = exports.synchronizeStudentIdentity = exports.getStudentLearningOverview = exports.getPublicCourseCatalogueSnapshot = exports.refreshMarketplaceLearningAccess = exports.updateTenantSubscriptionStatus = exports.assignTenantSubscription = exports.saveSubscriptionPlan = void 0;
 const app_1 = require("firebase-admin/app");
 const auth_1 = require("firebase-admin/auth");
 const storage_1 = require("firebase-admin/storage");
@@ -2063,24 +2063,59 @@ exports.saveTutorAssessmentMarking = (0, https_1.onCall)({ region: "us-central1"
     }
     if (!authorized)
         throw new https_1.HttpsError("permission-denied", "This submission does not belong to you.");
+    const quizIdForMarking = financeText(attempt.get("quizId"), 180);
+    const markingQuiz = quizIdForMarking ? await db.collection("quizzes").doc(quizIdForMarking).get() : null;
+    const passMark = Math.max(0, Math.min(100, finiteNumber(markingQuiz?.get("passMark"), 50)));
     const finalPercentage = Math.max(0, Math.min(100, finiteNumber(data.finalPercentage)));
+    const authoritativePassed = finalPercentage >= passMark;
     const patch = {
         manualMarks: Array.isArray(data.manualMarks) ? data.manualMarks : [],
         manualScore: Math.max(0, finiteNumber(data.manualScore)),
         finalScore: Math.max(0, finiteNumber(data.finalScore)),
         finalPercentage,
+        passMarkAtMarking: passMark,
         tutorRemarks: financeText(data.tutorRemarks, 4000),
-        passed: typeof data.passed === "boolean" ? data.passed : finalPercentage >= 50,
+        passed: authoritativePassed,
         updatedAt: firestore_1.FieldValue.serverTimestamp(),
         tutorUid: uid,
         ownerUserId: uid,
         createdByUid: uid,
     };
+    const wasReleased = attempt.get("released") === true;
     if (data.release === true) {
         patch.released = true;
-        patch.releasedAt = firestore_1.FieldValue.serverTimestamp();
+        patch.releasedAt = wasReleased ? (attempt.get("releasedAt") ?? firestore_1.FieldValue.serverTimestamp()) : firestore_1.FieldValue.serverTimestamp();
     }
     await attemptRef.set(patch, { merge: true });
+    // Create exactly one in-app result notification on the first release transition.
+    if (data.release === true && !wasReleased) {
+        let studentUid = financeText(attempt.get("studentAuthUid") ?? attempt.get("studentId") ?? attempt.get("userId"), 180);
+        if (studentUid) {
+            const studentProfile = await db.collection("students").doc(studentUid).get().catch(() => null);
+            if (studentProfile?.exists) {
+                studentUid = financeText(studentProfile.get("authUid") ?? studentProfile.get("userUid") ?? studentProfile.get("uid") ?? studentUid, 180);
+            }
+        }
+        if (studentUid) {
+            const quizTitle = financeText(attempt.get("quizTitle"), 180) || "assessment";
+            await db.collection("notifications").doc(`result_${attemptId}_${studentUid}`).set({
+                createdByUid: uid,
+                userUid: studentUid,
+                title: `Results released: ${quizTitle}`.slice(0, 160),
+                body: `Your results for ${quizTitle} have been released. Open the result to view your score and tutor feedback.`.slice(0, 2000),
+                type: "result",
+                priority: "high",
+                link: `/assessment-history/${encodeURIComponent(attemptId)}`,
+                eventKey: `result-released:${attemptId}`,
+                isRead: false,
+                isPinned: false,
+                isArchived: false,
+                createdAt: firestore_1.FieldValue.serverTimestamp(),
+                readAt: null,
+                archivedAt: null,
+            }, { merge: true });
+        }
+    }
     return { success: true };
 });
 exports.getTutorAssessmentAttempt = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
@@ -2112,7 +2147,8 @@ exports.getTutorAssessmentAttempt = (0, https_1.onCall)({ region: "us-central1",
     const quizId = financeText(attempt.get("quizId"), 180);
     const quiz = quizId ? await db.collection("quizzes").doc(quizId).get() : null;
     const questionSnapshots = quiz?.exists ? await loadTutorQuizQuestionSnapshots(quiz.data() ?? {}) : [];
-    return { attempt: { ...serializeTutorAttempt(attempt), questionSnapshots } };
+    const passMark = Math.max(0, Math.min(100, finiteNumber(quiz?.get("passMark"), finiteNumber(attempt.get("passMarkAtSubmission"), 50))));
+    return { attempt: { ...serializeTutorAttempt(attempt), passMark, questionSnapshots } };
 });
 exports.reconcileTutorMarketplaceRevenue = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 120 }, async (request) => {
     if (!request.auth)
@@ -2218,6 +2254,426 @@ exports.getTutorMarketplaceAnalytics = (0, https_1.onCall)({ region: "us-central
         }),
     };
 });
+function quizAttemptGrantRef(studentId, quizId) {
+    return db.collection("quizAttemptGrants").doc(`${studentId}_${quizId}`);
+}
+async function resolveQuizAttemptAllowance(studentId, quizId, configuredAttempts) {
+    const grant = await quizAttemptGrantRef(studentId, quizId).get();
+    const extraAttemptsGranted = grant.exists
+        ? Math.max(0, Math.floor(finiteNumber(grant.get("extraAttemptsGranted"), 0)))
+        : 0;
+    const baseAttempts = Math.max(1, Math.floor(finiteNumber(configuredAttempts, 1)));
+    return {
+        baseAttempts,
+        extraAttemptsGranted,
+        maximumAttempts: baseAttempts + extraAttemptsGranted,
+    };
+}
+/**
+ * Student-facing source of truth for attempt usage. Includes tutor-granted
+ * student-specific reattempts so the Take Quiz page can reopen correctly.
+ */
+exports.getStudentQuizAttemptUsage = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 30 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const uid = request.auth.uid;
+    const profile = await db.collection("users").doc(uid).get();
+    if (!profile.exists || profile.get("role") !== "student" || profile.get("isActive") === false) {
+        throw new https_1.HttpsError("permission-denied", "Only active students can read quiz attempt usage.");
+    }
+    const data = (request.data ?? {});
+    const quizId = financeText(data.quizId, 180);
+    if (!quizId)
+        throw new https_1.HttpsError("invalid-argument", "Quiz ID is required.");
+    const quiz = await db.collection("quizzes").doc(quizId).get();
+    if (!quiz.exists)
+        throw new https_1.HttpsError("not-found", "Quiz not found.");
+    const configuredAttempts = Math.max(1, Math.floor(finiteNumber(quiz.get("attemptsAllowed"), 1)));
+    const allowance = await resolveQuizAttemptAllowance(uid, quizId, configuredAttempts);
+    const attempts = await db.collection("quizAttempts").where("studentId", "==", uid).where("quizId", "==", quizId).get();
+    const attemptsUsed = attempts.docs.filter((item) => item.get("completed") !== false).length;
+    return {
+        attemptsUsed,
+        maximumAttempts: allowance.maximumAttempts,
+        baseAttempts: allowance.baseAttempts,
+        extraAttemptsGranted: allowance.extraAttemptsGranted,
+        attemptsRemaining: Math.max(allowance.maximumAttempts - attemptsUsed, 0),
+    };
+});
+/** Tutor-only grant of additional attempts to one learner for one assessment. */
+exports.grantStudentQuizReattempt = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 30 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const uid = request.auth.uid;
+    const profile = await financeProfile(uid);
+    if (String(profile.get("role") ?? "") !== "tutor") {
+        throw new https_1.HttpsError("permission-denied", "Tutor access is required.");
+    }
+    const data = (request.data ?? {});
+    const quizId = financeText(data.quizId, 180);
+    const studentId = financeText(data.studentId, 180);
+    const reason = financeText(data.reason, 1200);
+    const extraAttempts = Math.max(1, Math.min(5, Math.floor(finiteNumber(data.extraAttempts, 1))));
+    if (!quizId || !studentId)
+        throw new https_1.HttpsError("invalid-argument", "Quiz ID and student ID are required.");
+    if (!reason)
+        throw new https_1.HttpsError("invalid-argument", "A reason for granting the reattempt is required.");
+    const quiz = await db.collection("quizzes").doc(quizId).get();
+    if (!quiz.exists)
+        throw new https_1.HttpsError("not-found", "Assessment not found.");
+    if (!tutorOwnsQuizData(quiz.data() ?? {}, uid)) {
+        throw new https_1.HttpsError("permission-denied", "This assessment does not belong to you.");
+    }
+    const attempts = await db.collection("quizAttempts").where("studentId", "==", studentId).where("quizId", "==", quizId).get();
+    const completedAttempts = attempts.docs.filter((item) => item.get("completed") !== false);
+    if (!completedAttempts.length)
+        throw new https_1.HttpsError("failed-precondition", "The student has not completed this assessment yet.");
+    const latest = completedAttempts.sort((a, b) => {
+        const at = a.get("submittedAt")?.toMillis?.() ?? a.get("createdAt")?.toMillis?.() ?? 0;
+        const bt = b.get("submittedAt")?.toMillis?.() ?? b.get("createdAt")?.toMillis?.() ?? 0;
+        return bt - at;
+    })[0];
+    const configuredPassMark = Math.max(0, Math.min(100, finiteNumber(quiz.get("passMark"), 50)));
+    const latestPercentage = Math.max(0, Math.min(100, finiteNumber(latest.get("finalPercentage") ?? latest.get("percentage"), 0)));
+    if (latestPercentage >= configuredPassMark) {
+        throw new https_1.HttpsError("failed-precondition", `The student's latest attempt already meets the ${configuredPassMark}% pass mark.`);
+    }
+    const grantRef = quizAttemptGrantRef(studentId, quizId);
+    const auditRef = db.collection("quizAttemptGrantAudits").doc();
+    const result = await db.runTransaction(async (transaction) => {
+        const existing = await transaction.get(grantRef);
+        const previousExtra = existing.exists ? Math.max(0, Math.floor(finiteNumber(existing.get("extraAttemptsGranted"), 0))) : 0;
+        const nextExtra = previousExtra + extraAttempts;
+        const baseAttempts = Math.max(1, Math.floor(finiteNumber(quiz.get("attemptsAllowed"), 1)));
+        transaction.set(grantRef, {
+            studentId,
+            quizId,
+            baseAttempts,
+            extraAttemptsGranted: nextExtra,
+            effectiveMaximumAttempts: baseAttempts + nextExtra,
+            latestReason: reason,
+            lastGrantedByUid: uid,
+            lastGrantedByEmail: financeText(profile.get("email"), 320) || financeText(request.auth?.token.email, 320) || null,
+            lastGrantedAt: firestore_1.FieldValue.serverTimestamp(),
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            createdAt: existing.exists ? (existing.get("createdAt") ?? firestore_1.FieldValue.serverTimestamp()) : firestore_1.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        transaction.set(auditRef, {
+            studentId,
+            quizId,
+            attemptId: latest.id,
+            extraAttemptsGranted: extraAttempts,
+            previousExtraAttempts: previousExtra,
+            totalExtraAttempts: nextExtra,
+            effectiveMaximumAttempts: baseAttempts + nextExtra,
+            reason,
+            grantedByUid: uid,
+            grantedByEmail: financeText(profile.get("email"), 320) || financeText(request.auth?.token.email, 320) || null,
+            createdAt: firestore_1.FieldValue.serverTimestamp(),
+        });
+        return { extraAttemptsGranted: nextExtra, maximumAttempts: baseAttempts + nextExtra };
+    });
+    await db.collection("quizReattemptRequests").doc(`${studentId}_${quizId}`).set({
+        status: "granted",
+        grantedByUid: uid,
+        grantedByEmail: financeText(profile.get("email"), 320) || financeText(request.auth?.token.email, 320) || null,
+        grantedReason: reason,
+        grantedAt: firestore_1.FieldValue.serverTimestamp(),
+        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    const studentProfile = await db.collection("users").doc(studentId).get().catch(() => null);
+    if (studentProfile?.exists) {
+        await db.collection("notifications").doc(`reattempt_${auditRef.id}_${studentId}`).set({
+            createdByUid: uid,
+            userUid: studentId,
+            title: `Extra assessment attempt granted`,
+            body: `Your tutor has granted ${extraAttempts} additional attempt${extraAttempts === 1 ? "" : "s"} for ${financeText(quiz.get("title"), 180) || "an assessment"}.`,
+            type: "assessment",
+            priority: "high",
+            link: `/assessments/quizzes/${encodeURIComponent(quizId)}`,
+            eventKey: `quiz-reattempt:${auditRef.id}`,
+            isRead: false,
+            isPinned: false,
+            isArchived: false,
+            createdAt: firestore_1.FieldValue.serverTimestamp(),
+            readAt: null,
+            archivedAt: null,
+        });
+    }
+    return { success: true, ...result };
+});
+/** Student request for a tutor-granted extra attempt after exhausting a failed assessment. */
+/** Permanently delete a tutor-owned question and remove every active assessment reference. */
+exports.permanentlyDeleteQuestionTrusted = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 90 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const uid = request.auth.uid;
+    const questionId = financeText(request.data?.questionId, 180);
+    if (!questionId)
+        throw new https_1.HttpsError("invalid-argument", "Question ID is required.");
+    const [profile, question] = await Promise.all([db.doc(`users/${uid}`).get(), db.doc(`questions/${questionId}`).get()]);
+    if (!question.exists)
+        return { success: true, removedFromQuizzes: 0, removedFromExaminations: 0 };
+    const role = financeText(profile.get("role"), 80);
+    const isOwner = [question.get("ownerUserId"), question.get("createdByUid"), question.get("createdBy")].map(String).includes(uid)
+        || (Array.isArray(question.get("assignedTutorIds")) && question.get("assignedTutorIds").includes(uid));
+    if (!isOwner && role !== "admin" && role !== "super_admin" && role !== "platform_admin") {
+        throw new https_1.HttpsError("permission-denied", "You can permanently delete only questions you own or administer.");
+    }
+    const [quizzes, exams] = await Promise.all([db.collection("quizzes").get(), db.collection("examinations").get()]);
+    let removedFromQuizzes = 0, removedFromExaminations = 0;
+    for (const item of quizzes.docs) {
+        const refs = Array.isArray(item.get("questions")) ? item.get("questions") : [];
+        const next = refs.filter((ref) => String(ref?.questionId ?? "") !== questionId);
+        if (next.length !== refs.length) {
+            removedFromQuizzes += 1;
+            await item.ref.update({ questions: next, totalMarks: next.reduce((sum, ref) => sum + finiteNumber(ref.marks, 0), 0), updatedAt: firestore_1.FieldValue.serverTimestamp() });
+        }
+    }
+    for (const item of exams.docs) {
+        const sections = Array.isArray(item.get("sections")) ? item.get("sections") : [];
+        let changed = false;
+        const nextSections = sections.map((section) => {
+            const refs = Array.isArray(section.questions) ? section.questions : [];
+            const next = refs.filter((ref) => String(ref?.questionId ?? "") !== questionId);
+            if (next.length !== refs.length)
+                changed = true;
+            return { ...section, questions: next, totalMarks: next.reduce((sum, ref) => sum + finiteNumber(ref.marks, 0), 0) };
+        });
+        if (changed) {
+            removedFromExaminations += 1;
+            await item.ref.update({ sections: nextSections, totalMarks: nextSections.reduce((sum, section) => sum + finiteNumber(section.totalMarks, 0), 0), updatedAt: firestore_1.FieldValue.serverTimestamp() });
+        }
+    }
+    await question.ref.delete();
+    return { success: true, removedFromQuizzes, removedFromExaminations };
+});
+/** Permanently delete a quiz and detach it from lesson/module placement. */
+exports.permanentlyDeleteQuizTrusted = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 90 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const uid = request.auth.uid;
+    const quizId = financeText(request.data?.quizId, 180);
+    if (!quizId)
+        throw new https_1.HttpsError("invalid-argument", "Quiz ID is required.");
+    const [profile, quiz] = await Promise.all([db.doc(`users/${uid}`).get(), db.doc(`quizzes/${quizId}`).get()]);
+    if (!quiz.exists)
+        return { success: true };
+    const role = financeText(profile.get("role"), 80);
+    const isOwner = [quiz.get("ownerUserId"), quiz.get("createdByUid"), quiz.get("createdBy")].map(String).includes(uid)
+        || (Array.isArray(quiz.get("assignedTutorIds")) && quiz.get("assignedTutorIds").includes(uid));
+    if (!isOwner && role !== "admin" && role !== "super_admin" && role !== "platform_admin")
+        throw new https_1.HttpsError("permission-denied", "You cannot permanently delete this assessment.");
+    const [lessons, modules] = await Promise.all([db.collection("lessons").where("quizId", "==", quizId).get(), db.collection("modules").where("quizId", "==", quizId).get()]);
+    for (const item of [...lessons.docs, ...modules.docs])
+        await item.ref.update({ quizId: firestore_1.FieldValue.delete(), quizRequired: false, updatedAt: firestore_1.FieldValue.serverTimestamp() });
+    await quiz.ref.delete();
+    return { success: true };
+});
+/** Tutor override: grant one learner progression past a failed assessment without changing assessment results. */
+exports.grantStudentLearningProgressionOverride = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const tutorUid = request.auth.uid;
+    const data = (request.data ?? {});
+    const studentId = financeText(data.studentId, 180);
+    const quizId = financeText(data.quizId, 180);
+    const reason = financeText(data.reason, 1200);
+    if (!studentId || !quizId || reason.length < 5)
+        throw new https_1.HttpsError("invalid-argument", "Student, assessment and a reason are required.");
+    const [profile, quiz] = await Promise.all([db.doc(`users/${tutorUid}`).get(), db.doc(`quizzes/${quizId}`).get()]);
+    const role = financeText(profile.get("role"), 80);
+    if (!["tutor", "admin", "super_admin", "platform_admin"].includes(role))
+        throw new https_1.HttpsError("permission-denied", "Only tutors or administrators can grant progression access.");
+    if (!quiz.exists)
+        throw new https_1.HttpsError("not-found", "Assessment not found.");
+    if (role === "tutor" && !tutorOwnsQuizData(quiz.data() ?? {}, tutorUid)) {
+        throw new https_1.HttpsError("permission-denied", "This assessment does not belong to you.");
+    }
+    const courseUnitId = financeText(quiz.get("courseUnitId"), 180);
+    const moduleId = financeText(quiz.get("moduleId"), 180);
+    const lessonId = financeText(quiz.get("lessonId"), 180);
+    let targetModuleId = "", targetLessonId = "", targetPath = courseUnitId ? `/courses/${encodeURIComponent(courseUnitId)}` : "/student/course-units";
+    if (moduleId && lessonId) {
+        const lessons = await db.collection("lessons").where("moduleId", "==", moduleId).get();
+        const ordered = lessons.docs.filter((item) => item.get("isPublished") === true || item.get("published") === true).sort((a, b) => finiteNumber(a.get("order"), 0) - finiteNumber(b.get("order"), 0));
+        const index = ordered.findIndex((item) => item.id === lessonId);
+        const next = index >= 0 ? ordered[index + 1] : undefined;
+        if (next) {
+            targetLessonId = next.id;
+            targetPath = `/lesson/${encodeURIComponent(moduleId)}?lessonId=${encodeURIComponent(next.id)}`;
+        }
+    }
+    if (!targetLessonId && moduleId && courseUnitId) {
+        const [a, b] = await Promise.all([db.collection("modules").where("courseUnitId", "==", courseUnitId).get(), db.collection("modules").where("courseId", "==", courseUnitId).get()]);
+        const map = new Map();
+        for (const item of [...a.docs, ...b.docs])
+            map.set(item.id, item);
+        const ordered = [...map.values()].filter((item) => item.get("published") === true || item.get("isPublished") === true).sort((x, y) => finiteNumber(x.get("order"), 0) - finiteNumber(y.get("order"), 0));
+        const index = ordered.findIndex((item) => item.id === moduleId);
+        const next = index >= 0 ? ordered[index + 1] : undefined;
+        if (next) {
+            targetModuleId = next.id;
+            targetPath = `/lesson/${encodeURIComponent(next.id)}`;
+        }
+    }
+    if (!targetLessonId && !targetModuleId)
+        throw new https_1.HttpsError("failed-precondition", "No next lesson or module is available to unlock.");
+    const [byUser, byAuth, byStudent] = await Promise.all([db.collection("enrollments").where("userId", "==", studentId).get(), db.collection("enrollments").where("studentAuthUid", "==", studentId).get(), db.collection("enrollments").where("studentId", "==", studentId).get()]);
+    const refs = new Map();
+    for (const snapshot of [byUser, byAuth, byStudent])
+        for (const item of snapshot.docs) {
+            const e = item.data();
+            const belongs = !courseUnitId || e.courseId === courseUnitId || e.courseUnitId === courseUnitId || (Array.isArray(e.courseUnitIds) && e.courseUnitIds.includes(courseUnitId));
+            if (belongs)
+                refs.set(item.ref.path, item.ref);
+        }
+    if (refs.size === 0)
+        throw new https_1.HttpsError("failed-precondition", "Student enrolment was not found for this Course Unit.");
+    const batch = db.batch();
+    for (const ref of refs.values())
+        batch.set(ref, { ...(targetModuleId ? { manualUnlockedModules: firestore_1.FieldValue.arrayUnion(targetModuleId) } : {}), ...(targetLessonId ? { manualUnlockedLessons: firestore_1.FieldValue.arrayUnion(targetLessonId) } : {}), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    const audit = db.collection("progressionOverrideAudits").doc();
+    batch.set(audit, { id: audit.id, studentId, tutorUid, quizId, courseUnitId: courseUnitId || null, sourceModuleId: moduleId || null, sourceLessonId: lessonId || null, targetModuleId: targetModuleId || null, targetLessonId: targetLessonId || null, reason, createdAt: firestore_1.FieldValue.serverTimestamp() });
+    const notification = db.collection("notifications").doc(`progression_override_${studentId}_${quizId}_${targetModuleId || targetLessonId}`);
+    batch.set(notification, { userUid: studentId, createdByUid: tutorUid, title: "Learning progression access granted", body: "Your tutor has granted access to the next learning item. You may continue your course.", type: "academic", priority: "normal", link: targetPath, isRead: false, isArchived: false, createdAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    await batch.commit();
+    return { success: true, targetModuleId: targetModuleId || null, targetLessonId: targetLessonId || null, path: targetPath };
+});
+exports.requestStudentQuizReattempt = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 30 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const uid = request.auth.uid;
+    const profile = await db.collection("users").doc(uid).get();
+    if (!profile.exists || profile.get("role") !== "student" || profile.get("isActive") === false) {
+        throw new https_1.HttpsError("permission-denied", "Only active students can request an additional assessment attempt.");
+    }
+    const data = (request.data ?? {});
+    const quizId = financeText(data.quizId, 180);
+    const message = financeText(data.message, 1200);
+    if (!quizId)
+        throw new https_1.HttpsError("invalid-argument", "Quiz ID is required.");
+    const quiz = await db.collection("quizzes").doc(quizId).get();
+    if (!quiz.exists)
+        throw new https_1.HttpsError("not-found", "Assessment not found.");
+    const configuredAttempts = Math.max(1, Math.floor(finiteNumber(quiz.get("attemptsAllowed"), 1)));
+    const allowance = await resolveQuizAttemptAllowance(uid, quizId, configuredAttempts);
+    const attempts = await db.collection("quizAttempts").where("studentId", "==", uid).where("quizId", "==", quizId).get();
+    const completedAttempts = attempts.docs.filter((item) => item.get("completed") !== false).sort((a, b) => {
+        const at = a.get("submittedAt")?.toMillis?.() ?? a.get("createdAt")?.toMillis?.() ?? 0;
+        const bt = b.get("submittedAt")?.toMillis?.() ?? b.get("createdAt")?.toMillis?.() ?? 0;
+        return bt - at;
+    });
+    if (!completedAttempts.length)
+        throw new https_1.HttpsError("failed-precondition", "Complete the assessment before requesting another attempt.");
+    if (completedAttempts.length < allowance.maximumAttempts) {
+        throw new https_1.HttpsError("failed-precondition", "You still have an assessment attempt available.");
+    }
+    const latest = completedAttempts[0];
+    const passMark = Math.max(0, Math.min(100, finiteNumber(quiz.get("passMark"), 50)));
+    const latestPercentage = Math.max(0, Math.min(100, finiteNumber(latest.get("finalPercentage") ?? latest.get("percentage"), 0)));
+    if (latestPercentage >= passMark) {
+        throw new https_1.HttpsError("failed-precondition", `You already meet the ${passMark}% pass mark.`);
+    }
+    const tutorUid = financeText(quiz.get("ownerUserId") ?? quiz.get("createdByUid") ?? quiz.get("tutorUid"), 180);
+    if (!tutorUid)
+        throw new https_1.HttpsError("failed-precondition", "The tutor for this assessment could not be identified.");
+    const requestRef = db.collection("quizReattemptRequests").doc(`${uid}_${quizId}`);
+    const existing = await requestRef.get();
+    if (existing.exists && existing.get("status") === "pending") {
+        return { success: true, pending: true, message: "Your request is already waiting for tutor review." };
+    }
+    const studentName = financeText(profile.get("fullName") ?? profile.get("displayName") ?? request.auth.token.email, 320) || "Student";
+    const quizTitle = financeText(quiz.get("title"), 320) || "assessment";
+    await requestRef.set({
+        studentId: uid,
+        studentName,
+        quizId,
+        quizTitle,
+        attemptId: latest.id,
+        tutorUid,
+        latestPercentage,
+        passMark,
+        message: message || "I have exhausted my attempts and would like to request one additional attempt.",
+        status: "pending",
+        requestedAt: firestore_1.FieldValue.serverTimestamp(),
+        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    await db.collection("notifications").doc(`quiz_reattempt_request_${uid}_${quizId}`).set({
+        createdByUid: uid,
+        userUid: tutorUid,
+        title: `Extra attempt requested: ${quizTitle}`.slice(0, 160),
+        body: `${studentName} scored ${latestPercentage}% (pass mark ${passMark}%) and has exhausted all attempts. Review the submission and grant an extra attempt if appropriate.`.slice(0, 2000),
+        type: "assessment",
+        priority: "high",
+        link: `/tutor/submissions/${encodeURIComponent(latest.id)}/mark`,
+        eventKey: `quiz-reattempt-request:${uid}:${quizId}`,
+        isRead: false,
+        isPinned: false,
+        isArchived: false,
+        createdAt: firestore_1.FieldValue.serverTimestamp(),
+        readAt: null,
+        archivedAt: null,
+    }, { merge: true });
+    return { success: true, pending: true, message: "Your request has been sent to the tutor." };
+});
+/** Return the next learning destination after a learner passes an assessment. */
+exports.getStudentPostQuizDestination = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 30 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const uid = request.auth.uid;
+    const quizId = financeText(request.data?.quizId, 180);
+    if (!quizId)
+        throw new https_1.HttpsError("invalid-argument", "Quiz ID is required.");
+    const quiz = await db.collection("quizzes").doc(quizId).get();
+    if (!quiz.exists)
+        throw new https_1.HttpsError("not-found", "Assessment not found.");
+    const passMark = Math.max(0, Math.min(100, finiteNumber(quiz.get("passMark"), 50)));
+    const attempts = await db.collection("quizAttempts").where("studentId", "==", uid).where("quizId", "==", quizId).get();
+    const hasPassed = attempts.docs.some((item) => item.get("completed") !== false
+        && finiteNumber(item.get("finalPercentage") ?? item.get("percentage"), 0) >= passMark);
+    if (!hasPassed)
+        throw new https_1.HttpsError("failed-precondition", "The pass mark has not yet been attained.");
+    const moduleId = financeText(quiz.get("moduleId"), 180);
+    const lessonId = financeText(quiz.get("lessonId"), 180);
+    const courseUnitId = financeText(quiz.get("courseUnitId"), 180);
+    if (moduleId && lessonId) {
+        const lessons = await db.collection("lessons").where("moduleId", "==", moduleId).get();
+        const ordered = lessons.docs
+            .filter((item) => item.get("isPublished") === true || item.get("published") === true)
+            .sort((a, b) => finiteNumber(a.get("order"), 0) - finiteNumber(b.get("order"), 0));
+        const currentIndex = ordered.findIndex((item) => item.id === lessonId);
+        const nextLesson = currentIndex >= 0 ? ordered[currentIndex + 1] : undefined;
+        if (nextLesson)
+            return { path: `/lesson/${encodeURIComponent(moduleId)}?lessonId=${encodeURIComponent(nextLesson.id)}`, kind: "lesson" };
+    }
+    if (moduleId && lessonId) {
+        const moduleQuizzes = await db.collection("quizzes").where("moduleId", "==", moduleId).get();
+        const requiredModuleQuiz = moduleQuizzes.docs.find((item) => item.id !== quizId && item.get("status") === "published" && !financeText(item.get("lessonId"), 180));
+        if (requiredModuleQuiz) {
+            return { path: `/assessments/quizzes/${encodeURIComponent(requiredModuleQuiz.id)}`, kind: "module-assessment" };
+        }
+    }
+    if (moduleId && courseUnitId) {
+        const [byCourseUnitId, byCourseId] = await Promise.all([
+            db.collection("modules").where("courseUnitId", "==", courseUnitId).get(),
+            db.collection("modules").where("courseId", "==", courseUnitId).get(),
+        ]);
+        const moduleMap = new Map();
+        for (const item of [...byCourseUnitId.docs, ...byCourseId.docs])
+            moduleMap.set(item.id, item);
+        const orderedModules = [...moduleMap.values()]
+            .filter((item) => item.get("published") === true || item.get("isPublished") === true)
+            .sort((a, b) => finiteNumber(a.get("order"), 0) - finiteNumber(b.get("order"), 0));
+        const currentIndex = orderedModules.findIndex((item) => item.id === moduleId);
+        const nextModule = currentIndex >= 0 ? orderedModules[currentIndex + 1] : undefined;
+        if (nextModule)
+            return { path: `/lesson/${encodeURIComponent(nextModule.id)}`, kind: "module" };
+    }
+    if (courseUnitId)
+        return { path: `/courses/${encodeURIComponent(courseUnitId)}`, kind: "course" };
+    return { path: "/student/course-units", kind: "library" };
+});
 exports.submitQuizAttempt = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "Please sign in before submitting this quiz.");
@@ -2246,7 +2702,11 @@ exports.submitQuizAttempt = (0, https_1.onCall)({ region: "us-central1", timeout
             throw new https_1.HttpsError("failed-precondition", "This quiz is not currently available.");
         }
         const configuredAttempts = Math.floor(finiteNumber(quiz.attemptsAllowed, 1));
-        const maximumAttempts = Math.max(configuredAttempts, 1);
+        const grantSnapshot = await transaction.get(quizAttemptGrantRef(uid, quizId));
+        const extraAttemptsGranted = grantSnapshot.exists
+            ? Math.max(0, Math.floor(finiteNumber(grantSnapshot.get("extraAttemptsGranted"), 0)))
+            : 0;
+        const maximumAttempts = Math.max(configuredAttempts, 1) + extraAttemptsGranted;
         const attemptsSnapshot = await transaction.get(db.collection("quizAttempts")
             .where("studentId", "==", uid)
             .where("quizId", "==", quizId));
@@ -2268,10 +2728,44 @@ exports.submitQuizAttempt = (0, https_1.onCall)({ region: "us-central1", timeout
         const percentage = Math.max(0, Math.min(100, finiteNumber(data.percentage)));
         const passMark = Math.max(0, Math.min(100, finiteNumber(quiz.passMark, 50)));
         const passed = percentage >= passMark;
+        const lessonId = asText(quiz.lessonId ?? data.lessonId, 200);
         const moduleId = asText(quiz.moduleId ?? data.moduleId, 200);
         const courseUnitId = asText(quiz.courseUnitId ?? data.courseUnitId, 200);
+        const quizProgrammeId = asText(quiz.programmeId ?? data.programmeId, 200);
+        const quizTutorUid = asText(quiz.ownerUserId ?? quiz.createdByUid ?? quiz.tutorUid, 200);
+        // Resolve the learner's approved registration-link/class context for this
+        // course. This keeps assessment records from different links/classes
+        // separate even when the same tutor teaches the same course unit in more
+        // than one institution.
+        const registrationClaims = await transaction.get(db.collection("registrationLinkEnrollments").where("studentAuthUid", "==", uid));
+        const matchingClaims = registrationClaims.docs.filter((claim) => {
+            if (financeText(claim.get("approvalStatus"), 30) !== "approved")
+                return false;
+            const claimTutorId = financeText(claim.get("tutorId"), 180);
+            if (quizTutorUid && claimTutorId && claimTutorId !== quizTutorUid)
+                return false;
+            const claimCourseIds = Array.isArray(claim.get("courseUnitIds"))
+                ? claim.get("courseUnitIds").map((item) => financeText(item, 180)).filter(Boolean)
+                : [];
+            const claimProgrammeId = financeText(claim.get("programmeId"), 180);
+            return Boolean((courseUnitId && claimCourseIds.includes(courseUnitId)) || (quizProgrammeId && claimProgrammeId === quizProgrammeId));
+        }).sort((a, b) => {
+            const av = a.get("joinedAt")?.toMillis?.() ?? a.get("updatedAt")?.toMillis?.() ?? 0;
+            const bv = b.get("joinedAt")?.toMillis?.() ?? b.get("updatedAt")?.toMillis?.() ?? 0;
+            return bv - av;
+        });
+        const registrationContext = matchingClaims[0] ?? null;
+        const registrationLinkCode = registrationContext
+            ? financeText(registrationContext.get("registrationLinkCode") ?? registrationContext.get("registrationLinkId"), 180)
+            : "";
+        const studentGroupId = registrationContext
+            ? financeText(registrationContext.get("studentGroupId"), 180) || registrationLinkCode
+            : "";
+        const assessmentGroupId = registrationContext
+            ? financeText(registrationContext.get("assessmentGroupId"), 180) || studentGroupId || registrationLinkCode
+            : "";
         const enrollmentRefs = new Map();
-        if (passed && moduleId) {
+        if (passed && (lessonId || moduleId)) {
             const enrollmentQueries = await Promise.all([
                 transaction.get(db.collection("enrollments").where("userId", "==", uid)),
                 transaction.get(db.collection("enrollments").where("studentAuthUid", "==", uid)),
@@ -2294,10 +2788,19 @@ exports.submitQuizAttempt = (0, https_1.onCall)({ region: "us-central1", timeout
             quizTitle: asText(quiz.title ?? data.quizTitle, 500),
             studentId: uid,
             studentName: String((profile.get("fullName") ?? authenticatedEmail) || "Student"),
-            programmeId: asText(quiz.programmeId ?? data.programmeId, 200) || null,
+            registrationLinkId: registrationLinkCode || null,
+            registrationLinkCode: registrationLinkCode || null,
+            registrationLinkName: registrationContext ? financeText(registrationContext.get("registrationLinkName"), 240) || null : null,
+            studentGroupId: studentGroupId || null,
+            assessmentGroupId: assessmentGroupId || null,
+            classInstitutionId: registrationContext ? financeText(registrationContext.get("institutionId"), 180) || null : null,
+            classInstitutionName: registrationContext ? financeText(registrationContext.get("institutionName"), 240) || null : null,
+            programmeId: quizProgrammeId || null,
             programmeTitle: asText(quiz.programmeTitle ?? data.programmeTitle, 500) || null,
             courseUnitId: courseUnitId || null,
             courseUnitTitle: asText(quiz.courseUnitTitle ?? data.courseUnitTitle, 500) || null,
+            lessonId: lessonId || null,
+            lessonTitle: asText(quiz.lessonTitle ?? data.lessonTitle, 500) || null,
             moduleId: moduleId || null,
             moduleTitle: asText(quiz.moduleTitle ?? data.moduleTitle, 500) || null,
             tutorUid: asText(quiz.ownerUserId ?? quiz.createdByUid ?? quiz.tutorUid, 200) || null,
@@ -2316,6 +2819,7 @@ exports.submitQuizAttempt = (0, https_1.onCall)({ region: "us-central1", timeout
             manualScore: 0,
             finalScore: score,
             finalPercentage: percentage,
+            passMarkAtSubmission: passMark,
             passed,
             completed: true,
             attemptNumber: nextUsed,
@@ -2331,14 +2835,25 @@ exports.submitQuizAttempt = (0, https_1.onCall)({ region: "us-central1", timeout
             quizId,
             attemptsUsed: nextUsed,
             maximumAttempts,
+            baseAttempts: Math.max(configuredAttempts, 1),
+            extraAttemptsGranted,
             updatedAt: firestore_1.FieldValue.serverTimestamp(),
         }, { merge: true });
         for (const enrollmentRef of enrollmentRefs.values()) {
-            transaction.set(enrollmentRef, {
-                completedModules: firestore_1.FieldValue.arrayUnion(moduleId),
-                startedModules: firestore_1.FieldValue.arrayUnion(moduleId),
+            const progressionUpdate = {
                 updatedAt: firestore_1.FieldValue.serverTimestamp(),
-            }, { merge: true });
+            };
+            if (lessonId) {
+                progressionUpdate.completedLessons = firestore_1.FieldValue.arrayUnion(lessonId);
+                progressionUpdate.startedLessons = firestore_1.FieldValue.arrayUnion(lessonId);
+                if (moduleId)
+                    progressionUpdate.startedModules = firestore_1.FieldValue.arrayUnion(moduleId);
+            }
+            else if (moduleId) {
+                progressionUpdate.completedModules = firestore_1.FieldValue.arrayUnion(moduleId);
+                progressionUpdate.startedModules = firestore_1.FieldValue.arrayUnion(moduleId);
+            }
+            transaction.set(enrollmentRef, progressionUpdate, { merge: true });
         }
         return {
             attemptId: attemptRef.id,
@@ -2347,6 +2862,381 @@ exports.submitQuizAttempt = (0, https_1.onCall)({ region: "us-central1", timeout
             attemptsRemaining: Math.max(maximumAttempts - nextUsed, 0),
         };
     });
+});
+/** Return authoritative lesson completion/unlock state for a student's module. */
+exports.getLessonModuleProgress = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError("unauthenticated", "Please sign in to view lesson progress.");
+    }
+    const uid = request.auth.uid;
+    const moduleId = asText(request.data?.moduleId, 200);
+    if (!moduleId)
+        throw new https_1.HttpsError("invalid-argument", "A module ID is required.");
+    const profile = await db.doc(`users/${uid}`).get();
+    if (!profile.exists || profile.get("role") !== "student" || profile.get("isActive") === false) {
+        throw new https_1.HttpsError("permission-denied", "Only active students can access lesson progression.");
+    }
+    const lessonsSnapshot = await db.collection("lessons").where("moduleId", "==", moduleId).get();
+    const lessons = lessonsSnapshot.docs
+        .filter((item) => item.get("isPublished") === true || item.get("published") === true)
+        .sort((a, b) => finiteNumber(a.get("order"), 0) - finiteNumber(b.get("order"), 0));
+    const [byUser, byAuthUid, byStudentId] = await Promise.all([
+        db.collection("enrollments").where("userId", "==", uid).get(),
+        db.collection("enrollments").where("studentAuthUid", "==", uid).get(),
+        db.collection("enrollments").where("studentId", "==", uid).get(),
+    ]);
+    const enrollmentDocs = [...byUser.docs, ...byAuthUid.docs, ...byStudentId.docs];
+    const completed = new Set();
+    const manualUnlocked = new Set();
+    for (const enrollment of enrollmentDocs) {
+        const values = enrollment.get("completedLessons");
+        if (Array.isArray(values)) {
+            for (const value of values)
+                if (typeof value === "string")
+                    completed.add(value);
+        }
+        const overrides = enrollment.get("manualUnlockedLessons");
+        if (Array.isArray(overrides)) {
+            for (const value of overrides)
+                if (typeof value === "string")
+                    manualUnlocked.add(value);
+        }
+    }
+    const unlocked = new Set(manualUnlocked);
+    if (lessons.length > 0)
+        unlocked.add(lessons[0].id);
+    for (let index = 1; index < lessons.length; index += 1) {
+        if (completed.has(lessons[index - 1].id))
+            unlocked.add(lessons[index].id);
+    }
+    return {
+        moduleId,
+        completedLessonIds: [...completed],
+        unlockedLessonIds: [...unlocked],
+    };
+});
+/** Complete one lesson after validating its mandatory lesson quiz, if configured. */
+exports.completeLessonLearning = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError("unauthenticated", "Please sign in before completing this lesson.");
+    }
+    const uid = request.auth.uid;
+    const lessonId = asText(request.data?.lessonId, 200);
+    if (!lessonId)
+        throw new https_1.HttpsError("invalid-argument", "A lesson ID is required.");
+    const profile = await db.doc(`users/${uid}`).get();
+    if (!profile.exists || profile.get("role") !== "student" || profile.get("isActive") === false) {
+        throw new https_1.HttpsError("permission-denied", "Only active students can complete lessons.");
+    }
+    const lessonSnapshot = await db.doc(`lessons/${lessonId}`).get();
+    if (!lessonSnapshot.exists)
+        throw new https_1.HttpsError("not-found", "Lesson not found.");
+    const lesson = lessonSnapshot.data() ?? {};
+    const moduleId = asText(lesson.moduleId, 200);
+    const courseUnitId = asText(lesson.courseUnitId ?? lesson.courseId, 200);
+    const quizRequired = lesson.quizRequired === true || lesson.completionCriteria?.passQuiz === true;
+    const configuredQuizId = asText(lesson.quizId, 200);
+    if (quizRequired) {
+        if (!configuredQuizId) {
+            throw new https_1.HttpsError("failed-precondition", "This lesson requires a quiz, but no quiz has been assigned. Contact your tutor.");
+        }
+        const quizSnapshot = await db.doc(`quizzes/${configuredQuizId}`).get();
+        if (!quizSnapshot.exists || quizSnapshot.get("status") !== "published") {
+            throw new https_1.HttpsError("failed-precondition", "The required lesson quiz is not currently available.");
+        }
+        const requiredPassMark = Math.max(0, Math.min(100, finiteNumber(lesson.quizPassMark, finiteNumber(quizSnapshot.get("passMark"), 50))));
+        const attempts = await db.collection("quizAttempts")
+            .where("studentId", "==", uid)
+            .where("quizId", "==", configuredQuizId)
+            .get();
+        const passed = attempts.docs.some((item) => {
+            const attempt = item.data();
+            return attempt.completed !== false
+                && finiteNumber(attempt.finalPercentage ?? attempt.percentage, 0) >= requiredPassMark;
+        });
+        if (!passed) {
+            return {
+                lessonId,
+                completed: false,
+                requiresQuiz: true,
+                quizId: configuredQuizId,
+                passMark: requiredPassMark,
+            };
+        }
+    }
+    const [byUser, byAuthUid, byStudentId] = await Promise.all([
+        db.collection("enrollments").where("userId", "==", uid).get(),
+        db.collection("enrollments").where("studentAuthUid", "==", uid).get(),
+        db.collection("enrollments").where("studentId", "==", uid).get(),
+    ]);
+    const refs = new Map();
+    for (const snapshot of [byUser, byAuthUid, byStudentId]) {
+        for (const item of snapshot.docs) {
+            const enrollment = item.data();
+            const belongs = !courseUnitId
+                || enrollment.courseId === courseUnitId
+                || enrollment.courseUnitId === courseUnitId
+                || (Array.isArray(enrollment.courseUnitIds) && enrollment.courseUnitIds.includes(courseUnitId));
+            if (belongs)
+                refs.set(item.ref.path, item.ref);
+        }
+    }
+    if (refs.size === 0) {
+        throw new https_1.HttpsError("failed-precondition", "Active enrolment not found for this lesson.");
+    }
+    const batch = db.batch();
+    for (const ref of refs.values()) {
+        batch.set(ref, {
+            completedLessons: firestore_1.FieldValue.arrayUnion(lessonId),
+            startedLessons: firestore_1.FieldValue.arrayUnion(lessonId),
+            ...(moduleId ? { startedModules: firestore_1.FieldValue.arrayUnion(moduleId) } : {}),
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        }, { merge: true });
+    }
+    await batch.commit();
+    return {
+        lessonId,
+        completed: true,
+        requiresQuiz: false,
+    };
+});
+/**
+ * AI-assisted marking for essay and short-answer questions.
+ * The model is constrained by the tutor-authored model answer, marking guide
+ * and maximum mark. Marks are saved as reviewable manualMarks so tutors can
+ * still correct or override them before release.
+ */
+exports.aiMarkEssayAttempt = (0, https_1.onCall)({
+    region: "us-central1",
+    timeoutSeconds: 120,
+    memory: "512MiB",
+    secrets: [OPENAI_API_KEY],
+    enforceAppCheck: false,
+}, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError("unauthenticated", "Please sign in before AI marking.");
+    }
+    const attemptId = asText(request.data?.attemptId, 200);
+    if (!attemptId) {
+        throw new https_1.HttpsError("invalid-argument", "An attempt ID is required.");
+    }
+    const attemptRef = db.collection("quizAttempts").doc(attemptId);
+    const attemptSnapshot = await attemptRef.get();
+    if (!attemptSnapshot.exists) {
+        throw new https_1.HttpsError("not-found", "Quiz attempt not found.");
+    }
+    const attempt = attemptSnapshot.data() ?? {};
+    const profile = await db.collection("users").doc(request.auth.uid).get();
+    const role = String(profile.get("role") ?? "");
+    const isStudentOwner = role === "student" && String(attempt.studentId ?? "") === request.auth.uid;
+    const isTutorOwner = ["tutor", "admin", "super_admin", "platform_admin"].includes(role)
+        && [attempt.tutorUid, attempt.ownerUserId, attempt.createdByUid].some((value) => String(value ?? "") === request.auth?.uid);
+    if (!isStudentOwner && !isTutorOwner) {
+        throw new https_1.HttpsError("permission-denied", "You are not allowed to mark this attempt.");
+    }
+    const quizId = asText(attempt.quizId, 200);
+    const quizSnapshot = await db.collection("quizzes").doc(quizId).get();
+    if (!quizSnapshot.exists) {
+        throw new https_1.HttpsError("not-found", "Quiz not found for this attempt.");
+    }
+    const quiz = quizSnapshot.data() ?? {};
+    const refs = Array.isArray(quiz.questions) ? quiz.questions : [];
+    const questionIds = refs
+        .map((item) => asText(item.questionId, 200))
+        .filter(Boolean);
+    const questionSnapshots = await Promise.all(questionIds.map((id) => db.collection("questions").doc(id).get()));
+    const questions = new Map(questionSnapshots
+        .filter((item) => item.exists)
+        .map((item) => [item.id, item.data() ?? {}]));
+    const answers = Array.isArray(attempt.answers)
+        ? attempt.answers
+        : [];
+    const subjective = refs.flatMap((rawRef) => {
+        const ref = rawRef;
+        const questionId = asText(ref.questionId, 200);
+        const question = questions.get(questionId);
+        if (!question || !["essay", "short-answer"].includes(String(question.type ?? "")))
+            return [];
+        const answer = answers.find((item) => String(item.questionId ?? "") === questionId);
+        const maxMarks = Math.max(1, finiteNumber(ref.marks, finiteNumber(question.marks, 1)));
+        return [{
+                questionId,
+                type: String(question.type ?? "essay"),
+                questionText: asText(question.questionText, 6000),
+                modelAnswer: asText(question.correctAnswer, 10000),
+                markingGuide: asText(question.explanation, 12000),
+                maxMarks,
+                studentAnswer: asText(answer?.textAnswer ?? answer?.selectedOptionId, 12000),
+            }];
+    });
+    if (subjective.length === 0) {
+        return {
+            attemptId,
+            aiMarked: false,
+            finalScore: finiteNumber(attempt.finalScore ?? attempt.score),
+            finalPercentage: finiteNumber(attempt.finalPercentage ?? attempt.percentage),
+            passed: attempt.passed === true,
+            manualMarks: [],
+        };
+    }
+    const apiKey = OPENAI_API_KEY.value();
+    if (!apiKey) {
+        throw new https_1.HttpsError("failed-precondition", "The OPENAI_API_KEY Firebase secret is not configured.");
+    }
+    await consumeRateLimit(request.auth.uid, {
+        scope: "ai_essay_marking",
+        limit: 10,
+        windowSeconds: 60,
+    });
+    const { default: OpenAI } = await import("openai");
+    const client = new OpenAI({ apiKey });
+    const schema = {
+        type: "object",
+        additionalProperties: false,
+        required: ["marks"],
+        properties: {
+            marks: {
+                type: "array",
+                items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["questionId", "marksAwarded", "feedback", "confidence", "needsTutorReview"],
+                    properties: {
+                        questionId: { type: "string" },
+                        marksAwarded: { type: "number", minimum: 0 },
+                        feedback: { type: "string" },
+                        confidence: { type: "integer", minimum: 0, maximum: 100 },
+                        needsTutorReview: { type: "boolean" },
+                    },
+                },
+            },
+        },
+    };
+    const completion = await client.chat.completions.create({
+        model: "gpt-5-mini",
+        messages: [
+            {
+                role: "system",
+                content: [
+                    "You are an assessment marker for health-sciences education.",
+                    "Mark only against the supplied tutor model answer and marking guide.",
+                    "Award partial credit when justified.",
+                    "Never award more than the maximum marks.",
+                    "Do not invent required facts that are absent from the marking guide.",
+                    "If the marking guide is ambiguous or the answer requires clinical judgement beyond it, set needsTutorReview true.",
+                    "Give concise constructive feedback.",
+                ].join(" "),
+            },
+            {
+                role: "user",
+                content: JSON.stringify(subjective),
+            },
+        ],
+        response_format: {
+            type: "json_schema",
+            json_schema: {
+                name: "medical_elites_ai_marking",
+                strict: true,
+                schema,
+            },
+        },
+        max_completion_tokens: 8000,
+    });
+    const raw = completion.choices[0]?.message?.content;
+    if (!raw)
+        throw new Error("AI returned an empty marking response.");
+    const parsed = JSON.parse(raw);
+    const subjectiveIds = new Set(subjective.map((item) => item.questionId));
+    const aiMarks = (parsed.marks ?? [])
+        .filter((item) => item.questionId && subjectiveIds.has(item.questionId))
+        .map((item) => {
+        const source = subjective.find((question) => question.questionId === item.questionId);
+        return {
+            questionId: source.questionId,
+            marksAwarded: Math.max(0, Math.min(source.maxMarks, finiteNumber(item.marksAwarded))),
+            feedback: asText(item.feedback, 4000),
+            markedBy: `ai:${completion.model}`,
+            markedAt: new Date(),
+            confidence: Math.max(0, Math.min(100, Math.floor(finiteNumber(item.confidence)))),
+            needsTutorReview: item.needsTutorReview === true,
+        };
+    });
+    const objectiveScore = refs.reduce((sum, rawRef) => {
+        const ref = rawRef;
+        const questionId = asText(ref.questionId, 200);
+        const question = questions.get(questionId);
+        if (!question || ["essay", "short-answer"].includes(String(question.type ?? "")))
+            return sum;
+        const answer = answers.find((item) => String(item.questionId ?? "") === questionId);
+        return sum + Math.max(0, finiteNumber(answer?.marksAwarded));
+    }, 0);
+    const manualScore = aiMarks.reduce((sum, item) => sum + item.marksAwarded, 0);
+    const totalMarks = Math.max(1, finiteNumber(attempt.totalMarks, finiteNumber(quiz.totalMarks, 1)));
+    const finalScore = Math.max(0, Math.min(totalMarks, objectiveScore + manualScore));
+    const finalPercentage = Math.round((finalScore / totalMarks) * 10000) / 100;
+    const passMark = Math.max(0, Math.min(100, finiteNumber(quiz.passMark, 50)));
+    const passed = finalPercentage >= passMark;
+    const needsTutorReview = aiMarks.some((item) => item.needsTutorReview);
+    await attemptRef.set({
+        manualMarks: aiMarks,
+        manualScore,
+        finalScore,
+        finalPercentage,
+        passed,
+        aiMarked: true,
+        aiMarkingModel: completion.model,
+        aiMarkingRequestId: completion.id,
+        aiNeedsTutorReview: needsTutorReview,
+        aiMarkedAt: firestore_1.FieldValue.serverTimestamp(),
+        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    await db.collection("aiUsageLogs").add({
+        uid: request.auth.uid,
+        role,
+        mode: "essay_marking",
+        model: completion.model,
+        requestId: completion.id,
+        attemptId,
+        questionCount: subjective.length,
+        createdAt: firestore_1.FieldValue.serverTimestamp(),
+    });
+    // For a module-level quiz, completion can occur only after the AI-adjusted
+    // final percentage reaches the pass mark. Lesson quizzes are handled by
+    // completeLessonLearning and therefore never auto-complete the full module.
+    const lessonId = asText(quiz.lessonId ?? attempt.lessonId, 200);
+    const moduleId = asText(quiz.moduleId ?? attempt.moduleId, 200);
+    const courseUnitId = asText(quiz.courseUnitId ?? attempt.courseUnitId, 200);
+    if (passed && moduleId && !lessonId) {
+        const enrollmentSnapshots = await Promise.all([
+            db.collection("enrollments").where("userId", "==", String(attempt.studentId ?? "")).get(),
+            db.collection("enrollments").where("studentAuthUid", "==", String(attempt.studentId ?? "")).get(),
+        ]);
+        const batch = db.batch();
+        enrollmentSnapshots.forEach((snapshot) => snapshot.docs.forEach((item) => {
+            const enrollment = item.data();
+            const belongs = !courseUnitId
+                || enrollment.courseId === courseUnitId
+                || enrollment.courseUnitId === courseUnitId
+                || (Array.isArray(enrollment.courseUnitIds) && enrollment.courseUnitIds.includes(courseUnitId));
+            if (belongs) {
+                batch.set(item.ref, {
+                    completedModules: firestore_1.FieldValue.arrayUnion(moduleId),
+                    startedModules: firestore_1.FieldValue.arrayUnion(moduleId),
+                    updatedAt: firestore_1.FieldValue.serverTimestamp(),
+                }, { merge: true });
+            }
+        }));
+        await batch.commit();
+    }
+    return {
+        attemptId,
+        aiMarked: true,
+        finalScore,
+        finalPercentage,
+        passed,
+        manualMarks: aiMarks,
+        needsTutorReview,
+    };
 });
 /** Persist completion of a module after validating any required quiz. */
 exports.completeModuleLearning = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
@@ -2364,16 +3254,21 @@ exports.completeModuleLearning = (0, https_1.onCall)({ region: "us-central1", ti
     const courseUnitId = asText(moduleData.courseUnitId ?? moduleData.courseId, 200);
     if (moduleData.quizRequired === true) {
         const quizzes = await db.collection("quizzes").where("moduleId", "==", moduleId).get();
-        const publishedQuizIds = quizzes.docs
-            .filter((item) => item.get("status") === "published")
-            .map((item) => item.id);
+        const publishedQuizzes = quizzes.docs.filter((item) => item.get("status") === "published");
+        const publishedQuizIds = publishedQuizzes.map((item) => item.id);
+        const quizPassMarks = new Map(publishedQuizzes.map((item) => [
+            item.id,
+            Math.max(0, Math.min(100, finiteNumber(item.get("passMark"), finiteNumber(moduleData.passMark, 50)))),
+        ]));
         if (publishedQuizIds.length > 0) {
             const attempts = await db.collection("quizAttempts").where("studentId", "==", uid).get();
             const passed = attempts.docs.some((item) => {
                 const attempt = item.data();
-                return publishedQuizIds.includes(String(attempt.quizId ?? ""))
+                const attemptQuizId = String(attempt.quizId ?? "");
+                const requiredPassMark = quizPassMarks.get(attemptQuizId);
+                return requiredPassMark !== undefined
                     && attempt.completed !== false
-                    && (attempt.passed === true || finiteNumber(attempt.finalPercentage ?? attempt.percentage) >= finiteNumber(moduleData.passMark, 50));
+                    && finiteNumber(attempt.finalPercentage ?? attempt.percentage, 0) >= requiredPassMark;
             });
             if (!passed) {
                 const requiredQuiz = quizzes.docs.find((item) => item.get("status") === "published");
@@ -2438,7 +3333,22 @@ exports.completeModuleLearning = (0, https_1.onCall)({ region: "us-central1", ti
         }, { merge: true });
     }
     await batch.commit();
-    return { moduleId, completed: true };
+    let nextPath = courseUnitId ? `/courses/${encodeURIComponent(courseUnitId)}` : "/student/course-units";
+    let nextModuleId = null;
+    if (courseUnitId) {
+        const [a, b] = await Promise.all([db.collection("modules").where("courseUnitId", "==", courseUnitId).get(), db.collection("modules").where("courseId", "==", courseUnitId).get()]);
+        const map = new Map();
+        for (const item of [...a.docs, ...b.docs])
+            map.set(item.id, item);
+        const ordered = [...map.values()].filter((item) => item.get("published") === true || item.get("isPublished") === true).sort((x, y) => finiteNumber(x.get("order"), 0) - finiteNumber(y.get("order"), 0));
+        const currentIndex = ordered.findIndex((item) => item.id === moduleId);
+        const next = currentIndex >= 0 ? ordered[currentIndex + 1] : undefined;
+        if (next) {
+            nextModuleId = next.id;
+            nextPath = `/lesson/${encodeURIComponent(next.id)}`;
+        }
+    }
+    return { moduleId, completed: true, nextModuleId, nextPath };
 });
 /**
  * Creates the canonical tenant and membership records required by v3 without
@@ -2557,8 +3467,9 @@ async function assertPlatformSuperAdmin(request) {
     const platformRole = String(profile.get("platformRole") ?? "");
     const role = String(profile.get("role") ?? "");
     const email = String(request.auth.token.email ?? profile.get("email") ?? "").toLowerCase();
-    if (role !== "admin" || (platformRole !== "super_admin" && email !== "othienoivan@gmail.com")) {
-        throw new https_1.HttpsError("permission-denied", "Platform Super Admin access is required.");
+    const allowedPlatformRoles = new Set(["super_admin", "platform_admin", "platform_support", "platform_finance"]);
+    if (role !== "admin" || (!allowedPlatformRoles.has(platformRole) && email !== "othienoivan@gmail.com")) {
+        throw new https_1.HttpsError("permission-denied", "Platform administrator access is required.");
     }
     return { uid: request.auth.uid, name: String(profile.get("fullName") ?? email ?? request.auth.uid) };
 }
@@ -2841,169 +3752,76 @@ exports.refreshMarketplaceLearningAccess = (0, https_1.onCall)({ region: "us-cen
         await batch.commit();
     return { courseUnitIds: [...courseUnitIds], count: courseUnitIds.size };
 });
-/** Public, server-enriched course-unit catalogue used by public and student course cards. */
+/** Public marketplace-approved course-unit catalogue used by homepage and /courses. */
 exports.getPublicCourseCatalogueSnapshot = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "512MiB", enforceAppCheck: false }, async () => {
-    const courses = await db.collection("courses").where("published", "==", true).limit(100).get();
-    const rows = await Promise.all(courses.docs.map(async (course) => {
-        const data = course.data();
-        const aliases = Array.from(new Set([
-            course.id,
-            financeText(data.id, 180),
-            financeText(data.courseId, 180),
-            financeText(data.slug, 180),
-        ].filter(Boolean)));
-        async function queryAliases(collectionName, field) {
-            const results = await Promise.allSettled(aliases.map((alias) => db.collection(collectionName).where(field, "==", alias).get()));
-            const map = new Map();
-            results.forEach((result) => {
-                if (result.status === "fulfilled") {
-                    result.value.docs.forEach((item) => map.set(item.id, item));
-                }
-            });
-            return map;
-        }
-        const [modulesByUnit, modulesByCourse] = await Promise.all([
-            queryAliases("modules", "courseUnitId"),
-            queryAliases("modules", "courseId"),
+    const productSnapshot = await db
+        .collection("marketplaceProducts")
+        .where("status", "==", "published")
+        .where("type", "==", "course_unit")
+        .limit(100)
+        .get();
+    const rows = await Promise.all(productSnapshot.docs.map(async (productDoc) => {
+        const product = productDoc.data();
+        const courseUnitId = financeText(product.courseUnitId ?? (Array.isArray(product.linkedResourceIds) ? product.linkedResourceIds[0] : ""), 180);
+        if (!courseUnitId)
+            return null;
+        const courseDoc = await db.collection("courses").doc(courseUnitId).get();
+        if (!courseDoc.exists || courseDoc.get("published") === false)
+            return null;
+        const course = courseDoc.data() ?? {};
+        const [byUnit, byCourse] = await Promise.all([
+            db.collection("modules").where("courseUnitId", "==", courseUnitId).get(),
+            db.collection("modules").where("courseId", "==", courseUnitId).get(),
         ]);
-        const moduleMap = new Map([
-            ...modulesByUnit,
-            ...modulesByCourse,
-        ]);
-        const modules = [...moduleMap.values()].filter((item) => item.get("published") !== false);
+        const moduleMap = new Map();
+        [...byUnit.docs, ...byCourse.docs].forEach((item) => moduleMap.set(item.id, item));
+        const activeModules = [...moduleMap.values()].filter((item) => item.get("published") !== false);
+        if (activeModules.length < 1)
+            return null;
+        const lessonResults = await Promise.allSettled(activeModules.map((moduleDoc) => db.collection("lessons").where("moduleId", "==", moduleDoc.id).get()));
         const lessonMap = new Map();
-        const moduleLessonResults = await Promise.allSettled(modules.map((module) => db.collection("lessons").where("moduleId", "==", module.id).get()));
-        moduleLessonResults.forEach((result) => {
-            if (result.status === "fulfilled") {
-                result.value.docs.forEach((item) => lessonMap.set(item.id, item));
-            }
-        });
-        const [lessonsByUnit, lessonsByCourse] = await Promise.all([
-            queryAliases("lessons", "courseUnitId"),
-            queryAliases("lessons", "courseId"),
-        ]);
-        [...lessonsByUnit, ...lessonsByCourse].forEach(([id, item]) => lessonMap.set(id, item));
-        const lessons = [...lessonMap.values()].filter((item) => item.get("published") !== false).length;
-        const enrollmentMaps = await Promise.all([
-            queryAliases("enrollments", "courseId"),
-            queryAliases("enrollments", "courseUnitId"),
-        ]);
-        const enrollmentArrayResults = await Promise.allSettled(aliases.map((alias) => db.collection("enrollments").where("courseUnitIds", "array-contains", alias).get()));
-        const enrollmentMap = new Map();
-        enrollmentMaps.forEach((map) => map.forEach((item, id) => enrollmentMap.set(id, item)));
-        enrollmentArrayResults.forEach((result) => {
-            if (result.status === "fulfilled")
-                result.value.docs.forEach((item) => enrollmentMap.set(item.id, item));
-        });
-        const learnerIds = new Set();
-        enrollmentMap.forEach((item) => {
-            const row = item.data();
-            const status = String(row.status ?? row.approvalStatus ?? "active").toLowerCase();
-            if (!["active", "approved", "enrolled", "accepted", "completed"].includes(status))
+        lessonResults.forEach((result) => {
+            if (result.status !== "fulfilled")
                 return;
-            const learnerId = financeText(row.studentAuthUid ?? row.userId ?? row.authUid ?? row.studentId ?? item.id, 180);
-            if (learnerId)
-                learnerIds.add(learnerId);
+            result.value.docs.forEach((item) => {
+                const row = item.data();
+                const active = row.published !== false && row.isPublished !== false && String(row.status ?? "active").toLowerCase() !== "archived";
+                if (active)
+                    lessonMap.set(item.id, item);
+            });
         });
-        const marketplaceMaps = await Promise.all([
-            queryAliases("marketplaceCourseAccess", "courseUnitId"),
-            queryAliases("marketplaceCourseAccess", "courseId"),
-        ]);
-        marketplaceMaps.forEach((map) => map.forEach((item) => {
-            if (String(item.get("status") ?? "active").toLowerCase() !== "active")
-                return;
-            const learnerId = financeText(item.get("customerUid") ?? item.get("userId"), 180);
-            if (learnerId)
-                learnerIds.add(learnerId);
-        }));
-        const tutorIds = new Set();
-        const addTutorId = (value) => {
-            const id = financeText(value, 180);
-            if (id)
-                tutorIds.add(id);
-        };
-        (Array.isArray(data.assignedTutorIds) ? data.assignedTutorIds : []).forEach(addTutorId);
-        [data.ownerUserId, data.createdByUid, data.createdBy, data.tutorId].forEach(addTutorId);
-        modules.forEach((module) => {
-            const row = module.data();
-            (Array.isArray(row.assignedTutorIds) ? row.assignedTutorIds : []).forEach(addTutorId);
-            [row.ownerUserId, row.createdByUid, row.createdBy, row.tutorId].forEach(addTutorId);
-        });
-        const assignedTutorIds = [...tutorIds];
-        let tutor = financeText(data.tutor ?? data.tutorName ?? data.assignedTutorName ?? data.createdByName, 160);
-        const genericTutorNames = ["", "unassigned", "assigned tutor", "medical elites tutor", "to be defined"];
-        if (genericTutorNames.includes(tutor.toLowerCase()) && assignedTutorIds.length > 0) {
-            for (const tutorUid of assignedTutorIds) {
-                const [userProfile, sellerProfile] = await Promise.all([
-                    db.collection("users").doc(tutorUid).get(),
-                    db.collection("sellerProfiles").doc(tutorUid).get(),
-                ]);
-                const resolved = financeText(userProfile.get("fullName") ?? userProfile.get("displayName") ?? sellerProfile.get("displayName"), 160);
-                if (resolved) {
-                    tutor = resolved;
-                    break;
-                }
-            }
-        }
-        if (!tutor || genericTutorNames.includes(tutor.toLowerCase()))
-            tutor = "Medical Elites Tutor";
-        const productMaps = await Promise.all([
-            queryAliases("marketplaceProducts", "courseUnitId"),
-            ...await Promise.all(aliases.map(async (alias) => {
-                const result = await db.collection("marketplaceProducts").where("linkedResourceIds", "array-contains", alias).get();
-                const map = new Map();
-                result.docs.forEach((item) => map.set(item.id, item));
-                return map;
-            })),
-        ]);
-        const productMap = new Map();
-        productMaps.forEach((map) => map.forEach((item, id) => productMap.set(id, item)));
-        let ratingTotal = 0;
-        let ratingCount = 0;
-        productMap.forEach((item) => {
-            const count = Math.max(0, finiteNumber(item.get("ratingCount"), 0));
-            const average = Math.max(0, finiteNumber(item.get("ratingAverage"), 0));
-            ratingTotal += average * count;
-            ratingCount += count;
-        });
-        const storedRating = Math.max(0, finiteNumber(data.rating ?? data.ratingAverage, 0));
-        const rating = ratingCount > 0 ? ratingTotal / ratingCount : storedRating;
-        const moduleHours = modules.reduce((sum, item) => sum + Math.max(0, finiteNumber(item.get("estimatedHours") ?? item.get("durationHours"), 0)), 0);
-        const durationWeeks = Math.max(0, finiteNumber(data.durationWeeks ?? data.weeks ?? data.semesterWeeks, 0));
-        const duration = financeText(data.duration, 80)
-            || (durationWeeks > 0 ? `${durationWeeks} weeks` : "")
-            || (moduleHours > 0 ? `${moduleHours} learning hours` : "Self-paced");
+        if (lessonMap.size < 1)
+            return null;
+        const image = financeText(product.thumbnailUrl, 1200)
+            || financeText(course.image ?? course.imageUrl ?? course.thumbnailUrl, 1200)
+            || "/images/course-placeholder.svg";
         return {
-            id: course.id,
-            slug: financeText(data.slug, 180) || course.id,
-            title: financeText(data.title, 240) || "Untitled course unit",
-            category: financeText(data.category, 120) || "Health Sciences",
-            description: financeText(data.description, 2000) || "Explore this Medical Elites course unit.",
-            programmeId: financeText(data.programmeId, 180),
-            programmeTitle: financeText(data.programmeTitle, 240) || "Health Sciences",
-            image: financeText(data.image ?? data.imageUrl ?? data.thumbnailUrl, 1200) || "/images/course-placeholder.svg",
-            tutor,
-            duration,
-            modules: modules.length,
-            lessons,
-            level: financeText(data.level, 80) || "Diploma",
-            rating,
-            students: String(learnerIds.size),
-            certificate: data.certificate !== false,
-            isFeatured: data.isFeatured === true,
-            isNew: data.isNew === true,
+            id: courseDoc.id,
+            slug: financeText(course.slug, 180) || courseDoc.id,
+            title: financeText(product.title ?? course.title, 240) || "Untitled course unit",
+            category: financeText(product.categoryName ?? course.category, 120) || "Health Sciences",
+            description: financeText(product.shortDescription ?? product.description ?? course.description, 2000) || "Explore this Medical Elites course unit.",
+            programmeId: financeText(product.programmeId ?? course.programmeId, 180),
+            programmeTitle: financeText(product.programmeTitle ?? course.programmeTitle, 240) || "Health Sciences",
+            image,
+            imagePath: financeText(course.imagePath, 1200) || undefined,
+            tutor: financeText(product.sellerName ?? course.tutor ?? course.tutorName, 160) || "Medical Elites Tutor",
+            duration: financeText(course.duration, 80) || "Self-paced",
+            modules: activeModules.length,
+            lessons: lessonMap.size,
+            level: financeText(course.level, 80) || "Diploma",
+            rating: Math.max(0, finiteNumber(product.ratingAverage ?? course.rating ?? course.ratingAverage, 0)),
+            students: String(Math.max(0, finiteNumber(product.salesCount ?? course.students, 0))),
+            certificate: product.certificateIncluded === true || course.certificate !== false,
+            isFeatured: product.featured === true,
+            isNew: course.isNew === true,
             published: true,
-            code: financeText(data.code, 80),
-            semester: data.semester ?? null,
-            yearOfStudy: data.yearOfStudy ?? null,
-            creditUnits: data.creditUnits ?? null,
-            assignedTutorIds,
-            ownerUserId: financeText(data.ownerUserId, 180) || undefined,
-            createdByUid: financeText(data.createdByUid, 180) || undefined,
-            institutionId: financeText(data.institutionId, 180) || null,
+            marketplaceProductId: productDoc.id,
+            marketplaceApproved: true,
+            marketplaceStatus: "published",
         };
     }));
-    return { courseUnits: rows, version: "3.1.9" };
+    return { courseUnits: rows.filter((row) => row !== null) };
 });
 /** Student learning summary and recent academic activity from canonical server records. */
 exports.getStudentLearningOverview = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "512MiB", enforceAppCheck: false }, async (request) => {
@@ -3161,6 +3979,8 @@ exports.updateOwnStudentProfile = (0, https_1.onCall)({ region: "us-central1", t
         phone: financeText(input.phoneNumber, 40),
         address: financeText(input.address, 300),
         emergencyContact: financeText(input.emergencyContact, 120),
+        profilePhoto: financeText(input.profilePhoto, 1200),
+        profilePhotoPath: financeText(input.profilePhotoPath, 1500),
         updatedAt: firestore_1.FieldValue.serverTimestamp(),
     };
     const uid = request.auth.uid;
@@ -3415,6 +4235,7 @@ exports.getPublicCourseCatalogueSnapshotV2 = (0, https_1.onCall)({ region: "us-c
         if (!tutor || generic.includes(tutor.toLowerCase()))
             tutor = "Medical Elites Tutor";
         const matchingProductIds = new Set();
+        const matchingProducts = [];
         let ratingTotal = 0;
         let ratingCount = 0;
         productSnap.docs.forEach((item) => {
@@ -3424,11 +4245,28 @@ exports.getPublicCourseCatalogueSnapshotV2 = (0, https_1.onCall)({ region: "us-c
             if (!matchesCourse(row) && !linkedMatch)
                 return;
             matchingProductIds.add(item.id);
+            matchingProducts.push(row);
             const count = Math.max(0, finiteNumber(row.ratingCount, 0));
             const average = Math.max(0, finiteNumber(row.ratingAverage, 0));
             ratingTotal += average * count;
             ratingCount += count;
         });
+        // Public course-unit visibility is marketplace-controlled. A course is public
+        // only after an authorized human reviewer has approved the linked product.
+        // Legacy products without the nested approval object are accepted only when
+        // they are explicitly published and carry a human approval timestamp/by field.
+        const approvedPublishedProducts = matchingProducts.filter((row) => {
+            const status = financeText(row.status, 40).toLowerCase();
+            if (status !== "published")
+                return false;
+            const approval = (row.approval ?? {});
+            const decision = financeText(approval.manualDecision, 40).toLowerCase();
+            const reviewedBy = financeText(approval.manuallyReviewedBy ?? row.marketplaceApprovedBy, 180);
+            const reviewedAt = approval.manuallyReviewedAt ?? row.marketplaceApprovedAt ?? row.publishedAt;
+            return decision === "approved" || Boolean(reviewedBy && reviewedAt);
+        });
+        if (approvedPublishedProducts.length < 1)
+            return null;
         // Reviews are the authoritative learner-rating source. This also repairs
         // older products whose ratingAverage/ratingCount counters were never backfilled.
         const directReviewRatings = reviewSnap.docs
@@ -3444,6 +4282,25 @@ exports.getPublicCourseCatalogueSnapshotV2 = (0, https_1.onCall)({ region: "us-c
         const moduleHours = modules.reduce((sum, item) => sum + Math.max(0, finiteNumber(item.get("estimatedHours") ?? item.get("durationHours"), 0)), 0);
         const durationWeeks = Math.max(0, finiteNumber(data.durationWeeks ?? data.weeks ?? data.semesterWeeks, 0));
         const duration = financeText(data.duration, 80) || (durationWeeks > 0 ? `${durationWeeks} weeks` : "") || (moduleHours > 0 ? `${moduleHours} learning hours` : "Self-paced");
+        // Use the same resolver as marketplace approval. A placeholder in an older
+        // course field must not mask a valid uploaded thumbnail stored on the course
+        // or on its approved marketplace product.
+        const thumbnailResolution = marketplaceHasRealThumbnail(data.thumbnailUrl, data.imageUrl, data.image, data.thumbnail, data.coverImage, data.coverImageUrl, data.thumbnailPath, data.imagePath, ...approvedPublishedProducts.flatMap((row) => [
+            row.thumbnailUrl,
+            row.imageUrl,
+            row.image,
+            row.thumbnail,
+            row.coverImage,
+            row.coverImageUrl,
+            row.thumbnailPath,
+            row.imagePath,
+        ]));
+        const thumbnail = thumbnailResolution.thumbnailValue;
+        // Public catalogue eligibility is intentionally strict: a marketplace-approved
+        // course unit must have at least one active module, one active lesson and a
+        // genuine thumbnail image.
+        if (modules.length < 1 || lessons.length < 1 || !thumbnailResolution.hasThumbnail)
+            return null;
         return {
             id: course.id,
             slug: financeText(data.slug, 180) || course.id,
@@ -3452,7 +4309,7 @@ exports.getPublicCourseCatalogueSnapshotV2 = (0, https_1.onCall)({ region: "us-c
             description: financeText(data.description, 2000) || "Explore this Medical Elites course unit.",
             programmeId: financeText(data.programmeId, 180),
             programmeTitle: financeText(data.programmeTitle, 240) || "Health Sciences",
-            image: financeText(data.image ?? data.imageUrl ?? data.thumbnailUrl, 1200) || "/images/course-placeholder.svg",
+            image: thumbnail,
             tutor,
             duration,
             modules: modules.length,
@@ -3472,7 +4329,7 @@ exports.getPublicCourseCatalogueSnapshotV2 = (0, https_1.onCall)({ region: "us-c
             catalogueVersion: "v2",
         };
     }));
-    return { courseUnits: rows, version: "v2" };
+    return { courseUnits: rows.filter((row) => row !== null), version: "v2" };
 });
 /** Notify active learners whenever any tutor publishing workflow transitions a lesson to published. */
 exports.notifyStudentsWhenLessonPublished = (0, firestore_2.onDocumentUpdated)({ document: "lessons/{lessonId}", region: "us-central1", memory: "512MiB", timeoutSeconds: 120 }, async (event) => {
@@ -3596,8 +4453,9 @@ exports.listSubscriptionPlansTrusted = (0, https_1.onCall)({ region: "us-central
     return { plans: snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) };
 });
 /**
- * Registration links created by tutors are tutor-owned learning relationships.
- * They intentionally do not attach the learner to an institution tenant.
+ * Registration-link ownership is independent from class/institution context.
+ * A tutor may own links for several schools; claiming one must never remove a
+ * learner's existing institution memberships. The link itself is the cohort.
  */
 exports.claimRegistrationLinkTrusted = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
     if (!request.auth)
@@ -3637,8 +4495,11 @@ exports.claimRegistrationLinkTrusted = (0, https_1.onCall)({ region: "us-central
         : financeText(linkSnap.get("tutorId"), 180);
     if (tutorOwned && !owningTutorId)
         throw new https_1.HttpsError("failed-precondition", "This tutor registration link has no tutor owner.");
-    const linkInstitutionId = tutorOwned ? "" : financeText(linkSnap.get("institutionId"), 180);
+    const linkInstitutionId = financeText(linkSnap.get("institutionId"), 180);
     const currentInstitutionId = financeText(userSnap.get("institutionId"), 180);
+    // Tutor-owned links can carry a school/class context without moving the
+    // student's canonical account between institutions. Only institution-owned
+    // links use institution conflict as an approval signal.
     const conflictingInstitution = !tutorOwned && Boolean(currentInstitutionId && linkInstitutionId && currentInstitutionId !== linkInstitutionId);
     const existingApprovalStatus = claimSnap.exists ? financeText(claimSnap.get("approvalStatus"), 30) : "";
     const approvalStatus = existingApprovalStatus === "pending" || existingApprovalStatus === "approved"
@@ -3672,14 +4533,17 @@ exports.claimRegistrationLinkTrusted = (0, https_1.onCall)({ region: "us-central
                 studentEmail: String(userSnap.get("email") ?? request.auth?.token.email ?? "").trim().toLowerCase(),
                 studentName: String(userSnap.get("fullName") ?? "Student").trim(),
                 institutionId: linkInstitutionId || null,
+                institutionName: financeText(linkSnap.get("institutionName"), 240) || null,
                 tutorId: owningTutorId || null,
                 ownerRole,
                 ownershipMode: tutorOwned ? "tutor" : "institution",
+                registrationLinkName: financeText(linkSnap.get("name"), 240) || "Registration link",
                 programmeId: programmeId || null,
                 academicYear: financeText(linkSnap.get("academicYear"), 80) || null,
                 yearOfStudy: financeText(linkSnap.get("yearOfStudy"), 40) || null,
                 semester: financeText(linkSnap.get("semester"), 40) || null,
-                studentGroupId: financeText(linkSnap.get("studentGroupId"), 180) || null,
+                studentGroupId: financeText(linkSnap.get("studentGroupId"), 180) || code,
+                assessmentGroupId: financeText(linkSnap.get("assessmentGroupId"), 180) || financeText(linkSnap.get("studentGroupId"), 180) || code,
                 courseUnitIds: linkCourseUnitIds,
                 moduleIds: linkModuleIds,
                 approvalStatus,
@@ -3693,11 +4557,15 @@ exports.claimRegistrationLinkTrusted = (0, https_1.onCall)({ region: "us-central
             ownerUserId: tutorOwned ? owningTutorId : (studentSnap.get("ownerUserId") ?? owningTutorId ?? null),
             createdByUid: tutorOwned ? owningTutorId : (studentSnap.get("createdByUid") ?? owningTutorId ?? null),
             registeredByRole: tutorOwned ? "tutor" : ownerRole,
-            institutionId: linkInstitutionId || null,
+            // A tutor-owned class link must not overwrite the student's canonical
+            // institution. The target school remains on the enrollment/cohort.
+            institutionId: tutorOwned ? (studentSnap.get("institutionId") ?? currentInstitutionId ?? null) : (linkInstitutionId || null),
             assignedTutorIds: linkedTutorIds,
             assignedCourseUnitIds,
             onboardingSource: "registration-link",
             registrationLinkId: code,
+            registrationLinkIds: firestore_1.FieldValue.arrayUnion(code),
+            studentGroupIds: firestore_1.FieldValue.arrayUnion(financeText(linkSnap.get("studentGroupId"), 180) || code),
             email: String(userSnap.get("email") ?? request.auth?.token.email ?? "").trim(),
             emailNormalized: String(userSnap.get("email") ?? request.auth?.token.email ?? "").trim().toLowerCase(),
             fullName: String(userSnap.get("fullName") ?? "Student").trim(),
@@ -3725,20 +4593,15 @@ exports.claimRegistrationLinkTrusted = (0, https_1.onCall)({ region: "us-central
             academicYear: financeText(linkSnap.get("academicYear"), 80) || userSnap.get("academicYear") || null,
             yearOfStudy: financeText(linkSnap.get("yearOfStudy"), 40) || userSnap.get("yearOfStudy") || null,
             semester: financeText(linkSnap.get("semester"), 40) || userSnap.get("semester") || null,
-            studentGroupId: financeText(linkSnap.get("studentGroupId"), 180) || userSnap.get("studentGroupId") || null,
+            studentGroupId: financeText(linkSnap.get("studentGroupId"), 180) || code,
+            studentGroupIds: firestore_1.FieldValue.arrayUnion(financeText(linkSnap.get("studentGroupId"), 180) || code),
             studentRecordId: uid,
             onboardingSource: "registration-link",
             registrationLinkId: code,
+            registrationLinkIds: firestore_1.FieldValue.arrayUnion(code),
             updatedAt: firestore_1.FieldValue.serverTimestamp(),
         };
-        if (tutorOwned) {
-            userPayload.institutionId = firestore_1.FieldValue.delete();
-            userPayload.institutionName = firestore_1.FieldValue.delete();
-            userPayload.tenantId = tutorTenantId;
-            userPayload.activeTenantId = tutorTenantId;
-            userPayload.tenantIds = tutorTenantId ? [tutorTenantId] : [];
-        }
-        else if (linkInstitutionId) {
+        if (!tutorOwned && linkInstitutionId) {
             userPayload.institutionId = linkInstitutionId;
             userPayload.institutionName = financeText(linkSnap.get("institutionName"), 240) || null;
         }
@@ -3755,24 +4618,14 @@ exports.claimRegistrationLinkTrusted = (0, https_1.onCall)({ region: "us-central
             }, { merge: true });
         }
     });
-    // Tutor-owned links must never leave the learner active in an institution tenant.
-    if (tutorOwned) {
-        const memberships = await db.collection("tenantMemberships").where("userId", "==", uid).get();
-        for (const membership of memberships.docs) {
-            const tenantId = financeText(membership.get("tenantId"), 180);
-            if (!tenantId || tenantId === tutorTenantId || membership.get("status") !== "active")
-                continue;
-            const tenant = await db.collection("tenants").doc(tenantId).get();
-            if (tenant.exists && tenant.get("type") === "institution") {
-                await membership.ref.set({ status: "removed", isDefault: false, removedReason: "Tutor-owned registration link", updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
-            }
-        }
-    }
+    // Preserve all existing institution memberships. The tutor workspace
+    // membership is additive and the registration-link enrollment stores the
+    // class/institution context used for assessment separation.
     return { approvalStatus, tutorOwned, tutorId: owningTutorId || null, tenantId: tutorTenantId || null };
 });
 /**
- * Returns every learner who joined one of the authenticated tutor's links and
- * repairs old claims that were incorrectly attached to an institution.
+ * Returns every learner who joined one of the authenticated tutor's links.
+ * Institution/class context is preserved per link; no learner tenant is removed.
  */
 exports.getTutorRegistrationLinkStudents = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 120, memory: "256MiB", enforceAppCheck: false }, async (request) => {
     if (!request.auth)
@@ -3821,13 +4674,14 @@ exports.getTutorRegistrationLinkStudents = (0, https_1.onCall)({ region: "us-cen
         const link = linkByCode.get(code);
         if (!link)
             continue;
-        // Repair the link itself into canonical tutor ownership.
+        // Repair ownership fields only. Never delete the selected institution
+        // because it is valid class context for tutors teaching several schools.
         await link.ref.set({
             ownerRole: "tutor",
             tutorId: uid,
-            institutionId: firestore_1.FieldValue.delete(),
-            institutionName: firestore_1.FieldValue.delete(),
             ownershipMode: "tutor",
+            studentGroupId: financeText(link.get("studentGroupId"), 180) || code,
+            assessmentGroupId: financeText(link.get("assessmentGroupId"), 180) || financeText(link.get("studentGroupId"), 180) || code,
             updatedAt: firestore_1.FieldValue.serverTimestamp(),
         }, { merge: true });
         const studentUid = financeText(claim.get("studentAuthUid"), 180)
@@ -3846,7 +4700,6 @@ exports.getTutorRegistrationLinkStudents = (0, https_1.onCall)({ region: "us-cen
             ownerUserId: uid,
             createdByUid: uid,
             registeredByRole: "tutor",
-            institutionId: null,
             assignedTutorIds: tutorIds,
             onboardingSource: "registration-link",
             registrationLinkId: code,
@@ -3855,14 +4708,11 @@ exports.getTutorRegistrationLinkStudents = (0, https_1.onCall)({ region: "us-cen
         if (userSnap.exists) {
             const existingLinkedTutorIds = Array.isArray(userSnap.get("linkedTutorIds")) ? userSnap.get("linkedTutorIds") : [];
             batch.set(userRef, {
-                institutionId: firestore_1.FieldValue.delete(),
-                institutionName: firestore_1.FieldValue.delete(),
                 linkedTutorIds: [...new Set([uid, ...existingLinkedTutorIds.map((value) => financeText(value, 180)).filter(Boolean)])],
-                tenantId: tutorTenantId,
-                activeTenantId: tutorTenantId,
-                tenantIds: [tutorTenantId],
                 onboardingSource: "registration-link",
                 registrationLinkId: code,
+                registrationLinkIds: firestore_1.FieldValue.arrayUnion(code),
+                studentGroupIds: firestore_1.FieldValue.arrayUnion(financeText(link.get("studentGroupId"), 180) || code),
                 updatedAt: firestore_1.FieldValue.serverTimestamp(),
             }, { merge: true });
         }
@@ -3871,36 +4721,24 @@ exports.getTutorRegistrationLinkStudents = (0, https_1.onCall)({ region: "us-cen
             userId: studentUid,
             roles: ["student"],
             status: "active",
-            isDefault: true,
+            isDefault: !financeText(studentSnap.get("institutionId"), 180) && !financeText(link.get("institutionId"), 180),
             joinedAt: firestore_1.FieldValue.serverTimestamp(),
             updatedAt: firestore_1.FieldValue.serverTimestamp(),
         }, { merge: true });
         batch.set(claim.ref, {
             tutorId: uid,
             registrationLinkCode: code,
-            institutionId: null,
+            institutionId: link.get("institutionId") ?? claim.get("institutionId") ?? null,
+            institutionName: link.get("institutionName") ?? claim.get("institutionName") ?? null,
+            studentGroupId: financeText(link.get("studentGroupId"), 180) || code,
+            assessmentGroupId: financeText(link.get("assessmentGroupId"), 180) || financeText(link.get("studentGroupId"), 180) || code,
             ownerRole: "tutor",
             ownershipMode: "tutor",
             updatedAt: firestore_1.FieldValue.serverTimestamp(),
         }, { merge: true });
         await batch.commit();
-        // Remove only institutional memberships. The student remains on the
-        // platform and stays attached to this tutor workspace.
-        const memberships = await db.collection("tenantMemberships").where("userId", "==", studentUid).get();
-        for (const membership of memberships.docs) {
-            const tenantId = financeText(membership.get("tenantId"), 180);
-            if (!tenantId || tenantId === tutorTenantId || membership.get("status") !== "active")
-                continue;
-            const tenant = await db.collection("tenants").doc(tenantId).get();
-            if (tenant.exists && tenant.get("type") === "institution") {
-                await membership.ref.set({
-                    status: "removed",
-                    isDefault: false,
-                    removedReason: "Tutor-owned registration link ownership repair",
-                    updatedAt: firestore_1.FieldValue.serverTimestamp(),
-                }, { merge: true });
-            }
-        }
+        // Institution memberships are deliberately preserved; each registration
+        // link is an independent class/assessment cohort.
         rows.push({
             enrollmentId: claim.id,
             registrationLinkCode: code,
@@ -3914,6 +4752,10 @@ exports.getTutorRegistrationLinkStudents = (0, https_1.onCall)({ region: "us-cen
             academicYear: claim.get("academicYear") ?? link.get("academicYear") ?? null,
             yearOfStudy: claim.get("yearOfStudy") ?? link.get("yearOfStudy") ?? null,
             semester: claim.get("semester") ?? link.get("semester") ?? null,
+            institutionId: claim.get("institutionId") ?? link.get("institutionId") ?? null,
+            institutionName: claim.get("institutionName") ?? link.get("institutionName") ?? null,
+            studentGroupId: claim.get("studentGroupId") ?? link.get("studentGroupId") ?? code,
+            assessmentGroupId: claim.get("assessmentGroupId") ?? link.get("assessmentGroupId") ?? link.get("studentGroupId") ?? code,
             courseUnitIds: Array.isArray(claim.get("courseUnitIds")) ? claim.get("courseUnitIds") : (Array.isArray(link.get("courseUnitIds")) ? link.get("courseUnitIds") : []),
             joinedAt: claim.get("joinedAt") ?? null,
         });
@@ -4177,11 +5019,89 @@ exports.getStudentAssessmentPackage = (0, https_1.onCall)({
     if (!quizId) {
         throw new https_1.HttpsError("invalid-argument", "A quiz ID is required.");
     }
-    const quizSnapshot = await db.collection("quizzes").doc(quizId).get();
+    let quizSnapshot = await db.collection("quizzes").doc(quizId).get();
+    // Compatibility 1: historical records can store a public id that differs
+    // from the Firestore document id.
     if (!quizSnapshot.exists) {
-        throw new https_1.HttpsError("not-found", "Assessment not found.");
+        const storedIdMatch = await db
+            .collection("quizzes")
+            .where("id", "==", quizId)
+            .limit(1)
+            .get();
+        if (!storedIdMatch.empty) {
+            quizSnapshot = storedIdMatch.docs[0];
+        }
     }
-    const quizData = quizSnapshot.data() ?? {};
+    // Compatibility 2: a stale lesson quizId can be resolved through the
+    // lesson document and the quiz.lessonId relationship.
+    if (!quizSnapshot.exists) {
+        const staleLessonLinks = await db
+            .collection("lessons")
+            .where("quizId", "==", quizId)
+            .limit(10)
+            .get();
+        for (const lessonDoc of staleLessonLinks.docs) {
+            const lessonQuizMatch = await db
+                .collection("quizzes")
+                .where("lessonId", "==", lessonDoc.id)
+                .where("status", "==", "published")
+                .limit(1)
+                .get();
+            if (!lessonQuizMatch.empty) {
+                quizSnapshot = lessonQuizMatch.docs[0];
+                try {
+                    await lessonDoc.ref.update({
+                        quizId: quizSnapshot.id,
+                        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+                    });
+                }
+                catch (repairError) {
+                    console.warn("Could not repair stale lesson quizId.", repairError);
+                }
+                break;
+            }
+        }
+    }
+    // Compatibility 3: do the same for old module assessment references.
+    if (!quizSnapshot.exists) {
+        const staleModuleLinks = await db
+            .collection("modules")
+            .where("quizId", "==", quizId)
+            .limit(10)
+            .get();
+        for (const moduleDoc of staleModuleLinks.docs) {
+            const moduleQuizMatch = await db
+                .collection("quizzes")
+                .where("moduleId", "==", moduleDoc.id)
+                .where("status", "==", "published")
+                .limit(1)
+                .get();
+            if (!moduleQuizMatch.empty) {
+                quizSnapshot = moduleQuizMatch.docs[0];
+                try {
+                    await moduleDoc.ref.update({
+                        quizId: quizSnapshot.id,
+                        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+                    });
+                }
+                catch (repairError) {
+                    console.warn("Could not repair stale module quizId.", repairError);
+                }
+                break;
+            }
+        }
+    }
+    if (!quizSnapshot.exists) {
+        console.error("Assessment resolution failed.", {
+            requestedQuizId: quizId,
+            uid,
+        });
+        throw new https_1.HttpsError("not-found", "Assessment not found. This lesson or module is linked to a quiz that no longer exists. Ask the tutor to select or regenerate the required quiz.");
+    }
+    const quizData = {
+        ...(quizSnapshot.data() ?? {}),
+        id: quizSnapshot.id,
+    };
     if (quizData.status !== "published") {
         throw new https_1.HttpsError("failed-precondition", "This assessment is not published.");
     }
@@ -4703,5 +5623,372 @@ exports.cancelStorageUploadReservation = (0, https_1.onCall)({
         };
     });
     return result;
+});
+function marketplaceTruthyPublished(value) {
+    if (value === true)
+        return true;
+    return ["published", "active", "live", "yes", "1", "true"].includes(String(value ?? "").trim().toLowerCase());
+}
+function marketplaceIsActiveModule(doc) {
+    const row = doc.data();
+    // Current schema uses `published`; aliases keep older migrated records compatible.
+    return marketplaceTruthyPublished(row.published) || marketplaceTruthyPublished(row.isPublished) || marketplaceTruthyPublished(row.status);
+}
+function marketplaceIsActiveLesson(doc) {
+    const row = doc.data();
+    const status = String(row.status ?? "").trim().toLowerCase();
+    if (["archived", "deleted", "inactive", "draft"].includes(status))
+        return false;
+    return marketplaceTruthyPublished(row.isPublished) || marketplaceTruthyPublished(row.published) || marketplaceTruthyPublished(row.status);
+}
+function marketplaceHasRealThumbnail(...values) {
+    const placeholders = ["course-placeholder", "placeholder.svg", "placeholder.png", "default-course", "default_thumbnail", "default-thumbnail"];
+    const candidates = [];
+    for (const value of values) {
+        if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+            const row = value;
+            candidates.push(financeText(row.downloadUrl ?? row.downloadURL ?? row.url ?? row.imageUrl ?? row.thumbnailUrl ?? row.path ?? row.filePath, 1600));
+        }
+        else {
+            candidates.push(financeText(value, 1600));
+        }
+    }
+    for (const thumbnailValue of candidates.filter(Boolean)) {
+        const normalized = thumbnailValue.trim().toLowerCase();
+        if (!normalized)
+            continue;
+        if (placeholders.some((token) => normalized.includes(token)))
+            continue;
+        return { hasThumbnail: true, thumbnailValue };
+    }
+    return { hasThumbnail: false, thumbnailValue: candidates.find(Boolean) ?? "" };
+}
+async function resolveMarketplaceCourseReadiness(product) {
+    const courseUnitId = financeText(product.courseUnitId ?? (Array.isArray(product.linkedResourceIds) ? product.linkedResourceIds[0] : ""), 180);
+    if (!courseUnitId)
+        throw new https_1.HttpsError("failed-precondition", "This product is not linked to a course unit.");
+    let courseDoc = await db.collection("courses").doc(courseUnitId).get();
+    if (!courseDoc.exists) {
+        const [byCourseId, byStoredId] = await Promise.all([
+            db.collection("courses").where("courseId", "==", courseUnitId).limit(1).get(),
+            db.collection("courses").where("id", "==", courseUnitId).limit(1).get(),
+        ]);
+        const aliasDoc = byCourseId.docs[0] ?? byStoredId.docs[0];
+        if (aliasDoc)
+            courseDoc = aliasDoc;
+    }
+    if (!courseDoc.exists)
+        throw new https_1.HttpsError("failed-precondition", "Linked course unit not found.");
+    const resolvedCourseUnitId = courseDoc.id;
+    const course = courseDoc.data() ?? {};
+    const aliases = [...new Set([courseUnitId, resolvedCourseUnitId, financeText(course.courseId, 180), financeText(course.id, 180)].filter(Boolean))];
+    const moduleSnapshots = await Promise.allSettled(aliases.flatMap((alias) => [
+        db.collection("modules").where("courseUnitId", "==", alias).get(),
+        db.collection("modules").where("courseId", "==", alias).get(),
+    ]));
+    const moduleMap = new Map();
+    moduleSnapshots.forEach((result) => {
+        if (result.status !== "fulfilled")
+            return;
+        result.value.docs.forEach((item) => moduleMap.set(item.id, item));
+    });
+    const allModules = [...moduleMap.values()];
+    const activeModules = allModules.filter(marketplaceIsActiveModule);
+    const activeModuleIds = new Set(activeModules.map((item) => item.id));
+    let activeLessonCount = 0;
+    if (activeModuleIds.size > 0) {
+        const lessonSnapshots = await Promise.allSettled([
+            ...activeModules.map((moduleDoc) => db.collection("lessons").where("moduleId", "==", moduleDoc.id).get()),
+            ...aliases.map((alias) => db.collection("lessons").where("courseUnitId", "==", alias).get()),
+            ...aliases.map((alias) => db.collection("lessons").where("courseId", "==", alias).get()),
+        ]);
+        const lessonMap = new Map();
+        lessonSnapshots.forEach((result) => {
+            if (result.status !== "fulfilled")
+                return;
+            result.value.docs.forEach((item) => lessonMap.set(item.id, item));
+        });
+        activeLessonCount = [...lessonMap.values()].filter((item) => {
+            const row = item.data();
+            return activeModuleIds.has(String(row.moduleId ?? "")) && marketplaceIsActiveLesson(item);
+        }).length;
+    }
+    // Check every supported image source independently. A legacy placeholder in one field
+    // must not mask a valid uploaded thumbnail stored in another course/product field.
+    const thumbnail = marketplaceHasRealThumbnail(course.thumbnailUrl, course.imageUrl, course.image, course.thumbnail, course.coverImage, course.coverImageUrl, course.thumbnailPath, course.imagePath, product.thumbnailUrl, product.imageUrl, product.image, product.thumbnail, product.coverImage, product.thumbnailPath, product.imagePath);
+    const eligible = activeModules.length >= 1 && activeLessonCount >= 1 && thumbnail.hasThumbnail;
+    const missing = [];
+    if (activeModules.length < 1)
+        missing.push(`an active module (found ${allModules.length} module${allModules.length === 1 ? "" : "s"}, ${activeModules.length} active)`);
+    if (activeLessonCount < 1)
+        missing.push("an active lesson inside an active module");
+    if (!thumbnail.hasThumbnail)
+        missing.push("a valid thumbnail image");
+    const reason = eligible
+        ? `Ready for human approval: ${activeModules.length} active module(s), ${activeLessonCount} active lesson(s), and a valid thumbnail are present.`
+        : `Course unit is not ready for publication because it is missing ${missing.join(", ")}.`;
+    return {
+        courseUnitId: resolvedCourseUnitId,
+        courseRef: courseDoc.ref,
+        course,
+        activeModules,
+        activeModuleCount: activeModules.length,
+        activeLessonCount,
+        hasThumbnail: thumbnail.hasThumbnail,
+        thumbnailValue: thumbnail.thumbnailValue,
+        eligible,
+        reason,
+    };
+}
+/** AI-assisted marketplace course-unit quality review. AI is advisory only; every submission requires a human decision. */
+exports.reviewMarketplaceCourseUnitForApproval = (0, https_1.onCall)({
+    region: "us-central1",
+    timeoutSeconds: 120,
+    memory: "512MiB",
+    secrets: [OPENAI_API_KEY],
+    enforceAppCheck: false,
+}, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const profile = await db.collection("users").doc(request.auth.uid).get();
+    const role = String(profile.get("role") ?? "");
+    const platformRole = String(profile.get("platformRole") ?? "");
+    const allowedRoles = new Set(["super_admin", "platform_admin", "platform_support"]);
+    if (role !== "admin" || !allowedRoles.has(platformRole)) {
+        throw new https_1.HttpsError("permission-denied", "Platform marketplace review requires an authorized marketplace reviewer account.");
+    }
+    const input = (request.data ?? {});
+    const productId = financeText(input.productId, 180);
+    if (!productId)
+        throw new https_1.HttpsError("invalid-argument", "A marketplace product ID is required.");
+    const productRef = db.collection("marketplaceProducts").doc(productId);
+    const productDoc = await productRef.get();
+    if (!productDoc.exists)
+        throw new https_1.HttpsError("not-found", "Marketplace product not found.");
+    const product = productDoc.data() ?? {};
+    if (String(product.status ?? "") === "published") {
+        throw new https_1.HttpsError("failed-precondition", "Published content cannot be returned to review by AI. Hide or resubmit it through the controlled workflow first.");
+    }
+    if (String(product.type ?? "") !== "course_unit") {
+        throw new https_1.HttpsError("failed-precondition", "AI course review applies only to course-unit products.");
+    }
+    const readiness = await resolveMarketplaceCourseReadiness(product);
+    const courseUnitId = readiness.courseUnitId;
+    const course = readiness.course;
+    const activeModules = readiness.activeModules;
+    const lessonCount = readiness.activeLessonCount;
+    const hasThumbnail = readiness.hasThumbnail;
+    const deterministicEligible = readiness.eligible;
+    let aiScore = deterministicEligible ? 75 : 0;
+    let aiRecommendation = deterministicEligible ? "manual_review" : "reject";
+    let aiReason = deterministicEligible
+        ? "Minimum structure is satisfied. Human review is still required before publication."
+        : readiness.reason;
+    if (deterministicEligible) {
+        try {
+            const apiKey = OPENAI_API_KEY.value();
+            if (apiKey) {
+                const { default: OpenAI } = await import("openai");
+                const client = new OpenAI({ apiKey });
+                const completion = await client.chat.completions.create({
+                    model: "gpt-5-mini",
+                    messages: [
+                        { role: "system", content: "Review this health-sciences marketplace course unit for publication quality. Assess learner clarity, metadata completeness, educational coherence, presentation quality, and obvious safety concerns. Return JSON only. Your recommendation is advisory; a human reviewer makes the final decision." },
+                        { role: "user", content: JSON.stringify({
+                                title: financeText(product.title ?? course.title, 240),
+                                description: financeText(product.description ?? product.shortDescription ?? course.description, 4000),
+                                moduleCount: activeModules.length,
+                                lessonCount,
+                                hasThumbnail,
+                                programmeTitle: financeText(product.programmeTitle ?? course.programmeTitle, 240),
+                            }) },
+                    ],
+                    response_format: {
+                        type: "json_schema",
+                        json_schema: {
+                            name: "marketplace_course_review",
+                            strict: true,
+                            schema: {
+                                type: "object",
+                                additionalProperties: false,
+                                properties: {
+                                    score: { type: "number", minimum: 0, maximum: 100 },
+                                    recommendation: { type: "string", enum: ["approve", "manual_review", "reject"] },
+                                    reason: { type: "string" },
+                                },
+                                required: ["score", "recommendation", "reason"],
+                            },
+                        },
+                    },
+                    max_completion_tokens: 1200,
+                });
+                const text = completion.choices[0]?.message?.content;
+                if (text) {
+                    const parsed = JSON.parse(text);
+                    aiScore = Math.max(0, Math.min(100, Number(parsed.score ?? aiScore)));
+                    aiRecommendation = parsed.recommendation ?? aiRecommendation;
+                    aiReason = financeText(parsed.reason, 1200) || aiReason;
+                }
+            }
+        }
+        catch (error) {
+            console.warn("AI marketplace review failed; mandatory manual review remains available.", error);
+            aiRecommendation = "manual_review";
+            aiReason = "AI review was unavailable. A human reviewer must assess this submission manually.";
+        }
+    }
+    const reviewedAt = firestore_1.FieldValue.serverTimestamp();
+    await productRef.set({
+        status: "review",
+        approval: {
+            deterministicEligible,
+            moduleCount: activeModules.length,
+            lessonCount,
+            hasThumbnail,
+            aiScore,
+            aiRecommendation,
+            aiReason,
+            aiReviewedBy: request.auth.uid,
+            aiReviewedAt: reviewedAt,
+            autoApproved: false,
+        },
+        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    await db.collection("marketplaceApprovalAudits").add({
+        productId,
+        courseUnitId,
+        action: "ai_review",
+        decisionSource: "ai_advisory",
+        actorUid: request.auth.uid,
+        actorName: financeText(profile.get("displayName") ?? profile.get("name") ?? profile.get("email"), 240),
+        aiScore,
+        aiRecommendation,
+        aiReason,
+        deterministicEligible,
+        moduleCount: activeModules.length,
+        lessonCount,
+        hasThumbnail,
+        createdAt: firestore_1.FieldValue.serverTimestamp(),
+    });
+    return { productId, courseUnitId, deterministicEligible, moduleCount: activeModules.length, lessonCount, hasThumbnail, aiScore, aiRecommendation, aiReason, autoApproved: false, status: "review" };
+});
+/** Human marketplace approval decision. This is the only workflow that may approve and publish a submitted product. */
+exports.decideMarketplaceProductApproval = (0, https_1.onCall)({
+    region: "us-central1",
+    timeoutSeconds: 60,
+    memory: "256MiB",
+    enforceAppCheck: false,
+}, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const profile = await db.collection("users").doc(request.auth.uid).get();
+    const role = String(profile.get("role") ?? "");
+    const platformRole = String(profile.get("platformRole") ?? "");
+    const allowedRoles = new Set(["super_admin", "platform_admin", "platform_support"]);
+    if (role !== "admin" || !allowedRoles.has(platformRole)) {
+        throw new https_1.HttpsError("permission-denied", "Marketplace review requires an authorized reviewer account.");
+    }
+    const input = (request.data ?? {});
+    const productId = financeText(input.productId, 180);
+    const action = financeText(input.action, 40);
+    const reason = financeText(input.reason, 1600);
+    if (!productId)
+        throw new https_1.HttpsError("invalid-argument", "A marketplace product ID is required.");
+    if (!["start_review", "approve", "reject"].includes(action))
+        throw new https_1.HttpsError("invalid-argument", "Choose start_review, approve, or reject.");
+    if ((action === "approve" || action === "reject") && !new Set(["super_admin", "platform_admin"]).has(platformRole)) {
+        throw new https_1.HttpsError("permission-denied", "Only a Super Admin or Platform Admin can approve or reject marketplace content.");
+    }
+    const productRef = db.collection("marketplaceProducts").doc(productId);
+    const productDoc = await productRef.get();
+    if (!productDoc.exists)
+        throw new https_1.HttpsError("not-found", "Marketplace product not found.");
+    const product = productDoc.data() ?? {};
+    const currentStatus = financeText(product.status, 40);
+    if (action === "start_review" && currentStatus === "published") {
+        throw new https_1.HttpsError("failed-precondition", "Published content cannot be silently returned to review. Hide or resubmit it through the controlled workflow first.");
+    }
+    if (action === "reject" && !["submitted", "review", "rejected"].includes(currentStatus)) {
+        throw new https_1.HttpsError("failed-precondition", "Only submitted or review-queue content can be rejected.");
+    }
+    if (action === "approve" && !["submitted", "review", "rejected", "published"].includes(currentStatus)) {
+        throw new https_1.HttpsError("failed-precondition", "This content is not in an approvable state.");
+    }
+    const approval = (product.approval ?? {});
+    const aiRecommendation = financeText(approval.aiRecommendation, 40);
+    const deterministicEligible = approval.deterministicEligible === true;
+    const isCourseUnit = String(product.type ?? "") === "course_unit";
+    const overrodeAiDecision = Boolean(aiRecommendation && action !== "start_review" &&
+        ((action === "approve" && aiRecommendation !== "approve") || (action === "reject" && aiRecommendation !== "reject")));
+    let liveReadiness = null;
+    if (action === "approve" && isCourseUnit) {
+        liveReadiness = await resolveMarketplaceCourseReadiness(product);
+        if (!liveReadiness.eligible) {
+            throw new https_1.HttpsError("failed-precondition", liveReadiness.reason);
+        }
+    }
+    if ((action === "reject" || overrodeAiDecision) && !reason) {
+        throw new https_1.HttpsError("invalid-argument", "Enter a reviewer reason when rejecting content or overriding the AI recommendation.");
+    }
+    const reviewerName = financeText(profile.get("displayName") ?? profile.get("name") ?? profile.get("email") ?? request.auth.token.email, 240) || request.auth.uid;
+    const now = firestore_1.FieldValue.serverTimestamp();
+    const status = action === "approve" ? "published" : action === "reject" ? "rejected" : "review";
+    const manualDecision = action === "approve" ? "approved" : action === "reject" ? "rejected" : null;
+    const approvalPatch = {
+        manuallyReviewedBy: request.auth.uid,
+        manuallyReviewedByName: reviewerName,
+        manuallyReviewedAt: now,
+        autoApproved: false,
+        overrodeAiDecision,
+    };
+    if (manualDecision)
+        approvalPatch.manualDecision = manualDecision;
+    if (reason)
+        approvalPatch.manualDecisionReason = reason;
+    if (liveReadiness) {
+        approvalPatch.deterministicEligible = liveReadiness.eligible;
+        approvalPatch.moduleCount = liveReadiness.activeModuleCount;
+        approvalPatch.lessonCount = liveReadiness.activeLessonCount;
+        approvalPatch.hasThumbnail = liveReadiness.hasThumbnail;
+        approvalPatch.readinessCheckedAt = now;
+    }
+    await productRef.set({
+        status,
+        approval: { ...approval, ...approvalPatch },
+        ...(status === "published" ? { publishedAt: now } : {}),
+        ...(status === "rejected" ? { rejectedAt: now } : {}),
+        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    // "Approve & Publish" must publish the linked course unit as well. The
+    // readiness check above deliberately does not require the course to be
+    // published beforehand; requiring that would create a circular approval
+    // dependency and make the button impossible to use on a valid draft.
+    if (status === "published" && liveReadiness) {
+        await liveReadiness.courseRef.set({
+            published: true,
+            isPublished: true,
+            status: "published",
+            publishedAt: now,
+            marketplaceApprovedAt: now,
+            marketplaceApprovedBy: request.auth.uid,
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        }, { merge: true });
+    }
+    await db.collection("marketplaceApprovalAudits").add({
+        productId,
+        courseUnitId: financeText(product.courseUnitId ?? (Array.isArray(product.linkedResourceIds) ? product.linkedResourceIds[0] : ""), 180) || null,
+        action,
+        status,
+        decisionSource: "human",
+        actorUid: request.auth.uid,
+        actorName: reviewerName,
+        reason: reason || null,
+        aiRecommendation: aiRecommendation || null,
+        aiScore: typeof approval.aiScore === "number" ? approval.aiScore : null,
+        overrodeAiDecision,
+        deterministicEligible: isCourseUnit ? deterministicEligible : null,
+        createdAt: firestore_1.FieldValue.serverTimestamp(),
+    });
+    return { productId, status, action, overrodeAiDecision, reviewerUid: request.auth.uid, reviewerName };
 });
 //# sourceMappingURL=index.js.map

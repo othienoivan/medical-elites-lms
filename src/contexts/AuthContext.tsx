@@ -69,6 +69,8 @@ async function loadUserProfile(user: FirebaseUser): Promise<AppUser> {
     registrationLinkId: typeof data.registrationLinkId === "string" ? data.registrationLinkId : undefined,
     profilePhoto:
       typeof data.profilePhoto === "string" ? data.profilePhoto : "",
+    profilePhotoPath:
+      typeof data.profilePhotoPath === "string" ? data.profilePhotoPath : undefined,
     enrolledCourses: Array.isArray(data.enrolledCourses)
       ? data.enrolledCourses.filter(
           (courseId): courseId is string => typeof courseId === "string"

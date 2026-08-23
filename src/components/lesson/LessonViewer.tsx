@@ -72,6 +72,28 @@ export default function LessonViewer({ blocks, lessonId, courseUnitId }: Props) 
             </figure>
           )}
 
+          {block.type === "video" && block.url && (
+            <div>
+              {block.title && (
+                <h3 className="mb-3 text-xl font-bold text-slate-950">
+                  {block.title}
+                </h3>
+              )}
+
+              <div className="aspect-video overflow-hidden rounded-2xl border border-slate-200 bg-black">
+                <video
+                  src={block.url}
+                  controls
+                  preload="metadata"
+                  playsInline
+                  className="h-full w-full bg-black"
+                >
+                  Your browser does not support HTML5 video playback.
+                </video>
+              </div>
+            </div>
+          )}
+
           {block.type === "youtube" && block.url && (
             <div>
               {block.title && (

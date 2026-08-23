@@ -15,14 +15,14 @@ export default function FeaturedCourses() {
       <Container>
         <Heading
           subtitle="Featured Course Units"
-          title="Start with our most popular medical course units"
+          title="Explore marketplace-approved medical course units"
         />
 
         {loading ? (
           <p className="mt-10 text-slate-600">Loading course units...</p>
         ) : featuredCourseUnits.length === 0 ? (
           <p className="mt-10 text-slate-600">
-            Published course units will appear here as soon as educators make them available.
+            Marketplace-approved course units will appear here once they meet publication requirements.
           </p>
         ) : (
           <div className="mt-10 grid gap-8 md:grid-cols-2 xl:grid-cols-4">

@@ -13,6 +13,7 @@ export default function useModuleProgression(modules: Module[], courseUnitId?: s
   const [attemptedQuizIds, setAttemptedQuizIds] = useState<Set<string>>(new Set());
   const [startedModuleIds, setStartedModuleIds] = useState<Set<string>>(new Set());
   const [completedModuleIds, setCompletedModuleIds] = useState<Set<string>>(new Set());
+  const [manualUnlockedModuleIds, setManualUnlockedModuleIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!currentUser || role !== "student") {
@@ -20,6 +21,7 @@ export default function useModuleProgression(modules: Module[], courseUnitId?: s
       setAttemptedQuizIds(new Set());
       setStartedModuleIds(new Set());
       setCompletedModuleIds(new Set());
+      setManualUnlockedModuleIds(new Set());
       return;
     }
 
@@ -43,7 +45,6 @@ export default function useModuleProgression(modules: Module[], courseUnitId?: s
         setAttemptedQuizIds(new Set(completed.map((item) => String(item.data().quizId || "")).filter(Boolean)));
         setPassedQuizIds(new Set(completed.filter((item) => {
           const data = item.data();
-          if (data.passed === true) return true;
           const quizId = String(data.quizId || "");
           const quiz = quizzes.find((candidate) => candidate.id === quizId);
           const requiredPassMark = Number(quiz?.passMark ?? 50);
@@ -53,6 +54,7 @@ export default function useModuleProgression(modules: Module[], courseUnitId?: s
 
       const started = new Set<string>();
       const finished = new Set<string>();
+      const manualUnlocked = new Set<string>();
       const enrollmentRecords: Array<Record<string, unknown>> = [];
 
       for (const result of results.slice(1, 4)) {
@@ -86,6 +88,7 @@ export default function useModuleProgression(modules: Module[], courseUnitId?: s
           assignedCourseUnitIds?: string[];
           startedModules?: string[];
           completedModules?: string[];
+          manualUnlockedModules?: string[];
         };
         const belongs =
           !courseUnitId ||
@@ -96,9 +99,11 @@ export default function useModuleProgression(modules: Module[], courseUnitId?: s
         if (!belongs) continue;
         data.startedModules?.forEach((id) => started.add(id));
         data.completedModules?.forEach((id) => finished.add(id));
+        data.manualUnlockedModules?.forEach((id) => manualUnlocked.add(id));
       }
       setStartedModuleIds(started);
       setCompletedModuleIds(finished);
+      setManualUnlockedModuleIds(manualUnlocked);
     }).catch((error) => console.warn("Module progression could not be loaded", error));
 
     return () => { active = false; };
@@ -106,18 +111,21 @@ export default function useModuleProgression(modules: Module[], courseUnitId?: s
 
   return useMemo(() => {
     const ordered = [...modules].sort((a, b) => a.order - b.order);
-    const unlocked = new Set<string>();
+    const unlocked = new Set<string>(manualUnlockedModuleIds);
     const completed = new Set(completedModuleIds);
     const started = new Set(startedModuleIds);
 
     for (const module of ordered) {
       const moduleQuizzes = quizzes.filter((quiz) => quiz.moduleId === module.id && quiz.status === "published");
       if (moduleQuizzes.some((quiz) => attemptedQuizIds.has(quiz.id))) started.add(module.id);
-      if (
-        module.quizRequired &&
-        moduleQuizzes.some((quiz) => passedQuizIds.has(quiz.id))
-      ) {
-        completed.add(module.id);
+      if (module.quizRequired) {
+        if (moduleQuizzes.some((quiz) => passedQuizIds.has(quiz.id))) {
+          completed.add(module.id);
+        } else {
+          // A persisted completedModules value must never bypass a mandatory
+          // quiz. The configured quiz pass mark is authoritative.
+          completed.delete(module.id);
+        }
       }
       if (completed.has(module.id)) started.add(module.id);
     }
@@ -139,5 +147,5 @@ export default function useModuleProgression(modules: Module[], courseUnitId?: s
       isCompleted: (moduleId: string) => completed.has(moduleId),
       getLearningState,
     };
-  }, [modules, passedQuizIds, attemptedQuizIds, quizzes, role, startedModuleIds, completedModuleIds]);
+  }, [modules, passedQuizIds, attemptedQuizIds, quizzes, role, startedModuleIds, completedModuleIds, manualUnlockedModuleIds]);
 }

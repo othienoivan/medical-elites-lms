@@ -43,11 +43,13 @@ export async function createRegistrationLink(
     ownerRole: profile.role,
     tutorId: profile.role === "tutor" ? profile.uid : input.tutorId,
     tutorName: profile.role === "tutor" ? profile.fullName : input.tutorName,
-    // Tutor-created registration links are tutor-owned by design. They must
-    // never attach learners to an institution, even if the tutor profile still
-    // carries legacy institution metadata. Admin-created links may be institutional.
-    institutionId: profile.role === "tutor" ? undefined : (input.institutionId || profile.institutionId),
-    institutionName: profile.role === "tutor" ? undefined : (input.institutionName || profile.institutionName),
+    // Ownership and class context are separate. A tutor can own a link while
+    // targeting a class in one of several institutions without changing the
+    // learner's other tenant memberships.
+    institutionId: input.institutionId || (profile.role === "admin" ? profile.institutionId : undefined),
+    institutionName: input.institutionName || (profile.role === "admin" ? profile.institutionName : undefined),
+    studentGroupId: input.studentGroupId || code,
+    assessmentGroupId: input.assessmentGroupId || input.studentGroupId || code,
     courseUnitIds: input.courseUnitIds || [],
     moduleIds: input.moduleIds || [],
     registrationCount: 0,
@@ -103,6 +105,10 @@ export type TutorRegistrationLinkStudent = {
   academicYear?: string;
   yearOfStudy?: string;
   semester?: string;
+  institutionId?: string;
+  institutionName?: string;
+  studentGroupId?: string;
+  assessmentGroupId?: string;
   courseUnitIds: string[];
   joinedAt?: unknown;
 };

@@ -7,6 +7,7 @@ import {
   type PowerPointHtmlFormat,
 } from "../../firebase/powerPointHtmlConversion";
 import { getLessonResourceAccessUrl } from "../../firebase/lessonResourceAccess";
+import { extractReadableTextFromFile } from "../../utils/readableFileText";
 
 type Props = {
   block: LessonBlock;
@@ -98,6 +99,17 @@ export default function LessonBlockRenderer({
           accept="image/*"
           uploadLabel="Upload Image"
           titlePlaceholder="Image title or caption"
+        />
+      )}
+
+      {block.type === "video" && (
+        <ResourceUploadBlock
+          block={block}
+          onChange={onChange}
+          folder="videos"
+          accept="video/mp4,video/webm,video/ogg,.mp4,.webm,.ogv,.mov"
+          uploadLabel="Upload Video"
+          titlePlaceholder="Video title"
         />
       )}
 
@@ -659,7 +671,7 @@ function ResourceUploadBlock({
 }: {
   block: LessonBlock;
   onChange: (updatedBlock: LessonBlock) => void;
-  folder: "images" | "pdfs" | "powerpoints" | "documents" | "html5";
+  folder: "images" | "pdfs" | "powerpoints" | "documents" | "html5" | "videos";
   accept: string;
   uploadLabel: string;
   titlePlaceholder: string;
@@ -676,20 +688,41 @@ function ResourceUploadBlock({
         folder={folder}
         accept={accept}
         label={uploadLabel}
-        onUploaded={(file) =>
+        onUploaded={async (uploaded) => {
+          let extractedText = "";
+          try {
+            extractedText = await extractReadableTextFromFile(uploaded.file);
+          } catch (error) {
+            console.warn("Readable text could not be extracted from the uploaded lesson resource.", error);
+          }
+
           onChange({
             ...block,
-            url: file.downloadUrl,
+            url: uploaded.downloadUrl,
             metadata: {
               ...block.metadata,
-              fileName: file.fileName,
-              filePath: file.filePath,
-              contentType: file.contentType,
-              size: file.size,
+              fileName: uploaded.fileName,
+              filePath: uploaded.filePath,
+              contentType: uploaded.contentType,
+              size: uploaded.size,
+              ...(extractedText ? { extractedText } : {}),
             },
-          })
-        }
+          });
+        }}
       />
+
+      {block.url && block.type === "video" && (
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-black">
+          <video
+            src={block.url}
+            controls
+            preload="metadata"
+            className="aspect-video w-full bg-black"
+          >
+            Your browser does not support HTML5 video playback.
+          </video>
+        </div>
+      )}
 
       {block.url && block.type === "image" && (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -701,7 +734,13 @@ function ResourceUploadBlock({
         </div>
       )}
 
-      {block.url && block.type !== "image" && (
+      {Boolean(block.metadata?.extractedText) && (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+          Readable text captured from this resource and available to AI for SMART objectives and lesson-question generation.
+        </p>
+      )}
+
+      {block.url && block.type !== "image" && block.type !== "video" && (
         <a
           href={block.url}
           target="_blank"

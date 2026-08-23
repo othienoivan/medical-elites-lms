@@ -8,7 +8,6 @@ import Container from "../components/ui/Container";
 import CourseCard from "../components/ui/CourseCard";
 import useCourseUnits from "../hooks/useCourseUnits";
 import usePublishedCourseUnits from "../hooks/usePublishedCourseUnits";
-import StudentLayout from "../components/layout/StudentLayout";
 import useStudentLearningAccess from "../hooks/useStudentLearningAccess";
 
 export default function MyCoursesPage() {
@@ -31,7 +30,7 @@ export default function MyCoursesPage() {
   const loading = coursesLoading || publicLoading || accessLoading;
 
   return (
-    <StudentLayout><main className="min-h-screen bg-slate-100">
+    <main className="min-h-screen bg-slate-100">
       <header className="border-b bg-white">
         <Container className="flex flex-col gap-4 py-5 md:flex-row md:items-center md:justify-between">
           <div>
@@ -97,7 +96,7 @@ export default function MyCoursesPage() {
           </div>
         )}
       </Container>
-    </main></StudentLayout>
+    </main>
   );
 }
 

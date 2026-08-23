@@ -35,6 +35,16 @@ service cloud.firestore {
         ];
     }
 
+    function isMarketplaceReviewer() {
+      return isAdmin()
+        && userDocument().data.keys().hasAny(['platformRole'])
+        && userDocument().data.platformRole in [
+          'super_admin',
+          'platform_admin',
+          'platform_support'
+        ];
+    }
+
 
     function currentInstitutionId() {
       return hasProfile() && userDocument().data.keys().hasAny(['institutionId'])
@@ -1107,12 +1117,15 @@ service cloud.firestore {
     match /marketplaceProducts/{productId} {
       allow read: if resource.data.status == 'published'
         || isPlatformAdmin()
+        || isMarketplaceReviewer()
         || (signedIn() && resource.data.sellerId == request.auth.uid);
       allow create: if signedIn()
         && (hasRole('tutor') || isAdmin())
         && request.resource.data.sellerId == request.auth.uid
         && request.resource.data.status in ['draft', 'submitted'];
-      allow update: if isPlatformAdmin() || (
+      allow update: if ((isPlatformAdmin() || isMarketplaceReviewer())
+        && (request.resource.data.status == resource.data.status
+          || request.resource.data.status in ['review', 'hidden', 'archived'])) || (
         signedIn()
         && resource.data.sellerId == request.auth.uid
         && request.resource.data.sellerId == resource.data.sellerId
@@ -1124,6 +1137,12 @@ service cloud.firestore {
       );
       allow delete: if isPlatformAdmin() || (signedIn() && resource.data.sellerId == request.auth.uid && resource.data.status == 'draft');
     }
+    // Immutable server-written audit trail for AI advisory reviews and human approval decisions.
+    match /marketplaceApprovalAudits/{auditId} {
+      allow read: if isPlatformAdmin() || isMarketplaceReviewer();
+      allow create, update, delete: if false;
+    }
+
     match /sellerProfiles/{sellerId} {
       allow read: if resource.data.status == 'active' || isPlatformAdmin() || (signedIn() && sellerId == request.auth.uid);
       allow create, update: if isPlatformAdmin() || (signedIn() && sellerId == request.auth.uid && request.resource.data.ownerUid == request.auth.uid);

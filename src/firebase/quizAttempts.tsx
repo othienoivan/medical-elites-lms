@@ -27,7 +27,18 @@ export type QuizAttemptUsage = {
   attemptsRemaining: number;
 };
 
-type SubmitQuizAttemptResponse = QuizAttemptUsage & { attemptId: string };
+type AiMarkedAttemptResult = {
+  aiMarked: boolean;
+  finalScore?: number;
+  finalPercentage?: number;
+  passed?: boolean;
+  needsTutorReview?: boolean;
+};
+
+type SubmitQuizAttemptResponse = QuizAttemptUsage & {
+  attemptId: string;
+  aiMarking?: AiMarkedAttemptResult;
+};
 
 /**
  * Save a completed quiz attempt through the trusted backend. The callable
@@ -41,35 +52,88 @@ export async function createQuizAttempt(
     "submitQuizAttempt",
   );
   const result = await callable(removeUndefinedValues(attempt));
-  return result.data;
+
+  try {
+    const aiMarker = httpsCallable<
+      { attemptId: string },
+      AiMarkedAttemptResult
+    >(functions, "aiMarkEssayAttempt");
+    const marking = await aiMarker({ attemptId: result.data.attemptId });
+    return { ...result.data, aiMarking: marking.data };
+  } catch (error) {
+    console.warn(
+      "Attempt was saved, but AI marking could not be completed automatically.",
+      error,
+    );
+    return result.data;
+  }
 }
 
 /** Read completed-attempt usage for one learner and quiz. */
 export async function getQuizAttemptUsage({
   quizId,
-  studentId,
-  maximumAttempts,
+  studentId: _studentId,
+  maximumAttempts: _maximumAttempts,
 }: {
   quizId: string;
   studentId: string;
   maximumAttempts: number;
 }): Promise<QuizAttemptUsage> {
-  const snapshot = await getDocs(
-    query(
-      collection(db, COLLECTION),
-      where("studentId", "==", studentId),
-      where("quizId", "==", quizId),
-    ),
+  const callable = httpsCallable<
+    { quizId: string },
+    QuizAttemptUsage & { baseAttempts?: number; extraAttemptsGranted?: number }
+  >(functions, "getStudentQuizAttemptUsage");
+  const result = await callable({ quizId });
+  return result.data;
+}
+
+export async function requestStudentQuizReattempt({
+  quizId,
+  message = "",
+}: {
+  quizId: string;
+  message?: string;
+}): Promise<{ success: boolean; pending: boolean; message: string }> {
+  const callable = httpsCallable<
+    { quizId: string; message: string },
+    { success: boolean; pending: boolean; message: string }
+  >(functions, "requestStudentQuizReattempt");
+  const result = await callable({ quizId, message });
+  return result.data;
+}
+
+export async function getStudentPostQuizDestination(quizId: string): Promise<{ path: string; kind: string }> {
+  const callable = httpsCallable<{ quizId: string }, { path: string; kind: string }>(
+    functions,
+    "getStudentPostQuizDestination",
   );
-  const attemptsUsed = snapshot.docs.filter((item) => {
-    const data = item.data();
-    return data.completed !== false;
-  }).length;
-  return {
-    attemptsUsed,
-    maximumAttempts,
-    attemptsRemaining: Math.max(maximumAttempts - attemptsUsed, 0),
-  };
+  const result = await callable({ quizId });
+  return result.data;
+}
+
+export async function grantStudentLearningProgressionOverride({ studentId, quizId, reason }: { studentId: string; quizId: string; reason: string }): Promise<{ success: boolean; targetModuleId?: string | null; targetLessonId?: string | null; path: string }> {
+  const callable = httpsCallable<{ studentId: string; quizId: string; reason: string }, { success: boolean; targetModuleId?: string | null; targetLessonId?: string | null; path: string }>(functions, "grantStudentLearningProgressionOverride");
+  const result = await callable({ studentId, quizId, reason });
+  return result.data;
+}
+
+export async function grantStudentQuizReattempt({
+  quizId,
+  studentId,
+  reason,
+  extraAttempts = 1,
+}: {
+  quizId: string;
+  studentId: string;
+  reason: string;
+  extraAttempts?: number;
+}): Promise<{ success: boolean; extraAttemptsGranted: number; maximumAttempts: number }> {
+  const callable = httpsCallable<
+    { quizId: string; studentId: string; reason: string; extraAttempts: number },
+    { success: boolean; extraAttemptsGranted: number; maximumAttempts: number }
+  >(functions, "grantStudentQuizReattempt");
+  const result = await callable({ quizId, studentId, reason, extraAttempts });
+  return result.data;
 }
 
 /**

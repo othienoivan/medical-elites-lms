@@ -161,6 +161,8 @@ export interface CompleteModuleLearningResult {
   requiresQuiz?: boolean;
   quizId?: string;
   passMark?: number;
+  nextModuleId?: string | null;
+  nextPath?: string;
 }
 
 export async function completeModuleLearning(

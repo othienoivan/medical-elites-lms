@@ -70,6 +70,8 @@ export interface Lesson {
   resources?: LessonResource[];
   blocks?: LessonBlock[];
   quizId?: string;
+  quizRequired?: boolean;
+  quizPassMark?: number;
   notesUrl?: string;
   isPublished?: boolean;
   /** Legacy alias used by original seed data. */

@@ -6,6 +6,7 @@ export type TenantStatus = "trial" | "active" | "past_due" | "suspended" | "clos
 export interface TenantBranding {
   readonly displayName: string;
   readonly logoUrl?: string;
+  readonly logoPath?: string;
   readonly primaryColor?: string;
   readonly secondaryColor?: string;
   readonly customDomain?: string;

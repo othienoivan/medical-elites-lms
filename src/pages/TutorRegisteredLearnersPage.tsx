@@ -27,7 +27,7 @@ export default function TutorRegisteredLearnersPage() {
     return [...map.entries()];
   }, [students]);
 
-  return <TutorLayout title="Registered Learners" subtitle="Students who joined using registration links created by your tutor account. These learners belong to your independent tutor workspace, not to an institution.">
+  return <TutorLayout title="Registered Learners" subtitle="Students grouped by the registration link/class they used. Institution context is preserved per link, so the same tutor can manage separate classes across different schools.">
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3"><Users className="text-cyan-700"/><div><p className="text-sm text-slate-500">Total learners</p><p className="text-2xl font-black">{loading ? "…" : students.length}</p></div></div>
@@ -37,7 +37,7 @@ export default function TutorRegisteredLearnersPage() {
       {!loading && !error && students.length === 0 && <Card className="text-center"><Users className="mx-auto text-slate-400" size={42}/><h2 className="mt-3 font-bold">No registered learners found</h2><p className="mt-1 text-sm text-slate-600">If learners joined older links, press Refresh. The server will recover legacy claims by the registration-link code and repair tutor ownership.</p></Card>}
       {groups.map(([code, learners]) => <Card key={code}>
         <div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="font-black text-slate-950">{learners[0]?.registrationLinkName || "Registration link"}</h2><p className="text-xs text-slate-500">{code} · {learners.length} learner{learners.length === 1 ? "" : "s"}</p></div></div>
-        <div className="mt-4 overflow-x-auto"><table className="min-w-full text-left text-sm"><thead><tr className="border-b text-slate-500"><th className="px-2 py-2">Learner</th><th className="px-2 py-2">Email</th><th className="px-2 py-2">Year</th><th className="px-2 py-2">Semester</th><th className="px-2 py-2">Status</th></tr></thead><tbody>{learners.map((student) => <tr key={student.enrollmentId} className="border-b last:border-0"><td className="px-2 py-3 font-semibold">{student.studentName}</td><td className="px-2 py-3">{student.studentEmail || "—"}</td><td className="px-2 py-3">{student.yearOfStudy || "—"}</td><td className="px-2 py-3">{student.semester || "—"}</td><td className="px-2 py-3">{student.approvalStatus}</td></tr>)}</tbody></table></div>
+        <div className="mt-4 overflow-x-auto"><table className="min-w-full text-left text-sm"><thead><tr className="border-b text-slate-500"><th className="px-2 py-2">Learner</th><th className="px-2 py-2">Email</th><th className="px-2 py-2">Institution / class</th><th className="px-2 py-2">Year</th><th className="px-2 py-2">Semester</th><th className="px-2 py-2">Status</th></tr></thead><tbody>{learners.map((student) => <tr key={student.enrollmentId} className="border-b last:border-0"><td className="px-2 py-3 font-semibold">{student.studentName}</td><td className="px-2 py-3">{student.studentEmail || "—"}</td><td className="px-2 py-3">{student.institutionName || student.assessmentGroupId || student.registrationLinkCode || "Independent"}</td><td className="px-2 py-3">{student.yearOfStudy || "—"}</td><td className="px-2 py-3">{student.semester || "—"}</td><td className="px-2 py-3">{student.approvalStatus}</td></tr>)}</tbody></table></div>
       </Card>)}
     </div>
   </TutorLayout>;

@@ -34,6 +34,8 @@ export interface Quiz {
   courseUnitTitle?: string;
   moduleId?: string;
   moduleTitle?: string;
+  lessonId?: string;
+  lessonTitle?: string;
   questions: QuizQuestionRef[];
   totalMarks: number;
   passMark: number;

@@ -24,10 +24,10 @@ export default function CourseUnitPage() {
     <main className="min-h-screen bg-slate-50">
       <Section>
         <Container>
-          <Heading subtitle="Medical Elites Academy" title="Explore Published Course Units" align="center" />
+          <Heading subtitle="Medical Elites Marketplace" title="Explore Approved Course Units" align="center" />
 
           <p className="mx-auto mt-4 max-w-2xl text-center text-slate-600">
-            Browse publicly available medical and health sciences course units from institutions and educators on Medical Elites.
+            Browse course units approved for the Medical Elites Marketplace. Every displayed course unit contains at least one active module, one active lesson and a valid thumbnail image.
           </p>
 
           <div className="mx-auto mt-8 max-w-2xl">
@@ -59,7 +59,7 @@ export default function CourseUnitPage() {
               </h2>
               <p className="mt-2 text-slate-600">
                 {courseUnits.length === 0
-                  ? "Published course units will appear here automatically once educators make them public."
+                  ? "Marketplace-approved course units will appear here after eligibility and quality review."
                   : "Try a different course title, programme name or code."}
               </p>
             </div>

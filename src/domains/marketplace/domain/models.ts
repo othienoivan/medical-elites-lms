@@ -1,6 +1,6 @@
 export type MarketplaceCurrency = "UGX" | "USD" | "KES" | "TZS" | "RWF";
 export type MarketplaceProductType = "course" | "course_unit" | "lesson" | "document" | "question_bank" | "exam_package" | "clinical_skills" | "video_course" | "live_class" | "membership" | "bundle" | "mock_exam" | "pdf" | "powerpoint" | "video";
-export type MarketplaceProductStatus = "draft" | "submitted" | "review" | "published" | "hidden" | "archived";
+export type MarketplaceProductStatus = "draft" | "submitted" | "review" | "published" | "rejected" | "hidden" | "archived";
 export type MarketplaceSellerType = "tutor" | "institution" | "platform";
 export type EntitlementAccessType = "lifetime" | "fixed_term" | "subscription" | "institution_license" | "promotional";
 
@@ -33,6 +33,7 @@ export interface MarketplaceProduct {
   courseUnitTitle?: string;
   ownerTutorUid?: string;
   thumbnailUrl?: string;
+  thumbnailPath?: string;
   linkedResourceIds: string[];
   accessType: EntitlementAccessType;
   accessDays?: number;
@@ -51,6 +52,24 @@ export interface MarketplaceProduct {
   createdAt?: unknown;
   updatedAt?: unknown;
   publishedAt?: unknown;
+  approval?: {
+    deterministicEligible?: boolean;
+    moduleCount?: number;
+    lessonCount?: number;
+    hasThumbnail?: boolean;
+    aiScore?: number;
+    aiRecommendation?: "approve" | "manual_review" | "reject";
+    aiReason?: string;
+    aiReviewedBy?: string;
+    aiReviewedAt?: unknown;
+    manualDecision?: "approved" | "rejected";
+    manualDecisionReason?: string;
+    manuallyReviewedBy?: string;
+    manuallyReviewedByName?: string;
+    manuallyReviewedAt?: unknown;
+    overrodeAiDecision?: boolean;
+    autoApproved?: false;
+  };
 }
 export interface MarketplaceCategory { id: string; name: string; slug: string; description?: string; icon?: string; active: boolean; sortOrder: number; }
 export interface SellerProfile {
@@ -67,7 +86,9 @@ export interface SellerProfile {
   teachingExperienceYears?: number;
   languages?: string[];
   photoUrl?: string;
+  photoPath?: string;
   bannerUrl?: string;
+  bannerPath?: string;
   welcomeMessage?: string;
   contactEmail?: string;
   whatsappNumber?: string;

@@ -57,7 +57,7 @@ const groups: Group[] = [
     { label: "Timetable", path: "/tutor/timetable", icon: CalendarDays },
     { label: "Attendance", path: "/tutor/attendance", icon: CalendarCheck },
     { label: "Assessments", path: "/tutor/assessments", icon: ClipboardList },
-    { label: "Finance", path: "/tutor/finance", icon: CircleDollarSign },
+    { label: "Finance", path: "/admin/finance", icon: CircleDollarSign },
     { label: "Donate", path: "/donate", icon: HeartHandshake },
   ] },
   { title: "Communication", items: [

@@ -11,7 +11,8 @@ import {
   writeBatch,
 } from "firebase/firestore";
 
-import { db } from "../config/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../config/firebase";
 import type { Question } from "../models/Question";
 import { requireAccessScope, type AccessScope } from "./accessScope";
 import { getAllProgrammes } from "./programmes";
@@ -75,6 +76,12 @@ export async function deleteQuestion(questionId: string, deletedBy?: string) {
     deletedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+}
+
+export async function permanentlyDeleteQuestion(questionId: string) {
+  const callable = httpsCallable<{ questionId: string }, { success: boolean; removedFromQuizzes: number; removedFromExaminations: number }>(functions, "permanentlyDeleteQuestionTrusted");
+  const result = await callable({ questionId });
+  return result.data;
 }
 
 export async function restoreQuestion(questionId: string) {

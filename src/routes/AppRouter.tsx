@@ -15,6 +15,8 @@ import PageSkeleton from "../components/loading/PageSkeleton";
 import type { UserRole } from "../models/User";
 import StudentWorkspaceGate from "../components/layout/StudentWorkspaceGate";
 import PlatformAccessGate from "../components/platform/PlatformAccessGate";
+import PublicPageShell from "../components/layout/PublicPageShell";
+import GlobalWorkspaceNavigation from "../components/layout/GlobalWorkspaceNavigation";
 
 const KnowledgeCenterPage = lazy(() => import("../pages/help/KnowledgeCenterPage"));
 const KnowledgeSearchPage = lazy(() => import("../pages/help/KnowledgeSearchPage"));
@@ -180,17 +182,19 @@ const RevenueSharingPage = lazy(() => import("../pages/platform/finance/RevenueS
 const FinanceOperationsPage = lazy(() => import("../pages/platform/finance/FinanceOperationsPage"));
 
 const TUTOR_ROLES: readonly UserRole[] = ["tutor"];
+const ADMIN_OPERATION_ROLES: readonly UserRole[] = ["tutor", "admin"];
 const ADMIN_ROLES: readonly UserRole[] = ["admin"];
 const LEARNER_ROLES: readonly UserRole[] = ["student", "tutor", "admin"];
 
 export default function AppRouter() {
   return (
     <BrowserRouter>
+      <GlobalWorkspaceNavigation />
       <StudentWorkspaceGate>
       <Suspense fallback={<PageSkeleton />}>
         <Routes>
 
-        {/* Platform Console — additive SaaS layer, isolated from academic LMS routes. */}
+        {/* Platform Console â€” additive SaaS layer, isolated from academic LMS routes. */}
         <Route path="/platform" element={<PlatformAccessGate><PlatformDashboardPage /></PlatformAccessGate>} />
         <Route path="/platform/tenants" element={<PlatformAccessGate><PlatformTenantsPage /></PlatformAccessGate>} />
         <Route path="/platform/tenants/:tenantId" element={<PlatformAccessGate><PlatformTenantDetailsPage /></PlatformAccessGate>} />
@@ -231,10 +235,10 @@ export default function AppRouter() {
 
         {/* RC5 Marketplace Foundation */}
         <Route path="/search" element={<ProtectedRoute><GlobalSearchPage /></ProtectedRoute>} />
-        <Route path="/marketplace" element={<MarketplaceHomePage />} />
-        <Route path="/marketplace/products/:productId" element={<MarketplaceProductPage />} />
-        <Route path="/marketplace/sellers/:sellerId" element={<MarketplaceSellerPage />} />
-        <Route path="/store/:sellerId" element={<MarketplaceSellerPage />} />
+        <Route path="/marketplace" element={<PublicPageShell><MarketplaceHomePage /></PublicPageShell>} />
+        <Route path="/marketplace/products/:productId" element={<PublicPageShell><MarketplaceProductPage /></PublicPageShell>} />
+        <Route path="/marketplace/sellers/:sellerId" element={<PublicPageShell><MarketplaceSellerPage /></PublicPageShell>} />
+        <Route path="/store/:sellerId" element={<PublicPageShell><MarketplaceSellerPage /></PublicPageShell>} />
         <Route path="/marketplace/sell" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><MarketplaceSellPage /></ProtectedRoute>} />
         <Route path="/marketplace/cart" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><MarketplaceCartPage /></ProtectedRoute>} />
         <Route path="/marketplace/wishlist" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><MarketplaceWishlistPage /></ProtectedRoute>} />
@@ -263,11 +267,11 @@ export default function AppRouter() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/join/:code" element={<JoinPage />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/privacy" element={<PrivacyPolicyPage />} />
-        <Route path="/terms" element={<TermsPage />} />
-        <Route path="/testimonials" element={<TestimonialsPage />} />
-        <Route path="/contact" element={<ContactPage />} />
+        <Route path="/about" element={<PublicPageShell><AboutPage /></PublicPageShell>} />
+        <Route path="/privacy" element={<PublicPageShell><PrivacyPolicyPage /></PublicPageShell>} />
+        <Route path="/terms" element={<PublicPageShell><TermsPage /></PublicPageShell>} />
+        <Route path="/testimonials" element={<PublicPageShell><TestimonialsPage /></PublicPageShell>} />
+        <Route path="/contact" element={<PublicPageShell><ContactPage /></PublicPageShell>} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route path="/donate" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><DonatePage /></ProtectedRoute>} />
 
@@ -309,8 +313,8 @@ export default function AppRouter() {
           }
         />
 
-        <Route path="/courses" element={<CourseUnitPage />} />
-        <Route path="/courses/:slug" element={<CourseUnitDetailsPage />} />
+        <Route path="/courses" element={<PublicPageShell><CourseUnitPage /></PublicPageShell>} />
+        <Route path="/courses/:slug" element={<PublicPageShell><CourseUnitDetailsPage /></PublicPageShell>} />
 
         {/* Student */}
         <Route
@@ -349,7 +353,7 @@ export default function AppRouter() {
 <Route
   path="/tutor/students"
   element={
-    <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+    <ProtectedRoute allowedRoles={ADMIN_OPERATION_ROLES}>
       <StudentDirectoryPage />
     </ProtectedRoute>
   }
@@ -374,7 +378,7 @@ export default function AppRouter() {
 <Route
   path="/tutor/enrollments"
   element={
-    <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+    <ProtectedRoute allowedRoles={ADMIN_OPERATION_ROLES}>
       <EnrollmentManagerPage />
     </ProtectedRoute>
   }
@@ -706,7 +710,7 @@ export default function AppRouter() {
         <Route
           path="/tutor/assessments"
           element={
-            <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+            <ProtectedRoute allowedRoles={ADMIN_OPERATION_ROLES}>
               <AssessmentWorkspacePage />
             </ProtectedRoute>
           }
@@ -805,7 +809,7 @@ export default function AppRouter() {
         <Route
           path="/tutor/announcements"
           element={
-            <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+            <ProtectedRoute allowedRoles={ADMIN_OPERATION_ROLES}>
               <AnnouncementManagerPage />
             </ProtectedRoute>
           }
@@ -813,7 +817,7 @@ export default function AppRouter() {
         <Route
           path="/tutor/messages"
           element={
-            <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+            <ProtectedRoute allowedRoles={ADMIN_OPERATION_ROLES}>
               <MessagesPage />
             </ProtectedRoute>
           }
@@ -838,7 +842,7 @@ export default function AppRouter() {
         <Route
           path="/tutor/attendance"
           element={
-            <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+            <ProtectedRoute allowedRoles={ADMIN_OPERATION_ROLES}>
               <AttendanceManagerPage />
             </ProtectedRoute>
           }
@@ -847,7 +851,7 @@ export default function AppRouter() {
         <Route
           path="/tutor/timetable"
           element={
-            <ProtectedRoute allowedRoles={TUTOR_ROLES}>
+            <ProtectedRoute allowedRoles={ADMIN_OPERATION_ROLES}>
               <TimetableManagerPage />
             </ProtectedRoute>
           }

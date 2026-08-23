@@ -17,6 +17,7 @@ type Props = {
     downloadUrl: string;
     contentType: string;
     size: number;
+    file: File;
   }) => void;
 };
 
@@ -46,10 +47,16 @@ export default function FileUpload({
 
       setUploadedFile(result.fileName);
 
-      onUploaded(result);
+      onUploaded({ ...result, file });
     } catch (error) {
-      console.error(error);
-      alert("Upload failed.");
+      console.error("Upload failed:", error);
+
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Upload failed. Please try again.";
+
+      alert(message);
     } finally {
       setUploading(false);
     }

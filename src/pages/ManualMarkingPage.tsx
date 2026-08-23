@@ -3,6 +3,7 @@ import {
   CheckCircle,
   FileText,
   Save,
+  RotateCcw,
   Trophy,
   User,
   XCircle,
@@ -15,6 +16,8 @@ import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import {
+  grantStudentQuizReattempt,
+  grantStudentLearningProgressionOverride,
   releaseQuizAttemptResults,
   saveManualMarks,
 } from "../firebase/quizAttempts";
@@ -32,6 +35,8 @@ export default function ManualMarkingPage() {
   const [tutorRemarks, setTutorRemarks] = useState("");
   const [saving, setSaving] = useState(false);
   const [releasing, setReleasing] = useState(false);
+  const [grantingReattempt, setGrantingReattempt] = useState(false);
+  const [grantingProgression, setGrantingProgression] = useState(false);
 
   useEffect(() => {
     if (!attempt) return;
@@ -52,7 +57,8 @@ export default function ManualMarkingPage() {
       ? Math.round((currentTotal / attempt.totalMarks) * 100)
       : 0;
 
-  const currentPassed = attempt ? currentPercentage >= 50 : false;
+  const configuredPassMark = attempt?.passMark ?? attempt?.passMarkAtSubmission ?? 50;
+  const currentPassed = attempt ? currentPercentage >= configuredPassMark : false;
 
   function updateManualMark(
     questionId: string,
@@ -114,6 +120,54 @@ export default function ManualMarkingPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+
+  async function grantReattempt() {
+    if (!attempt) return;
+    const reason = window.prompt(
+      "Reason for granting one additional attempt:",
+      "Additional reattempt granted after an unsuccessful assessment attempt.",
+    );
+    if (!reason?.trim()) return;
+    const confirmed = window.confirm(
+      `Grant ${attempt.studentName} one additional attempt for ${attempt.quizTitle}? This affects only this student.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setGrantingReattempt(true);
+      const result = await grantStudentQuizReattempt({
+        quizId: attempt.quizId,
+        studentId: attempt.studentId,
+        reason: reason.trim(),
+        extraAttempts: 1,
+      });
+      alert(`One additional attempt granted. The student's effective limit is now ${result.maximumAttempts} attempt(s).`);
+      await reload();
+    } catch (error) {
+      console.error("Failed to grant reattempt:", error);
+      alert(error instanceof Error ? error.message : "Failed to grant the additional attempt.");
+    } finally {
+      setGrantingReattempt(false);
+    }
+  }
+
+  async function grantProgressionAccess() {
+    if (!attempt) return;
+    const reason = window.prompt(
+      "Reason for manually allowing this learner to proceed:",
+      "Tutor-authorised progression despite not meeting the assessment pass mark.",
+    );
+    if (!reason?.trim()) return;
+    try {
+      setGrantingProgression(true);
+      const result = await grantStudentLearningProgressionOverride({ studentId: attempt.studentId, quizId: attempt.quizId, reason: reason.trim() });
+      alert(`Progression access granted. The learner can now continue to ${result.targetLessonId ? "the next lesson" : "the next module"}.`);
+    } catch (error) {
+      console.error("Failed to grant progression access:", error);
+      alert(error instanceof Error ? error.message : "Failed to grant progression access.");
+    } finally { setGrantingProgression(false); }
   }
 
   async function releaseResults() {
@@ -351,6 +405,26 @@ export default function ManualMarkingPage() {
             className="min-h-28 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-700"
           />
         </div>
+
+        {!currentPassed && (
+          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <p className="font-semibold text-amber-900">Student-specific reattempt</p>
+            <p className="mt-1 text-sm text-amber-800">
+              If this learner has exhausted the normal attempt limit and cannot progress without passing, grant one extra attempt without changing the quiz limit for other students.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Button type="button" variant="outline" onClick={() => void grantReattempt()} disabled={saving || releasing || grantingReattempt || grantingProgression}>
+                <RotateCcw size={18} />
+                {grantingReattempt ? "Granting..." : "Grant One Extra Attempt"}
+              </Button>
+              {(attempt.lessonId || attempt.moduleId) && (
+                <Button type="button" variant="outline" onClick={() => void grantProgressionAccess()} disabled={saving || releasing || grantingReattempt || grantingProgression}>
+                  {grantingProgression ? "Granting Access..." : "Grant Access to Next Lesson / Module"}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="mt-6 flex flex-col gap-3 md:flex-row">
           <Button

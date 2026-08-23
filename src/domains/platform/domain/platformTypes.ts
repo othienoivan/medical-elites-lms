@@ -40,6 +40,17 @@ export interface PlatformTenant extends PlatformRecord {
   licenseEndsAt?: DomainDate;
   branding?: {
     logoUrl?: string;
+    logoPath?: string;
+    faviconUrl?: string;
+    faviconPath?: string;
+    socialImageUrl?: string;
+    socialImagePath?: string;
+    defaultCourseImageUrl?: string;
+    defaultCourseImagePath?: string;
+    siteName?: string;
+    tagline?: string;
+    seoTitle?: string;
+    seoDescription?: string;
     primaryColor?: string;
     secondaryColor?: string;
     accentColor?: string;

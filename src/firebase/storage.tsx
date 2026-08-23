@@ -1,12 +1,18 @@
-﻿import {
+import { doc, getDoc } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
+import {
   deleteObject,
   getDownloadURL,
   ref,
   uploadBytesResumable,
 } from "firebase/storage";
-import { doc, getDoc } from "firebase/firestore";
 
-import { auth, db, storage } from "../config/firebase";
+import {
+  auth,
+  db,
+  functions,
+  storage,
+} from "../config/firebase";
 
 export type UploadFolder =
   | "images"
@@ -26,9 +32,50 @@ export type UploadResult = {
   size: number;
 };
 
+type ReserveStorageUploadRequest = {
+  fileName: string;
+  folder: UploadFolder;
+  contentType: string;
+  fileSize: number;
+};
+
+type ReserveStorageUploadResponse = {
+  reservationId: string;
+  tenantId: string;
+  planId?: string | null;
+  quotaBytes: number;
+  usedBytes: number;
+  reservedBytes: number;
+  availableBytes: number;
+  expiresAt: string;
+};
+
+type CancelStorageReservationResponse = {
+  released: boolean;
+  status: string;
+  reservedBytes?: number;
+};
+
+const reserveStorageUploadCallable = httpsCallable<
+  ReserveStorageUploadRequest,
+  ReserveStorageUploadResponse
+>(
+  functions,
+  "reserveStorageUpload",
+);
+
+const cancelStorageUploadReservationCallable = httpsCallable<
+  { reservationId: string },
+  CancelStorageReservationResponse
+>(
+  functions,
+  "cancelStorageUploadReservation",
+);
+
 function createSafeFileName(fileName: string) {
   const timestamp = Date.now();
   const randomSuffix = crypto.randomUUID().slice(0, 8);
+
   const safeName = fileName
     .toLowerCase()
     .replace(/\s+/g, "-")
@@ -40,14 +87,22 @@ function createSafeFileName(fileName: string) {
 
 function normalizePathPart(value: unknown): string | null {
   if (typeof value !== "string") return null;
-  const normalized = value.trim().replace(/[^a-zA-Z0-9_-]/g, "-");
+
+  const normalized = value
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, "-");
+
   return normalized.length > 0 ? normalized : null;
 }
 
 function inferContentType(file: File): string {
   if (file.type) return file.type;
 
-  const extension = file.name.split(".").pop()?.toLowerCase();
+  const extension = file.name
+    .split(".")
+    .pop()
+    ?.toLowerCase();
+
   const types: Record<string, string> = {
     pdf: "application/pdf",
     ppt: "application/vnd.ms-powerpoint",
@@ -70,23 +125,54 @@ function inferContentType(file: File): string {
     wav: "audio/wav",
     mp4: "video/mp4",
     webm: "video/webm",
+    mov: "video/quicktime",
+    ogv: "video/ogg",
   };
 
-  return extension ? types[extension] ?? "application/octet-stream" : "application/octet-stream";
+  return extension
+    ? types[extension] ?? "application/octet-stream"
+    : "application/octet-stream";
 }
 
-function validateUpload(file: File, folder: UploadFolder, contentType: string) {
-  if (file.size <= 0) throw new Error("The selected file is empty.");
+function validateUpload(
+  file: File,
+  folder: UploadFolder,
+  contentType: string,
+) {
+  if (file.size <= 0) {
+    throw new Error("The selected file is empty.");
+  }
 
   const isImage = contentType.startsWith("image/");
   const isAudio = contentType.startsWith("audio/");
   const isVideo = contentType.startsWith("video/");
 
-  if (folder === "images" && !isImage) throw new Error("Only image files are allowed here.");
-  if (folder === "audio" && !isAudio) throw new Error("Only audio files are allowed here.");
-  if (folder === "videos" && !isVideo) throw new Error("Only video files are allowed here.");
-  if (folder === "pdfs" && contentType !== "application/pdf") throw new Error("Only PDF files are allowed here.");
-  if (folder === "html5" && contentType !== "text/html") throw new Error("Only HTML/HTM files are allowed here.");
+  if (folder === "images" && !isImage) {
+    throw new Error("Only image files are allowed here.");
+  }
+
+  if (folder === "audio" && !isAudio) {
+    throw new Error("Only audio files are allowed here.");
+  }
+
+  if (folder === "videos" && !isVideo) {
+    throw new Error("Only video files are allowed here.");
+  }
+
+  if (
+    folder === "pdfs" &&
+    contentType !== "application/pdf"
+  ) {
+    throw new Error("Only PDF files are allowed here.");
+  }
+
+  if (
+    folder === "html5" &&
+    contentType !== "text/html"
+  ) {
+    throw new Error("Only HTML/HTM files are allowed here.");
+  }
+
   if (
     folder === "powerpoints" &&
     ![
@@ -98,19 +184,38 @@ function validateUpload(file: File, folder: UploadFolder, contentType: string) {
   }
 }
 
-async function resolveUploadPath(folder: UploadFolder, safeFileName: string) {
+async function resolveUploadPath(
+  folder: UploadFolder,
+  safeFileName: string,
+) {
   const user = auth.currentUser;
-  if (!user) throw new Error("You must be signed in before uploading a file.");
+
+  if (!user) {
+    throw new Error(
+      "You must be signed in before uploading a file.",
+    );
+  }
 
   let tenantId: string | null = null;
+
   try {
-    const profile = await getDoc(doc(db, "users", user.uid));
+    const profile = await getDoc(
+      doc(db, "users", user.uid),
+    );
+
     if (profile.exists()) {
-      const data = profile.data() as Record<string, unknown>;
-      tenantId = normalizePathPart(data.tenantId ?? data.institutionId);
+      const data =
+        profile.data() as Record<string, unknown>;
+
+      tenantId = normalizePathPart(
+        data.tenantId ?? data.institutionId,
+      );
     }
   } catch (error) {
-    console.warn("Unable to resolve tenant storage namespace; using the user namespace.", error);
+    console.warn(
+      "Unable to resolve tenant storage namespace; using the user namespace.",
+      error,
+    );
   }
 
   const basePath = tenantId
@@ -124,6 +229,21 @@ async function resolveUploadPath(folder: UploadFolder, safeFileName: string) {
   };
 }
 
+async function cancelReservation(
+  reservationId: string,
+) {
+  try {
+    await cancelStorageUploadReservationCallable({
+      reservationId,
+    });
+  } catch (error) {
+    console.warn(
+      "Storage reservation could not be released.",
+      error,
+    );
+  }
+}
+
 export async function uploadFileToStorage({
   file,
   folder,
@@ -135,22 +255,199 @@ export async function uploadFileToStorage({
   onProgress?: (progress: number) => void;
   customMetadata?: Record<string, string>;
 }): Promise<UploadResult> {
-  const safeFileName = createSafeFileName(file.name);
-  const contentType = inferContentType(file);
-  validateUpload(file, folder, contentType);
+  const safeFileName =
+    createSafeFileName(file.name);
 
-  const { filePath, uploaderUid, tenantId } = await resolveUploadPath(folder, safeFileName);
+  const contentType =
+    inferContentType(file);
+
+  validateUpload(
+    file,
+    folder,
+    contentType,
+  );
+
+  const {
+    filePath,
+    uploaderUid,
+    tenantId,
+  } = await resolveUploadPath(
+    folder,
+    safeFileName,
+  );
+
+  /*
+   * Reserve capacity BEFORE Storage receives the file.
+   *
+   * The backend atomically checks:
+   *
+   * usedBytes + reservedBytes + file.size <= plan quota
+   *
+   * This prevents simultaneous uploads from both believing
+   * that the same remaining storage is available.
+   */
+  const reservationResponse =
+    await reserveStorageUploadCallable({
+      fileName: file.name,
+      folder,
+      contentType,
+      fileSize: file.size,
+    });
+
+  const reservation =
+    reservationResponse.data;
+
+  if (!reservation.reservationId) {
+    throw new Error(
+      "Storage capacity could not be reserved for this upload.",
+    );
+  }
+
+  const storageRef =
+    ref(storage, filePath);
+
+  let uploadTask;
+
+  try {
+    uploadTask = uploadBytesResumable(
+      storageRef,
+      file,
+      {
+        contentType,
+        customMetadata: {
+          uploaderUid,
+          uploadFolder: folder,
+          originalFileName: file.name,
+
+          /*
+           * The Storage finalize trigger uses this ID to
+           * convert reservedBytes into usedBytes.
+           */
+          storageReservationId:
+            reservation.reservationId,
+
+          ...(tenantId
+            ? { tenantId }
+            : {}),
+
+          ...(customMetadata ?? {}),
+        },
+      },
+    );
+  } catch (error) {
+    await cancelReservation(
+      reservation.reservationId,
+    );
+
+    throw error;
+  }
+
+  return new Promise<UploadResult>(
+    (resolve, reject) => {
+      uploadTask.on(
+        "state_changed",
+
+        (snapshot) => {
+          const progress =
+            snapshot.totalBytes > 0
+              ? (
+                  snapshot.bytesTransferred /
+                  snapshot.totalBytes
+                ) * 100
+              : 0;
+
+          onProgress?.(
+            Math.round(progress),
+          );
+        },
+
+        (error) => {
+          /*
+           * No Storage object finalized, so the reservation
+           * must be released.
+           */
+          void cancelReservation(
+            reservation.reservationId,
+          ).finally(() => {
+            reject(error);
+          });
+        },
+
+        async () => {
+          /*
+           * Do NOT cancel here.
+           *
+           * The Storage object now exists and
+           * onStorageObjectFinalized will commit the
+           * reservation and increase usedBytes.
+           */
+          try {
+            const downloadUrl =
+              await getDownloadURL(
+                uploadTask.snapshot.ref,
+              );
+
+            resolve({
+              fileName: file.name,
+              filePath,
+              downloadUrl,
+              contentType,
+              size: file.size,
+            });
+          } catch (error) {
+            /*
+             * The upload already finalized, therefore the
+             * reservation must remain for the Storage trigger
+             * to commit.
+             */
+            reject(error);
+          }
+        },
+      );
+    },
+  );
+}
+
+
+export async function uploadProfileImageToStorage({
+  file,
+  onProgress,
+}: {
+  file: File;
+  onProgress?: (progress: number) => void;
+}): Promise<UploadResult> {
+  const user = auth.currentUser;
+
+  if (!user) {
+    throw new Error("You must be signed in before uploading a profile picture.");
+  }
+
+  const contentType = inferContentType(file);
+
+  if (file.size <= 0) {
+    throw new Error("The selected image is empty.");
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error("Profile pictures must not exceed 10 MB.");
+  }
+
+  if (!contentType.startsWith("image/")) {
+    throw new Error("Only image files are allowed for profile pictures.");
+  }
+
+  const safeFileName = createSafeFileName(file.name);
+  const filePath = `users/${user.uid}/profile/${safeFileName}`;
   const storageRef = ref(storage, filePath);
 
-  return new Promise((resolve, reject) => {
+  return new Promise<UploadResult>((resolve, reject) => {
     const uploadTask = uploadBytesResumable(storageRef, file, {
       contentType,
       customMetadata: {
-        uploaderUid,
-        uploadFolder: folder,
+        uploaderUid: user.uid,
+        uploadFolder: "profile",
         originalFileName: file.name,
-        ...(tenantId ? { tenantId } : {}),
-        ...(customMetadata ?? {}),
+        imagePurpose: "profile-picture",
       },
     });
 
@@ -177,14 +474,21 @@ export async function uploadFileToStorage({
         } catch (error) {
           reject(error);
         }
-      }
+      },
     );
   });
 }
+export async function deleteFileFromStorage(
+  filePath: string,
+) {
+  if (!filePath.trim()) {
+    throw new Error(
+      "A storage file path is required.",
+    );
+  }
 
-export async function deleteFileFromStorage(filePath: string) {
-  if (!filePath.trim()) throw new Error("A storage file path is required.");
-  const fileRef = ref(storage, filePath);
+  const fileRef =
+    ref(storage, filePath);
+
   await deleteObject(fileRef);
 }
-

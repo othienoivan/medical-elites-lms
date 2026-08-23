@@ -41,11 +41,23 @@ export interface QuizAttempt {
   moduleId?: string;
   moduleTitle?: string;
 
+  lessonId?: string;
+  lessonTitle?: string;
+
   quizId: string;
   quizTitle: string;
 
   studentId: string;
   studentName: string;
+
+  /** Registration-link/class context captured at submission time. */
+  registrationLinkId?: string;
+  registrationLinkCode?: string;
+  registrationLinkName?: string;
+  studentGroupId?: string;
+  assessmentGroupId?: string;
+  classInstitutionId?: string;
+  classInstitutionName?: string;
 
   startedAt: Date;
   submittedAt?: Date;
@@ -64,6 +76,8 @@ export interface QuizAttempt {
 
   finalScore?: number;
   finalPercentage?: number;
+  passMark?: number;
+  passMarkAtSubmission?: number;
 
   passed: boolean;
   completed: boolean;
@@ -74,6 +88,12 @@ export interface QuizAttempt {
   releasedAt?: Date | null;
 
   tutorRemarks?: string;
+
+  aiMarked?: boolean;
+  aiMarkingModel?: string;
+  aiMarkingRequestId?: string;
+  aiNeedsTutorReview?: boolean;
+  aiMarkedAt?: Date;
 
   createdAt?: Date;
   updatedAt?: Date;

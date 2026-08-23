@@ -5,6 +5,7 @@ export type LessonBlockType =
   | "html5"
   | "image"
   | "youtube"
+  | "video"
   | "pdf"
   | "powerpoint"
   | "document"

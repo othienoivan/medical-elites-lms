@@ -6,7 +6,9 @@ import TutorLayout from "../components/layout/TutorLayout";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
+import FileUpload from "../components/upload/FileUpload";
 import { createCourseUnit } from "../firebase/courseUnits";
+import { deleteFileFromStorage } from "../firebase/storage";
 import useAuth from "../hooks/useAuth";
 import useProgrammes from "../hooks/useProgrammes";
 
@@ -21,6 +23,8 @@ export default function CreateCourseUnitPage() {
   const [description, setDescription] = useState("");
   const [duration, setDuration] = useState("");
   const [image, setImage] = useState("");
+  const [imagePath, setImagePath] = useState("");
+  const [pendingThumbnailPaths, setPendingThumbnailPaths] = useState<string[]>([]);
   const [tutorName, setTutorName] = useState(userProfile?.fullName || currentUser?.displayName || "");
   const [moduleCount, setModuleCount] = useState(0);
   const [lessonCount, setLessonCount] = useState(0);
@@ -71,6 +75,7 @@ export default function CreateCourseUnitPage() {
         description,
         image:
           image || "/images/course-placeholder.svg",
+        imagePath: imagePath || undefined,
         tutor: tutorName.trim() || userProfile?.fullName || currentUser.displayName || "Medical Elites Tutor",
         duration,
         modules: moduleCount,
@@ -88,6 +93,25 @@ export default function CreateCourseUnitPage() {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
+
+      const abandonedThumbnailPaths = pendingThumbnailPaths.filter(
+        (path) => path !== imagePath,
+      );
+
+      if (abandonedThumbnailPaths.length > 0) {
+        void Promise.allSettled(
+          abandonedThumbnailPaths.map((path) => deleteFileFromStorage(path)),
+        ).then((results) => {
+          results.forEach((result) => {
+            if (result.status === "rejected") {
+              console.warn(
+                "An unused course thumbnail could not be deleted.",
+                result.reason,
+              );
+            }
+          });
+        });
+      }
 
       navigate("/tutor/programmes");
     } catch (error) {
@@ -155,7 +179,7 @@ export default function CreateCourseUnitPage() {
 
                   {programmes.map((programme) => (
                     <option key={programme.id} value={programme.id}>
-                      {programme.title} — {programme.level}
+                      {programme.title} â€” {programme.level}
                     </option>
                   ))}
                 </select>
@@ -223,13 +247,61 @@ export default function CreateCourseUnitPage() {
                   />
                 </Field>
 
-                <Field label="Course Unit Image URL">
-                  <Input
-                    value={image}
-                    onChange={(event) => setImage(event.target.value)}
-                    placeholder="Optional image URL"
+                <div>
+                  <label className="mb-2 block font-semibold text-slate-900">
+                    Course Unit Thumbnail
+                  </label>
+
+                  {image && image !== "/images/course-placeholder.svg" && (
+                    <div className="mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                      <img
+                        src={image}
+                        alt="Course unit thumbnail"
+                        className="aspect-[16/10] w-full object-cover"
+                      />
+
+                      <div className="flex items-center justify-between gap-3 p-3">
+                        <span className="text-sm font-semibold text-slate-600">
+                          Current thumbnail
+                        </span>
+
+                        <button
+                          type="button"
+                          className="text-sm font-bold text-red-600 hover:text-red-700"
+                          onClick={() => {
+                            setImage("");
+                            setImagePath("");
+                          }}
+                        >
+                          Remove thumbnail
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <FileUpload
+                    folder="images"
+                    accept="image/jpeg,image/png,image/webp"
+                    label={image ? "Replace Thumbnail" : "Upload Thumbnail"}
+                    customMetadata={{
+                      imagePurpose: "course-unit-thumbnail",
+                    }}
+                    onUploaded={(file) => {
+                      setPendingThumbnailPaths((current) =>
+                        current.includes(file.filePath)
+                          ? current
+                          : [...current, file.filePath],
+                      );
+
+                      setImage(file.downloadUrl);
+                      setImagePath(file.filePath);
+                    }}
                   />
-                </Field>
+
+                  <p className="mt-2 text-xs text-slate-500">
+                    JPEG, PNG or WebP. A landscape image is recommended for course catalogue cards.
+                  </p>
+                </div>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
@@ -240,7 +312,7 @@ export default function CreateCourseUnitPage() {
                   <Field label="Students / Learners"><Input type="number" min="0" value={studentCount} onChange={(event) => setStudentCount(Number(event.target.value))} /></Field>
                   <Field label="Number of Modules"><Input type="number" min="0" value={moduleCount} onChange={(event) => setModuleCount(Number(event.target.value))} /></Field>
                   <Field label="Number of Lessons"><Input type="number" min="0" value={lessonCount} onChange={(event) => setLessonCount(Number(event.target.value))} /></Field>
-                  <Field label="Public Rating (0–5)"><Input type="number" min="0" max="5" step="0.1" value={rating} onChange={(event) => setRating(Math.min(5, Math.max(0, Number(event.target.value))))} /></Field>
+                  <Field label="Public Rating (0-5)"><Input type="number" min="0" max="5" step="0.1" value={rating} onChange={(event) => setRating(Math.min(5, Math.max(0, Number(event.target.value))))} /></Field>
                 </div>
               </div>
 
@@ -290,7 +362,7 @@ export default function CreateCourseUnitPage() {
               <SummaryItem
                 icon={Image}
                 label="Image"
-                value={image ? "Custom image URL" : "Default image"}
+                value={image ? "Uploaded thumbnail" : "Default image"}
               />
             </div>
           </Card>
@@ -301,10 +373,10 @@ export default function CreateCourseUnitPage() {
             </h2>
 
             <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
-              <li>• The course unit will be attached to the selected programme.</li>
-              <li>• You can add modules under this course unit.</li>
-              <li>• Lessons and assessments can then be attached to modules.</li>
-              <li>• Students will access it once published and enrolled.</li>
+              <li>â€¢ The course unit will be attached to the selected programme.</li>
+              <li>â€¢ You can add modules under this course unit.</li>
+              <li>â€¢ Lessons and assessments can then be attached to modules.</li>
+              <li>â€¢ Students will access it once published and enrolled.</li>
             </ul>
           </Card>
         </div>
@@ -351,3 +423,7 @@ function SummaryItem({
     </div>
   );
 }
+
+
+
+

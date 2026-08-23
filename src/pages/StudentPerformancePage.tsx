@@ -10,29 +10,51 @@ import {
   XCircle,
 } from "lucide-react";
 import { useMemo } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import TutorLayout from "../components/layout/TutorLayout";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import useTutorQuizAttempts from "../hooks/useTutorQuizAttempts";
+import { grantStudentLearningProgressionOverride } from "../firebase/quizAttempts";
 
 export default function StudentPerformancePage() {
   const { studentId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const cohortId = searchParams.get("cohort") || "";
   const { attempts, loading } = useTutorQuizAttempts();
+
+  async function grantProgression(quizId: string) {
+    if (!studentId) return;
+    const reason = window.prompt("Reason for manually granting access to the next lesson/module:", "Tutor-authorised progression despite unmet assessment pass mark.");
+    if (!reason?.trim()) return;
+    try {
+      const result = await grantStudentLearningProgressionOverride({ studentId, quizId, reason: reason.trim() });
+      window.alert(`Progression access granted. Student can continue to ${result.targetLessonId ? "the next lesson" : "the next module"}.`);
+    } catch (error) {
+      console.error("Failed to grant progression access:", error);
+      window.alert(error instanceof Error ? error.message : "Progression access could not be granted.");
+    }
+  }
 
   const studentAttempts = useMemo(() => {
     return attempts
-      .filter((attempt) => attempt.studentId === studentId)
+      .filter((attempt) => {
+        if (attempt.studentId !== studentId) return false;
+        if (!cohortId) return true;
+        const attemptCohort = attempt.assessmentGroupId || attempt.studentGroupId || attempt.registrationLinkId || "legacy";
+        return attemptCohort === cohortId;
+      })
       .sort((a, b) => {
         const aTime = normalizeDate(a.submittedAt)?.getTime() || 0;
         const bTime = normalizeDate(b.submittedAt)?.getTime() || 0;
         return bTime - aTime;
       });
-  }, [attempts, studentId]);
+  }, [attempts, cohortId, studentId]);
 
   const studentName = studentAttempts[0]?.studentName || "Student";
+  const cohortName = studentAttempts[0]?.registrationLinkName || studentAttempts[0]?.classInstitutionName || (cohortId && cohortId !== "legacy" ? cohortId : "All classes");
 
   const percentages = studentAttempts.map(
     (attempt) => attempt.finalPercentage ?? attempt.percentage
@@ -49,8 +71,12 @@ export default function StudentPerformancePage() {
   const highest = percentages.length > 0 ? Math.max(...percentages) : 0;
   const lowest = percentages.length > 0 ? Math.min(...percentages) : 0;
 
-  const passed = percentages.filter((percentage) => percentage >= 50).length;
-  const failed = percentages.length - passed;
+  const passed = studentAttempts.filter((attempt) => {
+    const percentage = attempt.finalPercentage ?? attempt.percentage;
+    const passMark = attempt.passMarkAtSubmission ?? attempt.passMark ?? 50;
+    return percentage >= passMark;
+  }).length;
+  const failed = studentAttempts.length - passed;
 
   if (loading) {
     return (
@@ -103,7 +129,7 @@ export default function StudentPerformancePage() {
             <h2 className="text-3xl font-bold">{studentName}</h2>
 
             <p className="mt-2 text-blue-100">
-              Academic performance summary across completed assessments.
+              Academic performance summary for {cohortName}.
             </p>
           </div>
 
@@ -210,7 +236,8 @@ export default function StudentPerformancePage() {
                 const finalScore = attempt.finalScore ?? attempt.score;
                 const finalPercentage =
                   attempt.finalPercentage ?? attempt.percentage;
-                const passedAttempt = finalPercentage >= 50;
+                const passMark = attempt.passMarkAtSubmission ?? attempt.passMark ?? 50;
+                const passedAttempt = finalPercentage >= passMark;
 
                 return (
                   <tr key={attempt.id} className="border-b align-top">
@@ -254,22 +281,16 @@ export default function StudentPerformancePage() {
                     </td>
 
                     <td className="p-3">
-                      {attempt.released ? (
-                        <Button
-                          variant="outline"
-                          onClick={() =>
-                            navigate(
-                              `/assessment-history/${attempt.id}/result-slip`
-                            )
-                          }
-                        >
-                          View Slip
-                        </Button>
-                      ) : (
-                        <Button variant="outline" disabled>
-                          Pending
-                        </Button>
-                      )}
+                      <div className="flex flex-col gap-2">
+                        {attempt.released ? (
+                          <Button variant="outline" onClick={() => navigate(`/assessment-history/${attempt.id}/result-slip`)}>View Slip</Button>
+                        ) : (
+                          <Button variant="outline" disabled>Pending</Button>
+                        )}
+                        {!passedAttempt && (attempt.lessonId || attempt.moduleId) && (
+                          <Button variant="outline" onClick={() => void grantProgression(attempt.quizId)}>Grant Next Lesson / Module</Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

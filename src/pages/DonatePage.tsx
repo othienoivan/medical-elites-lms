@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { CreditCard, HeartHandshake, Loader2, ShieldCheck, Smartphone } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import StudentLayout from "../components/layout/StudentLayout";
 import TutorLayout from "../components/layout/TutorLayout";
 import AdminLayout from "../components/layout/AdminLayout";
 import Card from "../components/ui/Card";
@@ -90,7 +89,7 @@ export default function DonatePage() {
 
   if (role === "admin") return <AdminLayout title="Donate" subtitle="Support the Medical Elites mission.">{content}</AdminLayout>;
   if (role === "tutor") return <TutorLayout title="Donate" subtitle="Support the Medical Elites mission.">{content}</TutorLayout>;
-  return <StudentLayout>{content}</StudentLayout>;
+  return content;
 }
 
 function Choice({ title, description, active, onClick, icon: Icon, disabled = false }: { title: string; description: string; active: boolean; onClick: () => void; icon?: React.ElementType; disabled?: boolean }) {

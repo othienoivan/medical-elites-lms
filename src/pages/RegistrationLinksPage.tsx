@@ -6,19 +6,56 @@ import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import { createRegistrationLink, getMyRegistrationLinks, getTutorRegistrationLinkStudents, setRegistrationLinkStatus, type TutorRegistrationLinkStudent } from "../firebase/registrationLinks";
+import { getTenant } from "../firebase/tenants";
 import useAuth from "../hooks/useAuth";
 import useCourseUnits from "../hooks/useCourseUnits";
 import useModules from "../hooks/useModules";
 import useProgrammes from "../hooks/useProgrammes";
+import useTenant from "../hooks/useTenant";
+import type { CourseUnit } from "../models/CourseUnit";
 import type { AcademicAllocationMode, RegistrationLink, RegistrationLinkType } from "../models/RegistrationLink";
+import type { Tenant } from "../models/Tenant";
+import { academicNumber } from "../utils/academicPlacement";
 
+function normalizedKey(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
 
-function normalizeAcademicValue(value: unknown): string {
-  const raw = String(value ?? "").trim().toLowerCase();
-  if (!raw) return "";
-  const roman: Record<string, string> = { i: "1", ii: "2", iii: "3", iv: "4", v: "5", vi: "6" };
-  const cleaned = raw.replace(/academic|year of study|year|semester|sem|level/g, "").replace(/[^a-z0-9]/g, "");
-  return roman[cleaned] ?? cleaned;
+function courseProgrammeMatches(courseUnit: CourseUnit, programme?: { id: string; title?: string; code?: string }): boolean {
+  if (!programme) return false;
+  const record = courseUnit as CourseUnit & Record<string, unknown>;
+  if (courseUnit.programmeId === programme.id) return true;
+  const programmeIds = Array.isArray(record.programmeIds) ? record.programmeIds.map(String) : [];
+  if (programmeIds.includes(programme.id)) return true;
+
+  const courseTitle = normalizedKey(record.programmeTitle ?? record.programmeName);
+  const selectedTitle = normalizedKey(programme.title);
+  if (courseTitle && selectedTitle && courseTitle === selectedTitle) return true;
+
+  const courseCode = normalizedKey(record.programmeCode);
+  const selectedCode = normalizedKey(programme.code);
+  return Boolean(courseCode && selectedCode && courseCode === selectedCode);
+}
+
+function coursePlacementValue(courseUnit: CourseUnit, kind: "year" | "semester"): number | null {
+  const record = courseUnit as CourseUnit & Record<string, unknown>;
+  const candidates = kind === "year"
+    ? [courseUnit.yearOfStudy, record.studyYear, record.year, record.levelYear]
+    : [courseUnit.semester, record.semesterOfStudy, record.term];
+  for (const candidate of candidates) {
+    const parsed = academicNumber(candidate as string | number | null | undefined);
+    if (parsed != null) return parsed;
+  }
+  return null;
+}
+
+function placementMatches(courseUnit: CourseUnit, yearOfStudy: string, semester: string): boolean {
+  const selectedYear = academicNumber(yearOfStudy);
+  const selectedSemester = academicNumber(semester);
+  const courseYear = coursePlacementValue(courseUnit, "year");
+  const courseSemester = coursePlacementValue(courseUnit, "semester");
+  return (selectedYear == null || (courseYear != null && selectedYear === courseYear))
+    && (selectedSemester == null || (courseSemester != null && selectedSemester === courseSemester));
 }
 
 function isPublishedValue(value: unknown): boolean {
@@ -40,13 +77,16 @@ const linkTypes: { value: RegistrationLinkType; label: string }[] = [
 
 export default function RegistrationLinksPage() {
   const { userProfile } = useAuth();
+  const { memberships, activeTenant } = useTenant();
   const { programmes } = useProgrammes();
   const { courseUnits } = useCourseUnits(true);
   const { modules } = useModules();
+  const [institutionOptions, setInstitutionOptions] = useState<Tenant[]>([]);
   const [links, setLinks] = useState<RegistrationLink[]>([]);
   const [registeredStudents, setRegisteredStudents] = useState<TutorRegistrationLinkStudent[]>([]);
   const [name, setName] = useState("Student registration link");
   const [linkType, setLinkType] = useState<RegistrationLinkType>("class");
+  const [institutionId, setInstitutionId] = useState("");
   const [programmeId, setProgrammeId] = useState("");
   const [academicYear, setAcademicYear] = useState("");
   const [yearOfStudy, setYearOfStudy] = useState("");
@@ -62,36 +102,51 @@ export default function RegistrationLinksPage() {
 
   const origin = useMemo(() => window.location.origin, []);
   const selectedProgramme = programmes.find((item) => item.id === programmeId);
+  const selectedInstitution = institutionOptions.find((item) => item.id === institutionId);
 
   const requiresProgramme = linkType === "programme" || linkType === "class" || linkType === "course-unit";
-  const requiresClassPlacement = linkType === "class";
+  const requiresYearOfStudy = linkType === "class" && allocationMode === "automatic";
+  const requiresSemester = linkType === "class";
   const requiresCourseUnits = linkType === "class" || linkType === "course-unit";
+  const requiresInstitution = linkType === "institution";
 
-  const matchingCourseUnits = useMemo(() => courseUnits.filter((courseUnit) => {
-    if (!programmeId || courseUnit.programmeId !== programmeId) return false;
-    if (yearOfStudy && normalizeAcademicValue(courseUnit.yearOfStudy) !== normalizeAcademicValue(yearOfStudy)) return false;
-    if (semester && normalizeAcademicValue(courseUnit.semester) !== normalizeAcademicValue(semester)) return false;
-    return true;
-  }), [courseUnits, programmeId, semester, yearOfStudy]);
+  useEffect(() => {
+    let active = true;
+    async function loadInstitutions() {
+      const ids = [...new Set(memberships.filter((item) => item.status === "active").map((item) => item.tenantId))];
+      const results = await Promise.all(ids.map((id) => getTenant(id).catch(() => null)));
+      if (!active) return;
+      const institutions = results.filter((item): item is Tenant => Boolean(item && item.type === "institution"));
+      if (activeTenant?.type === "institution" && !institutions.some((item) => item.id === activeTenant.id)) institutions.unshift(activeTenant);
+      setInstitutionOptions(institutions);
+      if (!institutionId && activeTenant?.type === "institution") setInstitutionId(activeTenant.id);
+    }
+    void loadInstitutions();
+    return () => { active = false; };
+  }, [activeTenant, institutionId, memberships]);
 
-  // Registration links must never assign draft curriculum. Legacy imports may
-  // store publication state as a string, so normalise it before matching.
+  const programmeCourseUnits = useMemo(() => courseUnits.filter((courseUnit) => courseProgrammeMatches(courseUnit, selectedProgramme)), [courseUnits, selectedProgramme]);
+
   const publishedModuleCourseUnitIds = useMemo(
-    () => new Set(modules.map((module) => module.courseUnitId || module.courseId).filter(Boolean)),
+    () => new Set(modules.filter((module) => isPublishedValue(module.published)).map((module) => module.courseUnitId || module.courseId).filter(Boolean)),
     [modules]
   );
 
-  const eligibleCourseUnits = useMemo(
-    () => matchingCourseUnits.filter((courseUnit) =>
-      isPublishedCourseUnit(
-        courseUnit as unknown as Record<string, unknown>,
-        publishedModuleCourseUnitIds.has(courseUnit.id)
-      )
-    ),
-    [matchingCourseUnits, publishedModuleCourseUnitIds]
+  const publishedProgrammeCourseUnits = useMemo(
+    () => programmeCourseUnits.filter((courseUnit) => isPublishedCourseUnit(courseUnit as unknown as Record<string, unknown>, publishedModuleCourseUnitIds.has(courseUnit.id))),
+    [programmeCourseUnits, publishedModuleCourseUnitIds]
   );
 
-  const unpublishedMatchingCount = matchingCourseUnits.length - eligibleCourseUnits.length;
+  const automaticCourseUnits = useMemo(
+    () => publishedProgrammeCourseUnits.filter((courseUnit) => placementMatches(courseUnit, yearOfStudy, semester)),
+    [publishedProgrammeCourseUnits, semester, yearOfStudy]
+  );
+
+  // Manual exception intentionally shows every published unit in the selected
+  // programme. The class placement belongs to the registration link/cohort and
+  // must not hide a valid unit merely because legacy placement metadata is absent.
+  const eligibleCourseUnits = allocationMode === "manual" ? publishedProgrammeCourseUnits : automaticCourseUnits;
+  const unpublishedMatchingCount = programmeCourseUnits.length - publishedProgrammeCourseUnits.length;
 
   const validCourseUnitIds = useMemo(
     () => courseUnitIds.filter((id) => eligibleCourseUnits.some((unit) => unit.id === id)),
@@ -100,7 +155,7 @@ export default function RegistrationLinksPage() {
 
   const eligibleModules = useMemo(() => modules.filter((module) => {
     const unitId = module.courseUnitId || module.courseId;
-    return Boolean(unitId && validCourseUnitIds.includes(unitId));
+    return Boolean(unitId && validCourseUnitIds.includes(unitId) && isPublishedValue(module.published));
   }), [modules, validCourseUnitIds]);
 
   const validModuleIds = useMemo(
@@ -110,13 +165,14 @@ export default function RegistrationLinksPage() {
 
   useEffect(() => {
     if (allocationMode !== "automatic") return;
-    setCourseUnitIds(eligibleCourseUnits.map((unit) => unit.id));
-  }, [allocationMode, eligibleCourseUnits]);
+    setCourseUnitIds(automaticCourseUnits.map((unit) => unit.id));
+  }, [allocationMode, automaticCourseUnits]);
 
   useEffect(() => {
     if (allocationMode !== "automatic") return;
-    setModuleIds(eligibleModules.map((module) => module.id));
-  }, [allocationMode, eligibleModules]);
+    const unitIds = new Set(automaticCourseUnits.map((item) => item.id));
+    setModuleIds(modules.filter((module) => unitIds.has(module.courseUnitId || module.courseId || "") && isPublishedValue(module.published)).map((module) => module.id));
+  }, [allocationMode, automaticCourseUnits, modules]);
 
   useEffect(() => {
     if (linkType === "course-unit") setAllocationMode("manual");
@@ -145,12 +201,20 @@ export default function RegistrationLinksPage() {
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault();
     if (!userProfile) return;
+    if (requiresInstitution && !institutionId) {
+      setMessage("Select the institution/school for an institution-specific link.");
+      return;
+    }
     if (requiresProgramme && !programmeId) {
       setMessage("Select a programme before generating this type of link.");
       return;
     }
-    if (requiresClassPlacement && (!yearOfStudy || !semester)) {
-      setMessage("Select the student year of study and semester for a class-specific link.");
+    if (requiresSemester && !semester) {
+      setMessage("Select the semester for a class-specific link.");
+      return;
+    }
+    if (requiresYearOfStudy && !yearOfStudy) {
+      setMessage("Select Year of study when using Automatic allocation. With Manual exception, Year of study is optional because you choose the exact course units yourself.");
       return;
     }
     if (requiresCourseUnits && validCourseUnitIds.length === 0) {
@@ -165,8 +229,8 @@ export default function RegistrationLinksPage() {
         name: name.trim(),
         linkType,
         status: "active",
-        institutionId: userProfile.role === "admin" ? userProfile.institutionId : undefined,
-        institutionName: userProfile.role === "admin" ? userProfile.institutionName : undefined,
+        institutionId: institutionId || undefined,
+        institutionName: selectedInstitution?.name || (userProfile.role === "admin" ? userProfile.institutionName : undefined),
         programmeId: programmeId || undefined,
         programmeTitle: selectedProgramme?.title,
         academicYear: academicYear.trim() || undefined,
@@ -180,10 +244,8 @@ export default function RegistrationLinksPage() {
         expiresAt: expiresAt ? new Date(`${expiresAt}T23:59:59`) : null,
       });
       setLinks((current) => [created, ...current]);
-      if (userProfile.role === "tutor") {
-        void getTutorRegistrationLinkStudents().then(setRegisteredStudents).catch(() => undefined);
-      }
-      setMessage(`Registration link created successfully.${validCourseUnitIds.length ? ` ${validCourseUnitIds.length} course unit${validCourseUnitIds.length === 1 ? "" : "s"} and ${validModuleIds.length} module${validModuleIds.length === 1 ? "" : "s"} were assigned.` : " Students can now join using this link."}`);
+      if (userProfile.role === "tutor") void getTutorRegistrationLinkStudents().then(setRegisteredStudents).catch(() => undefined);
+      setMessage(`Registration link created successfully.${validCourseUnitIds.length ? ` ${validCourseUnitIds.length} course unit${validCourseUnitIds.length === 1 ? "" : "s"} and ${validModuleIds.length} module${validModuleIds.length === 1 ? "" : "s"} were assigned.` : " Students can now join using this link."} This link has its own class/cohort identity for assessment reporting.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not create the link.");
     } finally {
@@ -198,7 +260,7 @@ export default function RegistrationLinksPage() {
   }
 
   return (
-    <TutorLayout title="Registration Links" subtitle="Assign students accurately by selecting the programme, class details, course units, and modules from your existing academic structure.">
+    <TutorLayout title="Registration Links" subtitle="Create tutor, institution, programme, class, or course-unit links. Every class link keeps its own cohort identity so learners can be assessed and reported separately.">
       {message && <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-800">{message}</div>}
       <div className="grid gap-6 xl:grid-cols-[460px_1fr]">
         <Card>
@@ -207,34 +269,27 @@ export default function RegistrationLinksPage() {
             <label className="block"><span className="mb-1 block text-sm font-semibold">Link name</span><Input value={name} onChange={(e) => setName(e.target.value)} required /></label>
             <label className="block"><span className="mb-1 block text-sm font-semibold">Link type</span><select className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3" value={linkType} onChange={(e) => setLinkType(e.target.value as RegistrationLinkType)}>{linkTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
 
-            {requiresProgramme && <label className="block"><span className="mb-1 block text-sm font-semibold">Programme</span><select required className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3" value={programmeId} onChange={(e) => setProgrammeId(e.target.value)}><option value="">Select programme</option>{programmes.map((programme) => <option key={programme.id} value={programme.id}>{programme.code ? `${programme.code} — ` : ""}{programme.title}</option>)}</select></label>}
+            {(userProfile?.role === "admin" || institutionOptions.length > 0 || requiresInstitution) && <label className="block"><span className="mb-1 block text-sm font-semibold">Institution / school{requiresInstitution ? " *" : " (optional class context)"}</span><select required={requiresInstitution} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3" value={institutionId} onChange={(e) => setInstitutionId(e.target.value)}><option value="">Independent tutor / no institution</option>{institutionOptions.map((institution) => <option key={institution.id} value={institution.id}>{institution.name}</option>)}</select><span className="mt-1 block text-xs text-slate-500">A tutor with several institution memberships can choose the school/class this link belongs to. This does not overwrite the learner's other school memberships.</span></label>}
+
+            {requiresProgramme && <label className="block"><span className="mb-1 block text-sm font-semibold">Programme *</span><select required className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3" value={programmeId} onChange={(e) => { setProgrammeId(e.target.value); setCourseUnitIds([]); setModuleIds([]); }}><option value="">Select programme</option>{programmes.map((programme) => <option key={programme.id} value={programme.id}>{programme.code ? `${programme.code} — ` : ""}{programme.title}</option>)}</select></label>}
 
             {requiresProgramme && <div className="grid grid-cols-3 gap-3">
               <label><span className="mb-1 block text-xs font-semibold">Academic year</span><Input value={academicYear} onChange={(e) => setAcademicYear(e.target.value)} placeholder="2026/2027" /></label>
-              <label><span className="mb-1 block text-xs font-semibold">Year{requiresClassPlacement ? " *" : ""}</span><select required={requiresClassPlacement} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3" value={yearOfStudy} onChange={(e) => setYearOfStudy(e.target.value)}><option value="">Any year</option>{[1,2,3,4,5,6].map((year) => <option key={year} value={String(year)}>Year {year}</option>)}</select></label>
-              <label><span className="mb-1 block text-xs font-semibold">Semester{requiresClassPlacement ? " *" : ""}</span><select required={requiresClassPlacement} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3" value={semester} onChange={(e) => setSemester(e.target.value)}><option value="">Any semester</option><option value="1">Semester 1</option><option value="2">Semester 2</option><option value="3">Semester 3</option></select></label>
+              <label><span className="mb-1 block text-xs font-semibold">Year of study{requiresYearOfStudy ? " *" : ""}</span><select required={requiresYearOfStudy} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3" value={yearOfStudy} onChange={(e) => setYearOfStudy(e.target.value)}><option value="">Any year of study</option>{[1,2,3,4,5,6].map((year) => <option key={year} value={String(year)}>Year {year}</option>)}</select></label>
+              <label><span className="mb-1 block text-xs font-semibold">Semester{requiresSemester ? " *" : ""}</span><select required={requiresSemester} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3" value={semester} onChange={(e) => setSemester(e.target.value)}><option value="">Any semester</option><option value="1">Semester 1</option><option value="2">Semester 2</option><option value="3">Semester 3</option></select></label>
             </div>}
 
-            {requiresProgramme && <>
-            <fieldset className="rounded-xl border border-blue-200 bg-blue-50/60 p-3">
+            {requiresProgramme && <fieldset className="rounded-xl border border-blue-200 bg-blue-50/60 p-3">
               <legend className="px-1 text-sm font-semibold text-blue-900">Course allocation method</legend>
               <div className="space-y-2 pt-1">
-                <label className="flex cursor-pointer items-start gap-3 rounded-lg bg-white p-3">
-                  <input type="radio" name="allocationMode" className="mt-1" checked={allocationMode === "automatic"} disabled={linkType === "course-unit"} onChange={() => setAllocationMode("automatic")} />
-                  <span><strong className="block text-sm">Automatic — recommended</strong><span className="text-xs text-slate-600">Assign every published course unit matching the programme, year, and semester, together with its modules.</span></span>
-                </label>
-                <label className="flex cursor-pointer items-start gap-3 rounded-lg p-3">
-                  <input type="radio" name="allocationMode" className="mt-1" checked={allocationMode === "manual"} onChange={() => setAllocationMode("manual")} />
-                  <span><strong className="block text-sm">Manual exception</strong><span className="text-xs text-slate-600">Choose only selected units when a class should not receive the complete semester curriculum.</span></span>
-                </label>
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg bg-white p-3"><input type="radio" name="allocationMode" className="mt-1" checked={allocationMode === "automatic"} disabled={linkType === "course-unit"} onChange={() => setAllocationMode("automatic")} /><span><strong className="block text-sm">Automatic — recommended</strong><span className="text-xs text-slate-600">Assign published course units whose programme, year of study, and semester match this class.</span></span></label>
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg p-3"><input type="radio" name="allocationMode" className="mt-1" checked={allocationMode === "manual"} onChange={() => setAllocationMode("manual")} /><span><strong className="block text-sm">Manual exception</strong><span className="text-xs text-slate-600">Show every published unit registered under the programme, then choose exactly what this class receives. Legacy/missing year metadata will no longer hide the unit.</span></span></label>
               </div>
-              {programmeId && <p className="mt-2 text-xs text-blue-900">Matched {eligibleCourseUnits.length} published course unit{eligibleCourseUnits.length === 1 ? "" : "s"}.{unpublishedMatchingCount > 0 ? ` ${unpublishedMatchingCount} unpublished unit${unpublishedMatchingCount === 1 ? " was" : "s were"} excluded.` : ""}</p>}
-            </fieldset>
-
-            </>}
+              {programmeId && <p className="mt-2 text-xs text-blue-900">Programme has {publishedProgrammeCourseUnits.length} published course unit{publishedProgrammeCourseUnits.length === 1 ? "" : "s"}. {allocationMode === "automatic" ? `${automaticCourseUnits.length} match the selected year/semester.` : "Manual exception is showing the complete published programme list."}{unpublishedMatchingCount > 0 ? ` ${unpublishedMatchingCount} unpublished unit${unpublishedMatchingCount === 1 ? " is" : "s are"} excluded.` : ""}</p>}
+            </fieldset>}
 
             {requiresProgramme && <>
-              <SelectionList title="Course units" emptyText="No published course units match the selected programme, year, and semester." items={eligibleCourseUnits.map((unit) => ({ id: unit.id, label: `${unit.code ? `${unit.code} — ` : ""}${unit.title}` }))} selected={validCourseUnitIds} disabled={allocationMode === "automatic"} onToggle={(id) => toggleSelection(id, courseUnitIds, setCourseUnitIds)} />
+              <SelectionList title="Course units" emptyText={allocationMode === "manual" ? "No published course units are registered under this programme." : "No published course units match the selected programme, year of study, and semester. Try Manual exception to inspect all published units in the programme."} items={eligibleCourseUnits.map((unit) => ({ id: unit.id, label: `${unit.code ? `${unit.code} — ` : ""}${unit.title} · Year ${coursePlacementValue(unit, "year") ?? "Unplaced"} · Semester ${coursePlacementValue(unit, "semester") ?? "Unplaced"}` }))} selected={validCourseUnitIds} disabled={allocationMode === "automatic"} onToggle={(id) => toggleSelection(id, courseUnitIds, setCourseUnitIds)} />
               <SelectionList title="Modules" emptyText={validCourseUnitIds.length ? "No published modules are attached to the selected course units." : "Select course units first."} items={eligibleModules.map((module) => ({ id: module.id, label: `${module.code ? `${module.code} — ` : ""}${module.title}` }))} selected={validModuleIds} disabled={allocationMode === "automatic"} onToggle={(id) => toggleSelection(id, moduleIds, setModuleIds)} />
             </>}
 
@@ -250,20 +305,12 @@ export default function RegistrationLinksPage() {
             const url = `${origin}/join/${link.code}`;
             return <Card key={link.id}>
               <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-                <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-bold">{link.name}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${link.status === "active" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>{link.status}</span></div><p className="mt-2 break-all text-sm text-blue-700">{url}</p><p className="mt-2 text-sm text-slate-600">{link.programmeTitle || "Programme not specified"} · {(link.allocationMode || "manual") === "automatic" ? "Automatic allocation" : "Manual allocation"} · Year {link.yearOfStudy || "Any"} · Semester {link.semester || "Any"} · {link.courseUnitIds?.length || 0} course units · {link.moduleIds?.length || 0} modules · {link.registrationCount || 0} registrations</p></div>
+                <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-bold">{link.name}</h3><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${link.status === "active" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>{link.status}</span></div><p className="mt-2 break-all text-sm text-blue-700">{url}</p><p className="mt-2 text-sm text-slate-600">{link.institutionName || "Independent tutor"} · {link.programmeTitle || "Programme not specified"} · {(link.allocationMode || "manual") === "automatic" ? "Automatic allocation" : "Manual allocation"} · Year {link.yearOfStudy || "Any"} · Semester {link.semester || "Any"} · {link.courseUnitIds?.length || 0} course units · {link.moduleIds?.length || 0} modules · {link.registrationCount || 0} registrations</p><p className="mt-1 text-xs font-semibold text-indigo-700">Assessment cohort: {link.studentGroupId || link.code}</p></div>
                 <div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={() => navigator.clipboard.writeText(url)}><Copy size={16} /> Copy</Button><Button type="button" variant="secondary" onClick={() => window.open(`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(url)}`, "_blank", "noopener,noreferrer")}><QrCode size={16} /> QR</Button><Button type="button" variant="secondary" onClick={() => toggle(link)}><Power size={16} /> {link.status === "active" ? "Disable" : "Enable"}</Button></div>
               </div>
               {(() => {
                 const learners = registeredStudents.filter((student) => student.registrationLinkCode === link.code);
-                return <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
-                  <p className="text-sm font-bold text-emerald-900">Registered learners ({learners.length})</p>
-                  {learners.length === 0 ? <p className="mt-2 text-sm text-slate-600">No learners have been resolved for this link yet.</p> : <div className="mt-2 divide-y divide-emerald-100">
-                    {learners.map((student) => <div key={student.enrollmentId} className="flex flex-col justify-between gap-1 py-2 text-sm sm:flex-row sm:items-center">
-                      <div><span className="font-semibold text-slate-900">{student.studentName}</span><span className="ml-2 text-slate-500">{student.studentEmail}</span></div>
-                      <span className={`w-fit rounded-full px-2 py-1 text-xs font-bold ${student.approvalStatus === "approved" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{student.approvalStatus}</span>
-                    </div>)}
-                  </div>}
-                </div>;
+                return <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3"><p className="text-sm font-bold text-emerald-900">Registered learners ({learners.length})</p>{learners.length === 0 ? <p className="mt-2 text-sm text-slate-600">No learners have been resolved for this link yet.</p> : <div className="mt-2 divide-y divide-emerald-100">{learners.map((student) => <div key={student.enrollmentId} className="flex flex-col justify-between gap-1 py-2 text-sm sm:flex-row sm:items-center"><div><span className="font-semibold text-slate-900">{student.studentName}</span><span className="ml-2 text-slate-500">{student.studentEmail}</span></div><span className={`w-fit rounded-full px-2 py-1 text-xs font-bold ${student.approvalStatus === "approved" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{student.approvalStatus}</span></div>)}</div>}</div>;
               })()}
             </Card>;
           })}
