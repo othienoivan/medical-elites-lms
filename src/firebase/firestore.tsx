@@ -10,6 +10,7 @@ type CreateUserProfileData = {
   isActive?: boolean;
   onboardingSource?: "direct" | "registration-link" | "admin" | "tutor";
   registrationLinkId?: string;
+  workspaceMode?: "independent" | "institution";
 };
 
 export async function createUserProfile({
@@ -21,6 +22,7 @@ export async function createUserProfile({
   isActive = true,
   onboardingSource = "direct",
   registrationLinkId,
+  workspaceMode,
 }: CreateUserProfileData) {
   const userRef = doc(db, "users", uid);
 
@@ -35,6 +37,7 @@ export async function createUserProfile({
     isActive,
     onboardingSource,
     ...(registrationLinkId ? { registrationLinkId } : {}),
+    ...(workspaceMode ? { workspaceMode } : {}),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

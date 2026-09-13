@@ -20,13 +20,15 @@ import ModuleCard from "../components/ui/ModuleCard";
 import useAuth from "../hooks/useAuth";
 import usePublishedCourseUnits from "../hooks/usePublishedCourseUnits";
 import useCourseUnits from "../hooks/useCourseUnits";
-import useModules from "../hooks/useModules";
 import useStudentLearningAccess from "../hooks/useStudentLearningAccess";
 import useCourseUnitContentStats from "../hooks/useCourseUnitContentStats";
 import useModuleProgression from "../hooks/useModuleProgression";
 import { markModuleStarted } from "../firebase/enrollments";
 import { getCourseUnitByIdentifier } from "../firebase/courseUnits";
+import { getPublishedCourseModulesV2 } from "../firebase/publicCourseModules";
+import type { Module } from "../models/Module";
 import type { CourseUnit } from "../models/CourseUnit";
+import { MarketplaceService, type MarketplaceProduct } from "../domains/marketplace";
 
 export default function CourseUnitDetailsPage() {
   const { slug } = useParams();
@@ -57,6 +59,18 @@ export default function CourseUnitDetailsPage() {
         ? [...accessibleCourseUnits, ...publishedCourseUnits]
         : publishedCourseUnits,
     [accessibleCourseUnits, currentUser, publishedCourseUnits],
+  );
+
+  const matchesCourseIdentifier = (item: CourseUnit, identifier: string) =>
+    item.id === identifier ||
+    item.slug === identifier ||
+    String((item as CourseUnit & { courseId?: unknown }).courseId ?? "") === identifier;
+
+  // Public catalogue records are canonical for public course routes. Authenticated
+  // compatibility records may carry a legacy `courseId` that points at another
+  // canonical record, so they must not decide which module collection is loaded.
+  const publicRouteCourseUnit = publishedCourseUnits.find((item) =>
+    matchesCourseIdentifier(item, courseIdentifier),
   );
 
   const listedCourseUnit = visibleCourseUnits.find(
@@ -96,10 +110,14 @@ export default function CourseUnitDetailsPage() {
     };
   }, [courseIdentifier, listedCourseUnit]);
 
-  const baseCourseUnit = listedCourseUnit ?? resolvedCourseUnit;
-  const publicMetadata = baseCourseUnit
-    ? publishedCourseUnits.find((item) => item.id === baseCourseUnit.id)
-    : null;
+  const baseCourseUnit = publicRouteCourseUnit ?? listedCourseUnit ?? resolvedCourseUnit;
+  const publicMetadata = publicRouteCourseUnit ?? (baseCourseUnit
+    ? publishedCourseUnits.find((item) =>
+        item.id === baseCourseUnit.id ||
+        matchesCourseIdentifier(item, baseCourseUnit.id) ||
+        matchesCourseIdentifier(baseCourseUnit, item.id),
+      )
+    : null);
   const courseUnit = baseCourseUnit && publicMetadata
     ? {
         ...baseCourseUnit,
@@ -119,13 +137,59 @@ export default function CourseUnitDetailsPage() {
       ? accessibleCourseUnitsLoading
       : publishedCourseUnitsLoading);
 
-  const { modules, loading: modulesLoading } = useModules(courseUnit?.id);
-  const contentStats = useCourseUnitContentStats(courseUnit?.id);
-  const progression = useModuleProgression(modules, courseUnit?.id);
+  const canonicalCourseUnitId = publicRouteCourseUnit?.id ?? courseUnit?.id;
+  const courseAliases = useMemo(() => {
+    const aliases = new Set<string>();
+    [canonicalCourseUnitId, courseIdentifier, courseUnit?.id, publicMetadata?.id].forEach((value) => {
+      if (value) aliases.add(String(value));
+    });
+    const legacyCourseId = (courseUnit as (CourseUnit & { courseId?: unknown }) | null)?.courseId;
+    if (legacyCourseId) aliases.add(String(legacyCourseId));
+    return aliases;
+  }, [canonicalCourseUnitId, courseIdentifier, courseUnit, publicMetadata]);
+
+  const [modules, setModules] = useState<Module[]>([]);
+  const [modulesLoading, setModulesLoading] = useState(Boolean(canonicalCourseUnitId));
+  useEffect(() => {
+    let active = true;
+    if (!canonicalCourseUnitId) { setModules([]); setModulesLoading(false); return () => { active = false; }; }
+    setModulesLoading(true);
+    void getPublishedCourseModulesV2(canonicalCourseUnitId)
+      .then((result) => { if (active) setModules(result.modules); })
+      .catch((error) => { console.error("Failed to load published course modules:", error); if (active) setModules([]); })
+      .finally(() => { if (active) setModulesLoading(false); });
+    return () => { active = false; };
+  }, [canonicalCourseUnitId]);
+  const contentStats = useCourseUnitContentStats(canonicalCourseUnitId);
+  const progression = useModuleProgression(modules, canonicalCourseUnitId);
 
   const hasCourseAccess = courseUnit
-    ? canAccessCourseUnit(courseUnit.id, courseUnit.programmeId)
+    ? [...courseAliases].some((id) => canAccessCourseUnit(id, courseUnit.programmeId))
     : false;
+
+  const [courseProduct, setCourseProduct] = useState<MarketplaceProduct | null>(null);
+  useEffect(() => {
+    let active = true;
+    async function resolveCourseProduct() {
+      if (!courseUnit || hasCourseAccess || hasElevatedAccess) {
+        if (active) setCourseProduct(null);
+        return;
+      }
+      try {
+        const products = await MarketplaceService.listPublished(100);
+        const product = products.find((item) =>
+          (item.courseUnitId ? courseAliases.has(String(item.courseUnitId)) : false) ||
+          item.linkedResourceIds.some((id) => courseAliases.has(String(id))),
+        ) ?? null;
+        if (active) setCourseProduct(product);
+      } catch (error) {
+        console.warn("Unable to resolve marketplace product for course unit:", error);
+        if (active) setCourseProduct(null);
+      }
+    }
+    void resolveCourseProduct();
+    return () => { active = false; };
+  }, [courseAliases, courseUnit, hasCourseAccess, hasElevatedAccess]);
 
   function handlePrimaryAction() {
     if (!currentUser) {
@@ -312,16 +376,31 @@ export default function CourseUnitDetailsPage() {
               Learners must score at least 80% to unlock the next module.
             </p>
 
-            <Button onClick={handlePrimaryAction} className="mt-6 w-full">
-              {hasCourseAccess || hasElevatedAccess
-                ? "Start Learning"
-                : "View My Assigned Courses"}
-            </Button>
+            {hasCourseAccess || hasElevatedAccess ? (
+              <Button onClick={handlePrimaryAction} className="mt-6 w-full">
+                Start Learning
+              </Button>
+            ) : (
+              <div className="mt-6 space-y-3">
+                {courseProduct ? (
+                  <Link to={`/marketplace/products/${courseProduct.id}`} className="block">
+                    <Button className="w-full">Buy This Course Unit</Button>
+                  </Link>
+                ) : (
+                  <Link to={`/marketplace?courseUnitId=${encodeURIComponent(canonicalCourseUnitId ?? courseUnit.id)}`} className="block">
+                    <Button className="w-full">Buy Course Unit</Button>
+                  </Link>
+                )}
+                <Link to="/marketplace?type=membership" className="block">
+                  <Button variant="outline" className="w-full">Subscribe for Access</Button>
+                </Link>
+              </div>
+            )}
 
-            {!hasCourseAccess && currentUser && !hasElevatedAccess && (
+            {!hasCourseAccess && !hasElevatedAccess && (
               <div className="mt-4 flex items-start gap-2 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
                 <Lock size={18} className="mt-0.5 shrink-0" />
-                This course unit has not been assigned to your active enrolment.
+                Purchase this course unit or activate an eligible subscription to unlock its learning content.
               </div>
             )}
           </Card>
@@ -345,22 +424,40 @@ export default function CourseUnitDetailsPage() {
             <p className="text-slate-600">
               No modules have been published yet.
             </p>
-          ) : (
+          ) : hasCourseAccess || hasElevatedAccess ? (
             <div className="grid gap-6 md:grid-cols-2">
               {modules.map((module) => (
                 <ModuleCard
                   key={module.id}
                   module={module}
-                  isUnlocked={(hasCourseAccess || hasElevatedAccess) && progression.isUnlocked(module.id)}
+                  isUnlocked={progression.isUnlocked(module.id)}
                   lessonCount={contentStats.lessonCounts[module.id] ?? 0}
                   learningState={progression.getLearningState(module.id)}
                   onStart={() => {
-                    if ((hasCourseAccess || hasElevatedAccess) && progression.isUnlocked(module.id)) {
-                      handleStartModule(module.id);
-                    }
+                    if (progression.isUnlocked(module.id)) handleStartModule(module.id);
                   }}
                 />
               ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+              <div className="flex items-start gap-3">
+                <Lock className="mt-1 shrink-0 text-amber-700" size={22} />
+                <div>
+                  <h3 className="font-bold text-amber-950">Course content is locked</h3>
+                  <p className="mt-2 text-sm leading-6 text-amber-800">
+                    This course unit contains {modules.length} published module{modules.length === 1 ? "" : "s"}. Buy the course unit or subscribe before opening module lessons and assessments.
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Link to={courseProduct ? `/marketplace/products/${courseProduct.id}` : `/marketplace?courseUnitId=${encodeURIComponent(canonicalCourseUnitId ?? courseUnit.id)}`}>
+                      <Button>Buy Course Unit</Button>
+                    </Link>
+                    <Link to="/marketplace?type=membership">
+                      <Button variant="outline">Subscribe</Button>
+                    </Link>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </section>

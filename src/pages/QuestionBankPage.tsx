@@ -21,6 +21,7 @@ import Card from "../components/ui/Card";
 import {
   bulkCreateQuestions,
   deleteQuestion,
+  permanentlyDeleteQuestion,
   duplicateQuestion,
 } from "../firebase/questions";
 import useAuth from "../hooks/useAuth";
@@ -54,6 +55,8 @@ export default function QuestionBankPage() {
   const [difficultyFilter, setDifficultyFilter] = useState<"all" | QuestionDifficulty>("all");
   const [bloomFilter, setBloomFilter] = useState<"all" | BloomLevel>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
+  const [courseUnitFilter, setCourseUnitFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<"newest" | "course-unit" | "topic">("newest");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [showAiGenerator, setShowAiGenerator] = useState(false);
@@ -70,9 +73,15 @@ export default function QuestionBankPage() {
     navigate("/tutor/questions/new");
   }
 
+  const courseUnitOptions = useMemo<Array<[string, string]>>(() => {
+    const map = new Map<string, string>();
+    questions.forEach((question) => { if (question.courseUnitId) map.set(question.courseUnitId, question.courseUnitTitle || question.courseUnitId); });
+    return [...map.entries()].sort((a,b) => a[1].localeCompare(b[1]));
+  }, [questions]);
+
   const filteredQuestions = useMemo(() => {
     const keyword = search.trim().toLowerCase();
-    return questions.filter((question) => {
+    const matched = questions.filter((question) => {
       const matchesSearch = !keyword || [
         question.questionText,
         question.topic,
@@ -89,10 +98,18 @@ export default function QuestionBankPage() {
         && (typeFilter === "all" || question.type === typeFilter)
         && (difficultyFilter === "all" || question.difficulty === difficultyFilter)
         && (bloomFilter === "all" || question.bloomLevel === bloomFilter)
+        && (courseUnitFilter === "all" || question.courseUnitId === courseUnitFilter)
         && (statusFilter === "all"
           || (statusFilter === "published" ? question.isPublished : !question.isPublished));
     });
-  }, [questions, search, typeFilter, difficultyFilter, bloomFilter, statusFilter]);
+    return matched.sort((a, b) => {
+      if (sortBy === "course-unit") return (a.courseUnitTitle || "").localeCompare(b.courseUnitTitle || "") || a.topic.localeCompare(b.topic);
+      if (sortBy === "topic") return a.topic.localeCompare(b.topic) || a.questionText.localeCompare(b.questionText);
+      const aTime = a.updatedAt instanceof Date ? a.updatedAt.getTime() : a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
+      const bTime = b.updatedAt instanceof Date ? b.updatedAt.getTime() : b.createdAt instanceof Date ? b.createdAt.getTime() : 0;
+      return bTime - aTime;
+    });
+  }, [questions, search, typeFilter, difficultyFilter, bloomFilter, statusFilter, courseUnitFilter, sortBy]);
 
   async function handleDelete(question: Question) {
     if (!currentUser) return;
@@ -107,6 +124,14 @@ export default function QuestionBankPage() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function handlePermanentDelete(question: Question) {
+    if (!currentUser) return;
+    if (!window.confirm("PERMANENTLY delete this question? It will also be removed from quizzes and professional examinations. This cannot be undone.")) return;
+    try { setBusyId(question.id); await permanentlyDeleteQuestion(question.id); await refresh(); }
+    catch (error) { console.error("Permanent question deletion failed:", error); alert(error instanceof Error ? error.message : "The question could not be permanently deleted."); }
+    finally { setBusyId(null); }
   }
 
   async function handleDuplicate(question: Question) {
@@ -264,7 +289,9 @@ export default function QuestionBankPage() {
             { value: "all", label: "All statuses" }, { value: "published", label: "Published" }, { value: "draft", label: "Draft" },
           ]} />
         </div>
-        <div className="mt-4 max-w-sm">
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <FilterSelect value={courseUnitFilter} onChange={setCourseUnitFilter} label="Course Unit" options={[{ value: "all", label: "All Course Units" }, ...courseUnitOptions.map(([value, label]) => ({ value, label }))]} />
+          <FilterSelect value={sortBy} onChange={(value) => setSortBy(value as typeof sortBy)} label="Sort" options={[{ value: "newest", label: "Newest / Updated first" }, { value: "course-unit", label: "Course Unit" }, { value: "topic", label: "Topic" }]} />
           <FilterSelect value={bloomFilter} onChange={(v) => setBloomFilter(v as typeof bloomFilter)} label="Bloom level" options={[
             { value: "all", label: "All Bloom levels" }, { value: "remember", label: "Remember" }, { value: "understand", label: "Understand" }, { value: "apply", label: "Apply" }, { value: "analyze", label: "Analyze" }, { value: "evaluate", label: "Evaluate" }, { value: "create", label: "Create" },
           ]} />
@@ -320,6 +347,7 @@ export default function QuestionBankPage() {
                   <Button variant="outline" disabled={busyId === question.id} onClick={() => void handleDelete(question)}>
                     <Trash2 size={16} /> Delete
                   </Button>
+                  <Button variant="outline" disabled={busyId === question.id} onClick={() => void handlePermanentDelete(question)} title="Permanently delete question"><Trash2 size={16}/> Delete Permanently</Button>
                 </div>
               </div>
             </Card>

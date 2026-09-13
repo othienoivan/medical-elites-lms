@@ -5,11 +5,13 @@ import {
   doc,
   getDoc,
   getDocs,
+  query,
   serverTimestamp,
   updateDoc,
+  where,
 } from "firebase/firestore";
 
-import { db } from "../config/firebase";
+import { auth, db } from "../config/firebase";
 import type { Examination } from "../models/Examination";
 import { writeAuditLog } from "./auditLogs";
 
@@ -46,14 +48,37 @@ export async function createExamination(
 }
 
 export async function getExaminations(): Promise<Examination[]> {
-  const snapshot = await getDocs(collection(db, COLLECTION));
+  const user = auth.currentUser;
+  if (!user) return [];
 
-  return snapshot.docs
-    .map((docSnap) => ({
-      ...(docSnap.data() as Omit<Examination, "id">),
-      id: docSnap.id,
-    }))
-    .sort((a, b) => a.title.localeCompare(b.title));
+  // Firestore rules cannot authorize an unfiltered collection scan because
+  // examinations may belong to other tutors/institutions. Query only records
+  // that can belong to the signed-in tutor, then merge/deduplicate locally.
+  const lookups = [
+    query(collection(db, COLLECTION), where("ownerUserId", "==", user.uid)),
+    query(collection(db, COLLECTION), where("createdByUid", "==", user.uid)),
+    query(collection(db, COLLECTION), where("createdBy", "==", user.uid)),
+    query(collection(db, COLLECTION), where("assignedTutorIds", "array-contains", user.uid)),
+  ];
+
+  // Older examination drafts stored the tutor email in `createdBy`. Keep a
+  // narrowly-scoped compatibility query so those drafts remain visible.
+  if (user.email) {
+    lookups.push(query(collection(db, COLLECTION), where("createdBy", "==", user.email)));
+  }
+
+  const snapshots = await Promise.all(lookups.map((lookup) => getDocs(lookup)));
+  const byId = new Map<string, Examination>();
+  for (const snapshot of snapshots) {
+    for (const docSnap of snapshot.docs) {
+      byId.set(docSnap.id, {
+        ...(docSnap.data() as Omit<Examination, "id">),
+        id: docSnap.id,
+      });
+    }
+  }
+
+  return [...byId.values()].sort((a, b) => a.title.localeCompare(b.title));
 }
 
 export async function getExaminationById(

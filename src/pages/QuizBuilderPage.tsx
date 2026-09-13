@@ -12,6 +12,7 @@ import { createQuiz, getQuizById, updateQuiz } from "../firebase/quizzes";
 import useAuth from "../hooks/useAuth";
 import useCourseUnits from "../hooks/useCourseUnits";
 import useModules from "../hooks/useModules";
+import useLessons from "../hooks/useLessons";
 import useProgrammes from "../hooks/useProgrammes";
 import type { Question } from "../models/Question";
 import type { AssessmentType, QuizQuestionRef } from "../models/Quiz";
@@ -43,6 +44,8 @@ export default function QuizBuilderPage() {
   const [programmeId, setProgrammeId] = useState("");
   const [courseUnitId, setCourseUnitId] = useState("");
   const [moduleId, setModuleId] = useState("");
+  const [lessonId, setLessonId] = useState("");
+  const { lessons } = useLessons(moduleId, true);
 
   const [assessmentType, setAssessmentType] =
     useState<AssessmentType>("lesson-quiz");
@@ -53,6 +56,9 @@ export default function QuizBuilderPage() {
 
   const [passMark, setPassMark] = useState(50);
   const [timeLimitMinutes, setTimeLimitMinutes] = useState(60);
+  const [hasTimeLimit, setHasTimeLimit] = useState(true);
+  const [requiresPassForProgression, setRequiresPassForProgression] = useState(true);
+  const [allowRetakesUntilPass, setAllowRetakesUntilPass] = useState(false);
   const [attemptsAllowed, setAttemptsAllowed] = useState(1);
 
   const [randomizeQuestions, setRandomizeQuestions] = useState(false);
@@ -96,11 +102,15 @@ export default function QuizBuilderPage() {
         setProgrammeId(existing.programmeId || "");
         setCourseUnitId(existing.courseUnitId || "");
         setModuleId(existing.moduleId || "");
+        setLessonId(existing.lessonId || "");
         setAssessmentType(existing.assessmentType || "lesson-quiz");
         setAssessmentCode(existing.assessmentCode || "");
         setWeightPercentage(existing.weightPercentage ?? undefined);
         setPassMark(existing.passMark ?? 50);
-        setTimeLimitMinutes(existing.timeLimitMinutes ?? 60);
+        setHasTimeLimit(existing.timeLimitMinutes != null && Number(existing.timeLimitMinutes) > 0);
+        setTimeLimitMinutes(existing.timeLimitMinutes && existing.timeLimitMinutes > 0 ? existing.timeLimitMinutes : 60);
+        setRequiresPassForProgression(existing.requiresPassForProgression !== false);
+        setAllowRetakesUntilPass(existing.allowRetakesUntilPass === true);
         setAttemptsAllowed(existing.attemptsAllowed ?? 1);
         setRandomizeQuestions(Boolean(existing.randomizeQuestions));
         setRandomizeOptions(Boolean(existing.randomizeOptions));
@@ -144,6 +154,7 @@ export default function QuizBuilderPage() {
     (item) => item.id === courseUnitId
   );
   const selectedModule = modules.find((item) => item.id === moduleId);
+  const selectedLesson = lessons.find((item) => item.id === lessonId);
 
   const selectedAssessmentLabel =
     assessmentTypes.find((type) => type.value === assessmentType)?.label ||
@@ -234,11 +245,15 @@ export default function QuizBuilderPage() {
 
         moduleId: moduleId || undefined,
         moduleTitle: selectedModule?.title || undefined,
+        lessonId: lessonId || undefined,
+        lessonTitle: selectedLesson?.title || undefined,
 
         questions: selectedQuestions,
         totalMarks,
         passMark,
-        timeLimitMinutes,
+        timeLimitMinutes: hasTimeLimit ? timeLimitMinutes : null,
+        requiresPassForProgression,
+        allowRetakesUntilPass,
         attemptsAllowed,
 
         randomizeQuestions,
@@ -309,7 +324,7 @@ export default function QuizBuilderPage() {
                 Academic Hierarchy
               </h3>
 
-              <div className="grid gap-5 md:grid-cols-3">
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
                 <SelectField
                   label="Programme"
                   value={programmeId}
@@ -317,6 +332,7 @@ export default function QuizBuilderPage() {
                     setProgrammeId(value);
                     setCourseUnitId("");
                     setModuleId("");
+                    setLessonId("");
                   }}
                   options={[
                     { value: "", label: "Select Programme" },
@@ -333,6 +349,7 @@ export default function QuizBuilderPage() {
                   onChange={(value) => {
                     setCourseUnitId(value);
                     setModuleId("");
+                    setLessonId("");
                   }}
                   options={[
                     { value: "", label: "Select Course Unit" },
@@ -346,13 +363,23 @@ export default function QuizBuilderPage() {
                 <SelectField
                   label="Module"
                   value={moduleId}
-                  onChange={setModuleId}
+                  onChange={(value) => { setModuleId(value); setLessonId(""); }}
                   options={[
                     { value: "", label: "Select Module" },
                     ...filteredModules.map((module) => ({
                       value: module.id,
                       label: module.title,
                     })),
+                  ]}
+                />
+
+                <SelectField
+                  label="Lesson (optional)"
+                  value={lessonId}
+                  onChange={setLessonId}
+                  options={[
+                    { value: "", label: moduleId ? "Module-level / no lesson" : "Select module first" },
+                    ...lessons.map((lesson) => ({ value: lesson.id, label: lesson.title })),
                   ]}
                 />
               </div>
@@ -441,11 +468,14 @@ export default function QuizBuilderPage() {
                 onChange={setPassMark}
               />
 
-              <NumberField
-                label="Time Limit (Minutes)"
-                value={timeLimitMinutes}
-                onChange={setTimeLimitMinutes}
-              />
+              <div>
+                <CheckboxField label="Use a timer" checked={hasTimeLimit} onChange={setHasTimeLimit} />
+                {hasTimeLimit && (
+                  <div className="mt-3">
+                    <NumberField label="Time Limit (Minutes)" value={timeLimitMinutes} onChange={setTimeLimitMinutes} />
+                  </div>
+                )}
+              </div>
 
               <NumberField
                 label="Attempts Allowed"
@@ -455,6 +485,20 @@ export default function QuizBuilderPage() {
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-3">
+              {(lessonId || moduleId) && (
+                <CheckboxField
+                  label="Require pass mark before learner can proceed"
+                  checked={requiresPassForProgression}
+                  onChange={setRequiresPassForProgression}
+                />
+              )}
+              {(lessonId || moduleId) && requiresPassForProgression && (
+                <CheckboxField
+                  label="Allow learner to repeat until pass mark is attained"
+                  checked={allowRetakesUntilPass}
+                  onChange={setAllowRetakesUntilPass}
+                />
+              )}
               <CheckboxField
                 label="Randomize Questions"
                 checked={randomizeQuestions}
@@ -555,7 +599,7 @@ export default function QuizBuilderPage() {
               <p>Total Questions: {selectedQuestions.length}</p>
               <p>Total Marks: {totalMarks}</p>
               <p>Pass Mark: {passMark}%</p>
-              <p>Time Limit: {timeLimitMinutes} minutes</p>
+              <p>Time Limit: {hasTimeLimit ? `${timeLimitMinutes} minutes` : "No timer"}</p>
               <p>Attempts Allowed: {attemptsAllowed}</p>
               <p>
                 Weight:{" "}

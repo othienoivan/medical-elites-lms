@@ -74,6 +74,7 @@ export default function RegisterPage() {
         isActive: !tutorNeedsApproval,
         onboardingSource: joinCode ? "registration-link" : "direct",
         registrationLinkId: joinCode || undefined,
+        workspaceMode: registeringTutor && !joinCode ? "independent" : undefined,
       });
 
       let registrationStatus: "approved" | "pending" | null = null;

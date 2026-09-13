@@ -4,7 +4,7 @@ type Props = {
   title: string;
   totalQuestions: number;
   currentQuestion: number;
-  minutesRemaining: number;
+  minutesRemaining?: number | null;
 };
 
 export default function QuizHeader({
@@ -26,15 +26,9 @@ export default function QuizHeader({
 
         <div className="flex items-center gap-3 rounded-xl bg-white/10 px-5 py-3">
           <Clock size={22} />
-
           <div>
-            <p className="text-xs uppercase tracking-wide">
-              Time Remaining
-            </p>
-
-            <h2 className="text-2xl font-bold">
-              {minutesRemaining} min
-            </h2>
+            <p className="text-xs uppercase tracking-wide">{minutesRemaining == null ? "Timing" : "Time Remaining"}</p>
+            <h2 className="text-2xl font-bold">{minutesRemaining == null ? "No timer" : `${minutesRemaining} min`}</h2>
           </div>
         </div>
       </div>

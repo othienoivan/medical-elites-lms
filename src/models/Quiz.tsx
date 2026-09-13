@@ -34,10 +34,16 @@ export interface Quiz {
   courseUnitTitle?: string;
   moduleId?: string;
   moduleTitle?: string;
+  lessonId?: string;
+  lessonTitle?: string;
   questions: QuizQuestionRef[];
   totalMarks: number;
   passMark: number;
-  timeLimitMinutes?: number;
+  timeLimitMinutes?: number | null;
+  /** If false, learners may continue after attempting the quiz even without reaching the pass mark. */
+  requiresPassForProgression?: boolean;
+  /** If true, a learner who has not yet reached the pass mark may keep retrying until mastery. */
+  allowRetakesUntilPass?: boolean;
   attemptsAllowed?: number;
   randomizeQuestions: boolean;
   randomizeOptions: boolean;

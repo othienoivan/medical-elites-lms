@@ -11,7 +11,9 @@ const bootstrapEmails = new Set(
 
 export function hasPlatformAccess(profile: { role?: string; email?: string; platformRole?: string } | null | undefined): boolean {
   if (!profile || profile.role !== "admin") return false;
-  return profile.platformRole === "super_admin" || bootstrapEmails.has(String(profile.email ?? "").toLowerCase());
+  const platformRole = String(profile.platformRole ?? "");
+  const allowedPlatformRoles = new Set(["super_admin", "platform_admin", "platform_support", "platform_finance"]);
+  return allowedPlatformRoles.has(platformRole) || bootstrapEmails.has(String(profile.email ?? "").toLowerCase());
 }
 
 export default function PlatformAccessGate({ children }: { children: ReactNode }) {

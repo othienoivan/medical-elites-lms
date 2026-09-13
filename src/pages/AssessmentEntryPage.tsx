@@ -15,7 +15,7 @@ import Card from "../components/ui/Card";
 import Container from "../components/ui/Container";
 import Input from "../components/ui/Input";
 import { getQuizAttemptsByStudent } from "../firebase/quizAttempts";
-import { getQuizById } from "../firebase/quizzes";
+import { getStudentAssessmentPackage } from "../firebase/studentAssessments";
 import useAuth from "../hooks/useAuth";
 import type { AssessmentType, Quiz } from "../models/Quiz";
 import type { QuizAttempt } from "../models/QuizAttempt";
@@ -39,7 +39,7 @@ export default function AssessmentEntryPage() {
       try {
         setLoading(true);
 
-        const quizData = await getQuizById(quizId);
+        const { quiz: quizData } = await getStudentAssessmentPackage(quizId);
         setQuiz(quizData);
 
         if (currentUser) {
@@ -48,7 +48,7 @@ export default function AssessmentEntryPage() {
           );
 
           setAttempts(
-            studentAttempts.filter((attempt) => attempt.quizId === quizId)
+            studentAttempts.filter((attempt) => attempt.quizId === quizData.id)
           );
         }
       } catch (error) {
@@ -72,6 +72,12 @@ export default function AssessmentEntryPage() {
     attemptsAllowed - completedAttempts.length,
     0
   );
+
+  const hasPassed = Boolean(quiz && completedAttempts.some((attempt) =>
+    Number(attempt.finalPercentage ?? attempt.percentage ?? 0) >= Number(quiz.passMark ?? 50)
+  ));
+  const masteryRetakesEnabled = Boolean(quiz?.allowRetakesUntilPass && quiz.requiresPassForProgression !== false);
+  const canMasteryRetake = masteryRetakesEnabled && !hasPassed;
 
   function handleStart() {
     if (!quiz) return;
@@ -102,8 +108,8 @@ export default function AssessmentEntryPage() {
       return;
     }
 
-    if (completedAttempts.length >= attemptsAllowed) {
-      setError("You have used all the attempts allowed for this quiz.");
+    if (completedAttempts.length >= attemptsAllowed && !canMasteryRetake) {
+      setError(hasPassed ? "You have already attained the required pass mark for this quiz." : "You have used all the attempts allowed for this quiz.");
       return;
     }
 
@@ -160,8 +166,11 @@ export default function AssessmentEntryPage() {
                   </WarningBadge>
                 )}
 
-                {completedAttempts.length >= attemptsAllowed && (
+                {completedAttempts.length >= attemptsAllowed && !canMasteryRetake && (
                   <WarningBadge>All Attempts Used</WarningBadge>
+                )}
+                {canMasteryRetake && completedAttempts.length > 0 && (
+                  <Badge>Repeat until pass mark</Badge>
                 )}
               </div>
 
@@ -270,7 +279,7 @@ export default function AssessmentEntryPage() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="Enter assessment password"
-                  disabled={completedAttempts.length >= attemptsAllowed}
+                  disabled={completedAttempts.length >= attemptsAllowed && !canMasteryRetake}
                 />
               </div>
             )}
@@ -281,7 +290,7 @@ export default function AssessmentEntryPage() {
                 checked={acceptedRules}
                 onChange={(event) => setAcceptedRules(event.target.checked)}
                 className="mt-1"
-                disabled={completedAttempts.length >= attemptsAllowed}
+                disabled={completedAttempts.length >= attemptsAllowed && !canMasteryRetake}
               />
               I understand the assessment rules and I am ready to begin.
             </label>
@@ -306,7 +315,7 @@ export default function AssessmentEntryPage() {
                 type="button"
                 className="flex-1"
                 onClick={handleStart}
-                disabled={completedAttempts.length >= attemptsAllowed}
+                disabled={completedAttempts.length >= attemptsAllowed && !canMasteryRetake}
               >
                 {completedAttempts.length >= attemptsAllowed
                   ? "All Attempts Used"
@@ -414,3 +423,4 @@ function InfoBox({
     </div>
   );
 }
+

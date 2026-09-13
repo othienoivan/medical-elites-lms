@@ -2,12 +2,15 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
+
     function signedIn() {
       return request.auth != null;
     }
 
     function userDocument() {
-      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
+      return firestore.get(
+        /databases/(default)/documents/users/$(request.auth.uid)
+      );
     }
 
     function hasProfile() {
@@ -27,47 +30,58 @@ service firebase.storage {
     }
 
     function currentTenantId() {
-      return hasProfile() && userDocument().data.keys().hasAny(['tenantId'])
+      return hasProfile()
+        && userDocument().data.keys().hasAny(['tenantId'])
         ? userDocument().data.tenantId
         : (
-            hasProfile() && userDocument().data.keys().hasAny(['institutionId'])
+            hasProfile()
+            && userDocument().data.keys().hasAny(['institutionId'])
               ? userDocument().data.institutionId
               : null
           );
     }
 
     function belongsToTenant(tenantId) {
-      return signedIn() && currentTenantId() != null && currentTenantId() == tenantId;
+      return signedIn()
+        && currentTenantId() != null
+        && currentTenantId() == tenantId;
     }
 
-    function validSize(maxBytes) {
-      return request.resource != null && request.resource.size > 0 && request.resource.size <= maxBytes;
+    function nonEmptyUpload() {
+      return request.resource != null
+        && request.resource.size > 0;
     }
 
     function validImage() {
-      return validSize(10 * 1024 * 1024)
+      return nonEmptyUpload()
         && request.resource.contentType.matches('image/.*');
     }
 
     function validDocument() {
-      return validSize(50 * 1024 * 1024)
+      return nonEmptyUpload()
         && request.resource.contentType.matches(
           '(application/pdf|application/msword|application/vnd\\.openxmlformats-officedocument\\.wordprocessingml\\.document|application/vnd\\.ms-powerpoint|application/vnd\\.openxmlformats-officedocument\\.presentationml\\.presentation|application/vnd\\.ms-excel|application/vnd\\.openxmlformats-officedocument\\.spreadsheetml\\.sheet|text/plain|text/csv|text/html|application/xhtml\\+xml)'
         );
     }
 
     function validMedia() {
-      return validSize(250 * 1024 * 1024)
+      return nonEmptyUpload()
         && request.resource.contentType.matches('(video/.*|audio/.*)');
     }
 
     function validAllowedUpload() {
-      return validImage() || validDocument() || validMedia();
+      return validImage()
+        || validDocument()
+        || validMedia();
     }
 
     function hasUploaderMetadata(userId) {
       return request.resource.metadata != null
-        && request.resource.metadata.keys().hasAll(['uploaderUid', 'uploadFolder', 'originalFileName'])
+        && request.resource.metadata.keys().hasAll([
+          'uploaderUid',
+          'uploadFolder',
+          'originalFileName'
+        ])
         && request.resource.metadata.uploaderUid == userId;
     }
 
@@ -84,74 +98,97 @@ service firebase.storage {
         && resource.metadata.uploaderUid == userId;
     }
 
-    // Tenant namespace: deny unknown tenant paths by default.
-    // Explicit approved paths below remain available because matching allow
-    // expressions are evaluated using logical OR.
     match /tenants/{tenantId}/{allPaths=**} {
       allow read, write: if false;
     }
 
-    // New tenant-isolated upload layout:
-    // tenants/{tenantId}/uploads/{uploaderUid}/{folder}/{fileName}
     match /tenants/{tenantId}/uploads/{uploaderUid}/{folder}/{fileName} {
       allow read: if belongsToTenant(tenantId);
+
       allow create: if belongsToTenant(tenantId)
         && request.auth.uid == uploaderUid
         && isTutorOrAdmin()
         && hasTenantMetadata(tenantId, uploaderUid)
         && validAllowedUpload();
+
       allow update: if belongsToTenant(tenantId)
         && request.auth.uid == uploaderUid
         && resourceOwnedBy(uploaderUid)
         && hasTenantMetadata(tenantId, uploaderUid)
         && validAllowedUpload();
+
       allow delete: if belongsToTenant(tenantId)
         && (request.auth.uid == uploaderUid || isAdmin())
         && (resourceOwnedBy(uploaderUid) || isAdmin());
     }
 
-    // User namespace: deny unknown user paths by default.
     match /users/{userId}/{allPaths=**} {
       allow read, write: if false;
     }
 
-    // Independent tutor/user upload layout:
-    // users/{userId}/uploads/{folder}/{fileName}
     match /users/{userId}/uploads/{folder}/{fileName} {
-      allow read: if signedIn() && (request.auth.uid == userId || isTutorOrAdmin());
+      allow read: if signedIn()
+        && (request.auth.uid == userId || isTutorOrAdmin());
+
       allow create: if signedIn()
         && request.auth.uid == userId
         && isTutorOrAdmin()
         && hasUploaderMetadata(userId)
         && validAllowedUpload();
+
       allow update: if signedIn()
         && request.auth.uid == userId
         && isTutorOrAdmin()
         && resourceOwnedBy(userId)
         && hasUploaderMetadata(userId)
         && validAllowedUpload();
+
       allow delete: if signedIn()
         && (request.auth.uid == userId || isAdmin())
         && (resourceOwnedBy(userId) || isAdmin());
     }
 
-    // Profile images are private to the user and platform administrators.
     match /users/{userId}/profile/{fileName} {
-      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow read: if signedIn()
+        && (request.auth.uid == userId || isAdmin());
+
       allow create, update: if signedIn()
         && request.auth.uid == userId
-        && validImage();
-      allow delete: if signedIn() && (request.auth.uid == userId || isAdmin());
+        && request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+
+      allow delete: if signedIn()
+        && (request.auth.uid == userId || isAdmin());
     }
 
-    // Read-only compatibility for files uploaded by older releases.
-    // New client uploads no longer use these paths.
     match /{folder}/{fileName} {
       allow read: if signedIn()
-        && folder in ['images', 'pdfs', 'powerpoints', 'videos', 'audio', 'documents', 'html5', 'lesson-resources'];
+        && folder in [
+          'images',
+          'pdfs',
+          'powerpoints',
+          'videos',
+          'audio',
+          'documents',
+          'html5',
+          'lesson-resources'
+        ];
+
       allow create, update: if false;
+
       allow delete: if isTutorOrAdmin()
-        && folder in ['images', 'pdfs', 'powerpoints', 'videos', 'audio', 'documents', 'html5', 'lesson-resources'];
+        && folder in [
+          'images',
+          'pdfs',
+          'powerpoints',
+          'videos',
+          'audio',
+          'documents',
+          'html5',
+          'lesson-resources'
+        ];
     }
 
     match /{allPaths=**} {

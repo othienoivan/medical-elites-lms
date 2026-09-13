@@ -5,7 +5,7 @@ import {
   Eye,
   Layers,
   Plus,
-  Search, ArrowUp, ArrowDown,
+  Search, ArrowUp, ArrowDown, Trash2, X, Save,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -15,14 +15,41 @@ import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import useLessons from "../hooks/useLessons";
 import useModules from "../hooks/useModules";
-import { updateLesson } from "../firebase/lessons";
+import { deleteLesson, moveLessonToModule, updateLesson } from "../firebase/lessons";
 import type { Lesson } from "../models/Lesson";
+import type { Module } from "../models/Module";
+import useAuth from "../hooks/useAuth";
 
 export default function LessonManagerPage() {
   const navigate = useNavigate();
-  const { modules, loading } = useModules();
+  const { modules, loading } = useModules(undefined, true);
 
   const [search, setSearch] = useState("");
+  const [courseUnitFilter, setCourseUnitFilter] = useState("all");
+
+  const courseUnits = useMemo(() => {
+    const map = new Map<string, string>();
+    modules.forEach((module) => {
+      const id = module.courseUnitId ?? module.courseId;
+      if (!id) return;
+      map.set(id, module.courseUnitTitle?.trim() || "Untitled Course Unit");
+    });
+    return [...map.entries()]
+      .map(([id, title]) => ({ id, title }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [modules]);
+
+  const visibleModules = useMemo(() => {
+    const filtered = courseUnitFilter === "all"
+      ? modules
+      : modules.filter((module) => (module.courseUnitId ?? module.courseId) === courseUnitFilter);
+
+    return [...filtered].sort((a, b) => {
+      const courseCompare = String(a.courseUnitTitle ?? "").localeCompare(String(b.courseUnitTitle ?? ""));
+      if (courseCompare !== 0) return courseCompare;
+      return Number(a.order ?? 0) - Number(b.order ?? 0) || a.title.localeCompare(b.title);
+    });
+  }, [courseUnitFilter, modules]);
 
   return (
     <TutorLayout
@@ -66,15 +93,31 @@ export default function LessonManagerPage() {
           </p>
         </div>
 
-        <div className="relative w-full md:max-w-md">
-          <Search size={18} className="absolute left-4 top-4 text-slate-400" />
+        <div className="flex w-full flex-col gap-3 md:max-w-2xl md:flex-row">
+          <select
+            aria-label="Filter lessons by course unit"
+            value={courseUnitFilter}
+            onChange={(event) => setCourseUnitFilter(event.target.value)}
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-blue-700 md:max-w-xs"
+          >
+            <option value="all">All course units</option>
+            {courseUnits.map((courseUnit) => (
+              <option key={courseUnit.id} value={courseUnit.id}>
+                {courseUnit.title}
+              </option>
+            ))}
+          </select>
 
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search lessons..."
-            className="w-full rounded-xl border border-slate-300 py-3 pl-11 pr-4 outline-none focus:border-blue-700"
-          />
+          <div className="relative w-full md:max-w-md">
+            <Search size={18} className="absolute left-4 top-4 text-slate-400" />
+
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search lessons..."
+              className="w-full rounded-xl border border-slate-300 py-3 pl-11 pr-4 outline-none focus:border-blue-700"
+            />
+          </div>
         </div>
       </section>
 
@@ -98,10 +141,11 @@ export default function LessonManagerPage() {
         </Card>
       ) : (
         <div className="grid gap-6">
-          {modules.map((module) => (
+          {visibleModules.map((module) => (
             <ModuleLessonsCard
               key={module.id}
-              moduleId={module.id}
+              module={module}
+              modules={modules}
               search={search}
             />
           ))}
@@ -112,16 +156,27 @@ export default function LessonManagerPage() {
 }
 
 function ModuleLessonsCard({
-  moduleId,
+  module,
+  modules,
   search,
 }: {
-  moduleId: string;
+  module: Module;
+  modules: Module[];
   search: string;
 }) {
   const navigate = useNavigate();
-  const { lessons, loading } = useLessons(moduleId);
+  const { userProfile } = useAuth();
+  const { lessons, loading } = useLessons(module.id);
   const [orderedLessons, setOrderedLessons] = useState<Lesson[]>([]);
   const [moving, setMoving] = useState(false);
+  const [busyLessonId, setBusyLessonId] = useState<string | null>(null);
+  const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    title: "",
+    order: 1,
+    moduleId: "",
+    status: "draft" as "draft" | "published" | "unpublished",
+  });
   useEffect(() => setOrderedLessons([...lessons].sort((a,b)=>a.order-b.order)), [lessons]);
 
   async function moveLesson(lessonId: string, direction: -1 | 1) {
@@ -140,6 +195,79 @@ function ModuleLessonsCard({
       alert("Lesson order could not be saved.");
     } finally { setMoving(false); }
   }
+
+  function openLessonEditor(lesson: Lesson) {
+    setEditingLessonId(lesson.id);
+    setEditForm({
+      title: lesson.title,
+      order: Math.max(1, Number(lesson.order || 1)),
+      moduleId: lesson.moduleId,
+      status: lesson.isPublished === true || lesson.published === true ? "published" : "draft",
+    });
+  }
+
+  function closeLessonEditor() {
+    if (busyLessonId) return;
+    setEditingLessonId(null);
+  }
+
+  async function saveLessonDetails(lesson: Lesson) {
+    const title = editForm.title.trim();
+    const order = Math.max(1, Math.floor(Number(editForm.order || 1)));
+    const target = modules.find((item) => item.id === editForm.moduleId);
+    if (!title) { window.alert("Lesson title cannot be empty."); return; }
+    if (!target) { window.alert("Choose a valid module."); return; }
+    if (!userProfile) { window.alert("Your tutor profile is still loading. Try again."); return; }
+
+    const published = editForm.status === "published";
+    setBusyLessonId(lesson.id);
+    try {
+      if (target.id !== lesson.moduleId) {
+        await moveLessonToModule(lesson.id, target, {
+          uid: userProfile.uid,
+          role: userProfile.role,
+          institutionId: userProfile.institutionId,
+          assignedCourseUnitIds: userProfile.assignedCourseUnitIds,
+        });
+      }
+
+      await updateLesson(lesson.id, {
+        title,
+        order,
+        isPublished: published,
+        published,
+      });
+
+      if (target.id !== lesson.moduleId) {
+        setOrderedLessons((rows) => rows.filter((row) => row.id !== lesson.id));
+      } else {
+        setOrderedLessons((rows) =>
+          rows
+            .map((row) => row.id === lesson.id ? { ...row, title, order, isPublished: published, published } : row)
+            .sort((a, b) => a.order - b.order || a.title.localeCompare(b.title))
+        );
+      }
+      setEditingLessonId(null);
+    } catch (error) {
+      console.error("Failed to update lesson details", error);
+      window.alert("The lesson details could not be saved. Check your permissions and try again.");
+    } finally {
+      setBusyLessonId(null);
+    }
+  }
+
+  async function handleDelete(lesson: Lesson) {
+    if (!window.confirm(`Delete “${lesson.title}”? This removes the lesson from the module and cannot be undone.`)) return;
+    setBusyLessonId(lesson.id);
+    try {
+      await deleteLesson(lesson.id);
+      setOrderedLessons((rows) => rows.filter((row) => row.id !== lesson.id));
+    } catch (error) {
+      console.error("Failed to delete lesson", error);
+      window.alert("The lesson could not be deleted. Check that you own or are assigned to this lesson.");
+    } finally { setBusyLessonId(null); }
+  }
+
 
   const filteredLessons = useMemo(() => {
     const keyword = search.toLowerCase();
@@ -229,6 +357,79 @@ function ModuleLessonsCard({
                   </div>
                 </div>
 
+                {editingLessonId === lesson.id && (
+                  <div className="mt-6 rounded-2xl border border-blue-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h4 className="font-bold text-slate-950">Edit Lesson Details</h4>
+                        <p className="mt-1 text-sm text-slate-500">Change the lesson number, title, module and publication status together.</p>
+                      </div>
+                      <button type="button" onClick={closeLessonEditor} disabled={busyLessonId === lesson.id} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Close lesson editor">
+                        <X size={18} />
+                      </button>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="text-sm font-semibold text-slate-700">
+                        Lesson number
+                        <input
+                          type="number"
+                          min={1}
+                          value={editForm.order}
+                          onChange={(event) => setEditForm((current) => ({ ...current, order: Math.max(1, Number(event.target.value || 1)) }))}
+                          className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
+                        />
+                      </label>
+
+                      <label className="text-sm font-semibold text-slate-700">
+                        Publication status
+                        <select
+                          value={editForm.status}
+                          onChange={(event) => setEditForm((current) => ({ ...current, status: event.target.value as "draft" | "published" | "unpublished" }))}
+                          className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
+                        >
+                          <option value="draft">Draft</option>
+                          <option value="published">Published</option>
+                          <option value="unpublished">Unpublished</option>
+                        </select>
+                      </label>
+
+                      <label className="text-sm font-semibold text-slate-700 md:col-span-2">
+                        Lesson title
+                        <input
+                          value={editForm.title}
+                          onChange={(event) => setEditForm((current) => ({ ...current, title: event.target.value }))}
+                          className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
+                          placeholder="Lesson title"
+                        />
+                      </label>
+
+                      <label className="text-sm font-semibold text-slate-700 md:col-span-2">
+                        Module
+                        <select
+                          value={editForm.moduleId}
+                          onChange={(event) => setEditForm((current) => ({ ...current, moduleId: event.target.value }))}
+                          className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600"
+                        >
+                          {modules.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.courseUnitTitle ? `${item.courseUnitTitle} — ` : ""}{item.title}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      <Button disabled={busyLessonId === lesson.id} onClick={() => void saveLessonDetails(lesson)}>
+                        <Save size={16} />
+                        {busyLessonId === lesson.id ? "Saving..." : "Save changes"}
+                      </Button>
+                      <Button variant="outline" disabled={busyLessonId === lesson.id} onClick={closeLessonEditor}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-6 flex flex-wrap gap-3">
                   <Button
                     variant="outline"
@@ -251,6 +452,16 @@ function ModuleLessonsCard({
                   >
                     <BookOpen size={16} />
                     Learning Package
+                  </Button>
+
+                  <Button variant="outline" disabled={busyLessonId === lesson.id} onClick={() => openLessonEditor(lesson)}>
+                    <Edit size={16} />
+                    Edit Lesson Details
+                  </Button>
+
+                  <Button variant="outline" disabled={busyLessonId === lesson.id} onClick={() => void handleDelete(lesson)} className="border-red-200 text-red-700 hover:bg-red-50">
+                    <Trash2 size={16} />
+                    Delete Lesson
                   </Button>
                 </div>
               </div>

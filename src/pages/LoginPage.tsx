@@ -7,7 +7,7 @@ import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import Logo from "../components/ui/Logo";
-import { loginUser, logoutUser } from "../firebase/auth";
+import { loginUser, logoutUser, resetPassword } from "../firebase/auth";
 import useAuth from "../hooks/useAuth";
 import type { UserRole } from "../models/User";
 import { getFirebaseErrorMessage } from "../utils/firebaseErrorMessage";
@@ -41,6 +41,8 @@ export default function LoginPage() {
       : ""
   );
   const [loading, setLoading] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [passwordResetMessage, setPasswordResetMessage] = useState("");
 
   useEffect(() => {
     async function finishLogin() {
@@ -82,6 +84,30 @@ export default function LoginPage() {
 
     void finishLogin();
   }, [authLoading, currentUser, navigate, searchParams, selectedRole, userProfile]);
+
+  async function handleForgotPassword() {
+    setError("");
+    setPasswordResetMessage("");
+
+    const targetEmail = email.trim();
+    if (!targetEmail) {
+      setError("Enter your email address first, then choose Forgot password.");
+      return;
+    }
+
+    try {
+      setResettingPassword(true);
+      await resetPassword(targetEmail);
+      setPasswordResetMessage(
+        "If an account exists for this email address, Firebase has sent password-reset instructions. Check your inbox and spam folder."
+      );
+    } catch (caughtError: unknown) {
+      console.error("PASSWORD RESET ERROR:", caughtError);
+      setError(getFirebaseErrorMessage(caughtError, "Password reset could not be started. Please try again."));
+    } finally {
+      setResettingPassword(false);
+    }
+  }
 
   async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -136,10 +162,16 @@ export default function LoginPage() {
           <Card className="mx-auto mt-8 w-full max-w-md">
             <h2 className="text-center text-2xl font-bold text-slate-950">{selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)} Login</h2>
             {error && <div className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-red-700">{error}</div>}
+            {passwordResetMessage && <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-800">{passwordResetMessage}</div>}
 
             <form onSubmit={handleLogin} className="mt-6 space-y-5">
               <label className="block"><span className="mb-2 block font-medium text-slate-700">Email Address</span><Input type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
               <label className="block"><span className="mb-2 block font-medium text-slate-700">Password</span><Input type="password" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
+              <div className="-mt-2 text-right">
+                <button type="button" onClick={() => void handleForgotPassword()} disabled={resettingPassword} className="text-sm font-semibold text-blue-700 hover:underline disabled:opacity-50">
+                  {resettingPassword ? "Sending reset link..." : "Forgot password?"}
+                </button>
+              </div>
               <Button type="submit" className="w-full" disabled={loading}>{loading ? "Logging in..." : `Login as ${selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)}`}</Button>
             </form>
 

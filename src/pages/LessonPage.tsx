@@ -1,3 +1,4 @@
+import { getPublishedModuleLessonsV2 } from "../firebase/publicModuleLessons";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
@@ -7,29 +8,38 @@ import {
   FileText,
   PlayCircle,
 } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import LessonViewer from "../components/lesson/LessonViewer";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Container from "../components/ui/Container";
-import { getLessons } from "../firebase/lessons";
 import { completeModuleLearning } from "../firebase/enrollments";
+import { completeLessonLearning, getLessonModuleProgress } from "../firebase/lessonProgress";
 import type { Lesson } from "../models/Lesson";
 import type { LessonBlock } from "../models/LessonBlock";
 import useAccessScope from "../hooks/useAccessScope";
 import useQuizzes from "../hooks/useQuizzes";
+import { getQuizAttemptsByStudent } from "../firebase/quizAttempts";
+import useAuth from "../hooks/useAuth";
+import type { QuizAttempt } from "../models/QuizAttempt";
 
 export default function LessonPage() {
   const { moduleId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const scope = useAccessScope();
   const { quizzes } = useQuizzes();
+  const { currentUser } = useAuth();
+  const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
 
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [activeLessonIndex, setActiveLessonIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [completingModule, setCompletingModule] = useState(false);
+  const [completingLesson, setCompletingLesson] = useState(false);
+  const [completedLessonIds, setCompletedLessonIds] = useState<string[]>([]);
+  const [unlockedLessonIds, setUnlockedLessonIds] = useState<string[]>([]);
 
   useEffect(() => {
     async function loadLessons() {
@@ -41,17 +51,26 @@ export default function LessonPage() {
       try {
         setLoading(true);
 
-        const data = await getLessons(moduleId, scope);
+        const data = (await getPublishedModuleLessonsV2(moduleId)).lessons;
 
-        setLessons(
-          data.sort((a: Lesson, b: Lesson) => {
-            if (a.order !== b.order) {
-              return a.order - b.order;
-            }
-
-            return a.title.localeCompare(b.title);
-          })
-        );
+        const orderedLessons = data.sort((a: Lesson, b: Lesson) => {
+          if (a.order !== b.order) return a.order - b.order;
+          return a.title.localeCompare(b.title);
+        });
+        setLessons(orderedLessons);
+        if (scope.role === "student") {
+          const progress = await getLessonModuleProgress(moduleId);
+          const completedIds = progress.completedLessonIds ?? [];
+          const unlockedIds = progress.unlockedLessonIds ?? [];
+          setCompletedLessonIds(completedIds);
+          setUnlockedLessonIds(unlockedIds);
+          const requestedLessonId = searchParams.get("lessonId");
+          const requestedIndex = requestedLessonId
+            ? orderedLessons.findIndex((lesson) => lesson.id === requestedLessonId && unlockedIds.includes(lesson.id))
+            : -1;
+          const nextIndex = orderedLessons.findIndex((lesson) => unlockedIds.includes(lesson.id) && !completedIds.includes(lesson.id));
+          setActiveLessonIndex(requestedIndex >= 0 ? requestedIndex : (nextIndex >= 0 ? nextIndex : Math.max(orderedLessons.length - 1, 0)));
+        }
       } catch (error) {
         console.error("Failed to load lessons:", error);
       } finally {
@@ -60,10 +79,79 @@ export default function LessonPage() {
     }
 
     loadLessons();
-  }, [moduleId, scope]);
+  }, [moduleId, scope, searchParams]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadAttempts() {
+      if (scope?.role !== "student" || !currentUser?.uid) {
+        if (active) setAttempts([]);
+        return;
+      }
+      try {
+        const data = await getQuizAttemptsByStudent(currentUser.uid);
+        if (active) setAttempts(data);
+      } catch (error) {
+        console.error("Failed to load quiz revision attempts:", error);
+      }
+    }
+    void loadAttempts();
+    return () => { active = false; };
+  }, [scope?.role, currentUser?.uid]);
 
   const activeLesson = lessons[activeLessonIndex];
-  const moduleQuiz = quizzes.find(quiz => quiz.moduleId === moduleId && quiz.status === "published");
+  const moduleQuiz = quizzes.find(quiz => quiz.moduleId === moduleId && quiz.status === "published" && !quiz.lessonId && quiz.assessmentType !== "lesson-quiz");
+  const activeLessonCompleted = Boolean(activeLesson && completedLessonIds.includes(activeLesson.id));
+  const activeLessonQuizRequired = Boolean(
+    activeLesson && (activeLesson.quizRequired === true || activeLesson.completionCriteria?.passQuiz === true),
+  );
+  const activeLessonQuiz = activeLesson?.quizId ? quizzes.find((quiz) => quiz.id === activeLesson.quizId) : undefined;
+  const latestLessonQuizAttempt = activeLessonQuiz
+    ? [...attempts].filter((attempt) => attempt.quizId === activeLessonQuiz.id && attempt.completed).sort((a, b) => {
+        const av = dateValue(a.submittedAt);
+        const bv = dateValue(b.submittedAt);
+        return bv - av;
+      })[0]
+    : undefined;
+  const latestModuleQuizAttempt = moduleQuiz
+    ? [...attempts].filter((attempt) => attempt.quizId === moduleQuiz.id && attempt.completed).sort((a, b) => {
+        const av = dateValue(a.submittedAt);
+        const bv = dateValue(b.submittedAt);
+        return bv - av;
+      })[0]
+    : undefined;
+
+  async function refreshLessonProgress() {
+    if (!moduleId || scope?.role !== "student") return;
+    try {
+      const progress = await getLessonModuleProgress(moduleId);
+      setCompletedLessonIds(progress.completedLessonIds ?? []);
+      setUnlockedLessonIds(progress.unlockedLessonIds ?? []);
+    } catch (error) {
+      console.error("Failed to load lesson progression:", error);
+    }
+  }
+
+  async function handleCompleteLesson() {
+    if (!activeLesson) return;
+    try {
+      setCompletingLesson(true);
+      const result = await completeLessonLearning(activeLesson.id);
+      if (!result.completed && result.requiresQuiz && result.quizId) {
+        navigate(`/assessments/quizzes/${result.quizId}`);
+        return;
+      }
+      await refreshLessonProgress();
+      if (activeLessonIndex < lessons.length - 1) {
+        setActiveLessonIndex((current) => Math.min(current + 1, lessons.length - 1));
+      }
+    } catch (error) {
+      console.error("Failed to complete lesson:", error);
+      window.alert(error instanceof Error ? error.message : "Unable to complete this lesson.");
+    } finally {
+      setCompletingLesson(false);
+    }
+  }
 
   const lessonBlocks = useMemo(() => {
     if (!activeLesson) return [];
@@ -89,8 +177,16 @@ export default function LessonPage() {
     if (!moduleId) return;
     try {
       setCompletingModule(true);
-      await completeModuleLearning(moduleId);
-      navigate("/dashboard");
+      const result = await completeModuleLearning(moduleId);
+
+      if (!result.completed && result.requiresQuiz && result.quizId) {
+        navigate(`/assessments/quizzes/${result.quizId}`);
+        return;
+      }
+
+      if (result.completed) {
+        navigate(result.nextPath || "/student/course-units");
+      }
     } catch (error) {
       console.error("Failed to complete module:", error);
       window.alert(error instanceof Error ? error.message : "Unable to complete this module.");
@@ -180,14 +276,22 @@ export default function LessonPage() {
                   <button
                     key={lesson.id}
                     type="button"
-                    onClick={() => setActiveLessonIndex(index)}
+                    disabled={scope?.role === "student" && !unlockedLessonIds.includes(lesson.id)}
+                    onClick={() => {
+                      if (scope?.role !== "student" || unlockedLessonIds.includes(lesson.id)) {
+                        setActiveLessonIndex(index);
+                      }
+                    }}
                     className={`w-full rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${
                       index === activeLessonIndex
                         ? "bg-blue-700 text-white"
-                        : "bg-slate-50 text-slate-700 hover:bg-slate-100"
+                        : scope?.role === "student" && !unlockedLessonIds.includes(lesson.id)
+                          ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                          : "bg-slate-50 text-slate-700 hover:bg-slate-100"
                     }`}
                   >
                     Lesson {lesson.order}: {lesson.title}
+                    {scope?.role === "student" && !unlockedLessonIds.includes(lesson.id) ? " Â· Locked" : ""}
                   </button>
                 ))}
               </div>
@@ -212,7 +316,7 @@ export default function LessonPage() {
                         <span>
                           <span className="block">{resource.title}</span>
                           <span className="block text-xs font-normal text-slate-500">
-                            {resource.type === "pdf" ? "PDF document" : "PowerPoint presentation"} • Download only
+                            {resource.type === "pdf" ? "PDF document" : "PowerPoint presentation"} â€¢ Download only
                           </span>
                         </span>
                       </button>
@@ -240,7 +344,7 @@ export default function LessonPage() {
 
           <section className="lg:col-span-3">
             <Card>
-              <LessonViewer blocks={lessonBlocks} />
+              <LessonViewer blocks={lessonBlocks} lessonId={activeLesson.id} courseUnitId={activeLesson.courseUnitId || activeLesson.courseId} />
 
               <div className="mt-8 flex flex-col gap-3 border-t border-slate-200 pt-6 md:flex-row md:justify-between">
                 <Button
@@ -251,9 +355,24 @@ export default function LessonPage() {
                   Previous Lesson
                 </Button>
 
-                {activeLessonIndex < lessons.length - 1 ? (
-                  <Button onClick={goToNextLesson}>Next Lesson</Button>
-                ) : moduleQuiz ? (
+                {!activeLessonCompleted ? (
+                  activeLessonQuizRequired && activeLesson.quizId ? (
+                    <Button onClick={() => navigate(`/assessments/quizzes/${activeLesson.quizId}`)}>
+                      Take Lesson Quiz ({activeLesson.quizPassMark ?? "Required"}% pass mark)
+                    </Button>
+                  ) : (
+                    <Button disabled={completingLesson} onClick={() => void handleCompleteLesson()}>
+                      {completingLesson ? "Completing..." : "Complete Lesson"}
+                    </Button>
+                  )
+                ) : activeLessonIndex < lessons.length - 1 ? (
+                  <Button
+                    disabled={scope?.role === "student" && !unlockedLessonIds.includes(lessons[activeLessonIndex + 1]?.id)}
+                    onClick={goToNextLesson}
+                  >
+                    Continue to Next Lesson
+                  </Button>
+                ) : moduleQuiz && moduleQuiz.assessmentType !== "lesson-quiz" ? (
                   <Button onClick={() => navigate(`/assessments/quizzes/${moduleQuiz.id}`)}>
                     Attempt Module Quiz ({moduleQuiz.passMark}% pass mark)
                   </Button>
@@ -263,6 +382,21 @@ export default function LessonPage() {
                   </Button>
                 )}
               </div>
+
+              {(latestLessonQuizAttempt || latestModuleQuizAttempt) && (
+                <div className="mt-4 flex flex-wrap gap-3 border-t border-slate-100 pt-4">
+                  {latestLessonQuizAttempt && (
+                    <Button variant="outline" onClick={() => navigate(`/assessment-history/${latestLessonQuizAttempt.id}`)}>
+                      View Lesson Quiz
+                    </Button>
+                  )}
+                  {latestModuleQuizAttempt && (
+                    <Button variant="outline" onClick={() => navigate(`/assessment-history/${latestModuleQuizAttempt.id}`)}>
+                      View Module Quiz
+                    </Button>
+                  )}
+                </div>
+              )}
             </Card>
           </section>
         </div>
@@ -273,17 +407,14 @@ export default function LessonPage() {
 
 async function downloadResource(url: string, fileName: string): Promise<void> {
   try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("Unable to download this file.");
-    const blob = await response.blob();
-    const objectUrl = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
-    anchor.href = objectUrl;
+    anchor.href = url;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
     anchor.download = fileName;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
-    URL.revokeObjectURL(objectUrl);
   } catch (error) {
     console.error("Resource download failed:", error);
     window.alert(error instanceof Error ? error.message : "Unable to download this file.");
@@ -361,4 +492,16 @@ function convertLegacyLessonToBlocks(lesson: Lesson): LessonBlock[] {
   });
 
   return blocks;
+}
+
+
+
+
+
+
+function dateValue(value: unknown): number {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "object" && value !== null && "toDate" in value && typeof (value as { toDate: () => Date }).toDate === "function") return (value as { toDate: () => Date }).toDate().getTime();
+  if (typeof value === "string") { const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime(); }
+  return 0;
 }

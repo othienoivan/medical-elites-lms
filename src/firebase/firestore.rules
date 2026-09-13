@@ -959,9 +959,40 @@ service cloud.firestore {
     }
 
     match /examinations/{documentId} {
-      allow read: if signedIn() && (ownsRecord(resource.data) || assignedTutor(resource.data) || (isAdmin() && sameInstitution(resource.data)) || (hasRole('student') && resource.data.courseUnitId != null && (hasCourseUnitAssignment(resource.data.courseUnitId) || hasMarketplaceCourseAccess(resource.data.courseUnitId))));
-      allow create: if isTutorOrAdmin() && request.resource.data.ownerUserId == request.auth.uid;
-      allow update, delete: if canManageRecord(resource.data);
+      allow read: if signedIn() && (
+        ownsRecord(resource.data)
+        || assignedTutor(resource.data)
+        // Legacy examination drafts stored the verified tutor email in
+        // `createdBy` instead of the UID. This is intentionally restricted to
+        // the authenticated token's own verified email for compatibility.
+        || (resource.data.keys().hasAny(['createdBy'])
+          && request.auth.token.email != null
+          && resource.data.createdBy == request.auth.token.email)
+        || (isAdmin() && sameInstitution(resource.data))
+        || (hasRole('student') && resource.data.courseUnitId != null && (hasCourseUnitAssignment(resource.data.courseUnitId) || hasMarketplaceCourseAccess(resource.data.courseUnitId)))
+      );
+      allow create: if isTutorOrAdmin()
+        && request.resource.data.ownerUserId == request.auth.uid
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.createdBy == request.auth.uid
+        && request.auth.uid in request.resource.data.assignedTutorIds;
+      // Existing legacy drafts can be migrated by their original authenticated
+      // tutor. An update must atomically stamp the canonical UID ownership
+      // fields; deletion is allowed only to that same verified email owner.
+      allow update: if canManageRecord(resource.data)
+        || (signedIn()
+          && resource.data.keys().hasAny(['createdBy'])
+          && request.auth.token.email != null
+          && resource.data.createdBy == request.auth.token.email
+          && request.resource.data.ownerUserId == request.auth.uid
+          && request.resource.data.createdByUid == request.auth.uid
+          && request.resource.data.createdBy == request.auth.uid
+          && request.auth.uid in request.resource.data.assignedTutorIds);
+      allow delete: if canManageRecord(resource.data)
+        || (signedIn()
+          && resource.data.keys().hasAny(['createdBy'])
+          && request.auth.token.email != null
+          && resource.data.createdBy == request.auth.token.email);
     }
 
     match /osceStations/{documentId} {

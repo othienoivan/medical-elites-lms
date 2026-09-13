@@ -2,7 +2,7 @@ import { httpsCallable } from "firebase/functions";
 import { functions } from "../config/firebase";
 import type { PlatformStatus, TenantType } from "../domains/platform/domain/platformTypes";
 
-type Branding = { logoUrl?: string; primaryColor?: string; secondaryColor?: string; accentColor?: string };
+type Branding = { logoUrl?: string; logoPath?: string; primaryColor?: string; secondaryColor?: string; accentColor?: string };
 export type CreateTenantInput = { name: string; type: TenantType; ownerUserId?: string; country?: string; currency?: string; contactEmail?: string; contactPhone?: string; planId?: string; branding?: Branding };
 export type UpdateTenantProfileInput = { tenantId: string; name?: string; country?: string; currency?: string; contactEmail?: string; contactPhone?: string; planId?: string; branding?: Branding };
 export async function createTenant(input: CreateTenantInput) { return (await httpsCallable<CreateTenantInput, {tenantId:string}>(functions,"createTenant")(input)).data; }

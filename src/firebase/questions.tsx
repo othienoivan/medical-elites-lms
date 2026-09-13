@@ -11,7 +11,8 @@ import {
   writeBatch,
 } from "firebase/firestore";
 
-import { db } from "../config/firebase";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../config/firebase";
 import type { Question } from "../models/Question";
 import { requireAccessScope, type AccessScope } from "./accessScope";
 import { getAllProgrammes } from "./programmes";
@@ -77,6 +78,12 @@ export async function deleteQuestion(questionId: string, deletedBy?: string) {
   });
 }
 
+export async function permanentlyDeleteQuestion(questionId: string) {
+  const callable = httpsCallable<{ questionId: string }, { success: boolean; removedFromQuizzes: number; removedFromExaminations: number }>(functions, "permanentlyDeleteQuestionTrusted");
+  const result = await callable({ questionId });
+  return result.data;
+}
+
 export async function restoreQuestion(questionId: string) {
   await updateDoc(doc(db, COLLECTION, questionId), {
     isDeleted: false,
@@ -100,6 +107,16 @@ export async function duplicateQuestion(question: Question, ownerUserId: string)
     usageCount: 0,
   };
   return createQuestion(copy);
+}
+
+
+export async function createAiExaminationQuestions(courseUnitId: string, questions: Question[]) {
+  const callable = httpsCallable<
+    { courseUnitId: string; questions: Question[] },
+    { success: boolean; questionIds: string[] }
+  >(functions, "createAiExaminationQuestionsTrusted");
+  const result = await callable({ courseUnitId, questions: questions.map((question) => removeUndefined(question)) });
+  return result.data.questionIds;
 }
 
 export async function bulkCreateQuestions(questions: Question[]) {

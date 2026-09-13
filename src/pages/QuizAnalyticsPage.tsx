@@ -15,9 +15,8 @@ import * as XLSX from "xlsx";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Container from "../components/ui/Container";
-import { getQuizAttemptsByQuiz } from "../firebase/quizAttempts";
-import { getQuizById } from "../firebase/quizzes";
-import useQuestionBank from "../hooks/useQuestionBank";
+import { getTutorQuizAnalytics } from "../firebase/quizAnalytics";
+import type { Question } from "../models/Question";
 import type { Quiz } from "../models/Quiz";
 import type { QuizAttempt } from "../models/QuizAttempt";
 
@@ -25,12 +24,11 @@ export default function QuizAnalyticsPage() {
   const { quizId } = useParams();
   const navigate = useNavigate();
 
-  const { questions: questionBank, loading: questionsLoading } =
-    useQuestionBank();
-
+  const [questionBank, setQuestionBank] = useState<Question[]>([]);
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
   const [loading, setLoading] = useState(true);
+  const questionsLoading = loading;
 
   useEffect(() => {
     async function loadAnalytics() {
@@ -39,13 +37,10 @@ export default function QuizAnalyticsPage() {
       try {
         setLoading(true);
 
-        const [quizData, attemptData] = await Promise.all([
-          getQuizById(quizId),
-          getQuizAttemptsByQuiz(quizId),
-        ]);
-
-        setQuiz(quizData);
-        setAttempts(attemptData);
+        const analytics = await getTutorQuizAnalytics(quizId);
+        setQuiz(analytics.quiz);
+        setAttempts(analytics.attempts);
+        setQuestionBank(analytics.questions);
       } catch (error) {
         console.error("Failed to load quiz analytics:", error);
       } finally {

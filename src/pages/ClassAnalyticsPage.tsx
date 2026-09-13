@@ -6,7 +6,7 @@ import {
   Users,
   XCircle,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
 import TutorLayout from "../components/layout/TutorLayout";
@@ -15,7 +15,14 @@ import Card from "../components/ui/Card";
 import useTutorQuizAttempts from "../hooks/useTutorQuizAttempts";
 
 export default function ClassAnalyticsPage() {
-  const { attempts, loading, error, reload } = useTutorQuizAttempts();
+  const { attempts: allAttempts, loading, error, reload } = useTutorQuizAttempts();
+  const [cohortFilter, setCohortFilter] = useState("all");
+  const cohorts = useMemo(() => {
+    const map = new Map<string,string>();
+    allAttempts.forEach((attempt) => { const id = attempt.assessmentGroupId || attempt.studentGroupId || attempt.registrationLinkId || "legacy"; const name = attempt.registrationLinkName || attempt.classInstitutionName || (id === "legacy" ? "Legacy / ungrouped" : id); map.set(id,name); });
+    return [...map.entries()].sort((a,b)=>a[1].localeCompare(b[1]));
+  }, [allAttempts]);
+  const attempts = useMemo(() => allAttempts.filter((attempt) => { const id = attempt.assessmentGroupId || attempt.studentGroupId || attempt.registrationLinkId || "legacy"; return cohortFilter === "all" || id === cohortFilter; }), [allAttempts, cohortFilter]);
 
   const percentages = useMemo(
     () =>
@@ -95,6 +102,7 @@ export default function ClassAnalyticsPage() {
   function exportExcel() {
     const rows = attempts.map((attempt) => ({
       Student: attempt.studentName,
+      Cohort: attempt.registrationLinkName || attempt.classInstitutionName || attempt.assessmentGroupId || attempt.studentGroupId || attempt.registrationLinkId || "Legacy / ungrouped",
       Assessment: attempt.quizTitle,
       Score: attempt.finalScore ?? attempt.score,
       "Total Marks": attempt.totalMarks,
@@ -164,6 +172,14 @@ export default function ClassAnalyticsPage() {
             Export Excel
           </Button>
         </div>
+      </section>
+
+      <section className="mb-6">
+        <label className="mb-2 block text-sm font-semibold text-slate-700">Cohort / Registration Link</label>
+        <select value={cohortFilter} onChange={(event) => setCohortFilter(event.target.value)} className="w-full max-w-md rounded-xl border border-slate-300 px-4 py-3">
+          <option value="all">All Cohorts</option>
+          {cohorts.map(([id,name]) => <option key={id} value={id}>{name}</option>)}
+        </select>
       </section>
 
       {error && (

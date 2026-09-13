@@ -31,6 +31,7 @@ export interface CourseUnit {
 
   // Media
   image: string;
+  imagePath?: string;
 
   // Teaching
   tutor: string;

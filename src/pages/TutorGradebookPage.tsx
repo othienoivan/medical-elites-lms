@@ -1,4 +1,4 @@
-﻿import {
+import {
   BarChart3,
   Calendar,
   CheckCircle,
@@ -34,6 +34,18 @@ export default function TutorGradebookPage() {
   const [courseUnitFilter, setCourseUnitFilter] = useState("all");
   const [moduleFilter, setModuleFilter] = useState("all");
   const [assessmentFilter, setAssessmentFilter] = useState("all");
+  const [cohortFilter, setCohortFilter] = useState("all");
+
+
+  const cohortOptions = useMemo<FilterOption[]>(() => {
+    const map = new Map<string, string>();
+    attempts.forEach((attempt) => {
+      const id = attempt.assessmentGroupId || attempt.studentGroupId || attempt.registrationLinkId || "legacy";
+      const title = attempt.registrationLinkName || attempt.classInstitutionName || (id === "legacy" ? "Legacy / ungrouped" : id);
+      map.set(id, title);
+    });
+    return Array.from(map, ([id, title]) => ({ id, title })).sort((a,b)=>a.title.localeCompare(b.title));
+  }, [attempts]);
 
   const programmeOptions = useMemo<FilterOption[]>(() => {
     const map = new Map<string, string>();
@@ -162,13 +174,17 @@ export default function TutorGradebookPage() {
       const matchesAssessment =
         assessmentFilter === "all" || attempt.quizTitle === assessmentFilter;
 
+      const attemptCohort = attempt.assessmentGroupId || attempt.studentGroupId || attempt.registrationLinkId || "legacy";
+      const matchesCohort = cohortFilter === "all" || attemptCohort === cohortFilter;
+
       return (
         matchesSearch &&
         matchesStatus &&
         matchesProgramme &&
         matchesCourseUnit &&
         matchesModule &&
-        matchesAssessment
+        matchesAssessment &&
+        matchesCohort
       );
     });
   }, [
@@ -179,6 +195,7 @@ export default function TutorGradebookPage() {
     courseUnitFilter,
     moduleFilter,
     assessmentFilter,
+    cohortFilter,
   ]);
 
   const rankedAttempts = useMemo(() => {
@@ -240,12 +257,14 @@ export default function TutorGradebookPage() {
     setCourseUnitFilter("all");
     setModuleFilter("all");
     setAssessmentFilter("all");
+    setCohortFilter("all");
   }
 
   function handleCourseUnitChange(value: string) {
     setCourseUnitFilter(value);
     setModuleFilter("all");
     setAssessmentFilter("all");
+    setCohortFilter("all");
   }
 
   function handleModuleChange(value: string) {
@@ -260,12 +279,14 @@ export default function TutorGradebookPage() {
     setCourseUnitFilter("all");
     setModuleFilter("all");
     setAssessmentFilter("all");
+    setCohortFilter("all");
   }
 
   function exportGradebookExcel() {
     const rows = rankedAttempts.map((attempt) => ({
       Rank: attempt.rank,
       Student: attempt.studentName,
+      Cohort: attempt.registrationLinkName || attempt.classInstitutionName || attempt.assessmentGroupId || attempt.studentGroupId || attempt.registrationLinkId || "Legacy / ungrouped",
       Programme: attempt.programmeTitle || "Not Assigned",
       "Course Unit": attempt.courseUnitTitle || "Not Assigned",
       Module: attempt.moduleTitle || "Not Assigned",
@@ -315,6 +336,10 @@ export default function TutorGradebookPage() {
       [
         "Assessment Filter",
         assessmentFilter === "all" ? "All Assessments" : assessmentFilter,
+      ],
+      [
+        "Cohort Filter",
+        cohortFilter === "all" ? "All Cohorts" : cohortOptions.find((item) => item.id === cohortFilter)?.title || "Selected Cohort",
       ],
       [
         "Status Filter",
@@ -452,6 +477,13 @@ export default function TutorGradebookPage() {
                 label: assessment,
               })),
             ]}
+          />
+
+          <FilterSelect
+            label="Cohort / Registration Link"
+            value={cohortFilter}
+            onChange={setCohortFilter}
+            options={[{ value: "all", label: "All Cohorts" }, ...cohortOptions.map((item) => ({ value: item.id, label: item.title }))]}
           />
 
           <FilterSelect

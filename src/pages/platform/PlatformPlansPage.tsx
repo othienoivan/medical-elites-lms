@@ -2,14 +2,14 @@ import { useMemo, useState } from "react";
 import PlatformLayout from "../../components/platform/PlatformLayout";
 import PlatformCard from "../../components/platform/PlatformCard";
 import { ENTITLEMENT_KEYS, type EntitlementKey, type Plan } from "../../models/Plan";
-import { listPlatformRecords } from "../../domains/platform/infrastructure/platformRepository";
 import { usePlatformRecords } from "../../domains/platform/presentation/usePlatformRecords";
 import { saveSubscriptionPlan } from "../../firebase/subscriptionAdmin";
+import { listSubscriptionPlansTrusted } from "../../firebase/platformAdminDashboard";
 
 const emptyLimits = { maxStudents: 100, maxTutors: 5, maxCourseUnits: 10, storageBytes: 5 * 1024 ** 3, monthlyAiCredits: 100 };
 
 export default function PlatformPlansPage() {
-  const state = usePlatformRecords<Plan>(() => listPlatformRecords<Plan>("plans"));
+  const state = usePlatformRecords<Plan>(listSubscriptionPlansTrusted);
   const [selected, setSelected] = useState<Plan | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -39,8 +39,8 @@ export default function PlatformPlansPage() {
 
   return <PlatformLayout title="Subscription Plans" subtitle="Configure pricing, trials, entitlements and usage limits through trusted backend controls.">
     <div className="grid gap-6 xl:grid-cols-[1.2fr_1fr]">
-      <PlatformCard title="Plan catalogue"><div className="space-y-3">{state.records.map(plan=><button key={plan.id} onClick={()=>setSelected(plan)} className="w-full rounded-xl border p-4 text-left hover:bg-slate-50"><div className="flex justify-between"><b>{plan.name}</b><span className="capitalize">{plan.status ?? (plan.isActive?"active":"draft")}</span></div><p className="text-sm text-slate-500">{plan.audience} · {plan.currency} {(plan.priceMinor/100).toLocaleString()} / {plan.billingInterval}</p><p className="mt-1 text-xs text-slate-500">{plan.enabledEntitlements?.length ?? 0} entitlements</p></button>)}</div></PlatformCard>
-      <PlatformCard title={selected?"Edit plan":"Create plan"}><form onSubmit={submit} className="space-y-3">
+      <PlatformCard title="Plan catalogue"><div className="space-y-3">{state.error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{state.error}</p>}{state.loading && <p className="text-sm text-slate-500">Loading created plans…</p>}{!state.loading && state.records.length===0 && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No subscription plans have been created yet.</p>}{state.records.map(plan=><button key={plan.id} onClick={()=>setSelected(plan)} className="w-full rounded-xl border p-4 text-left hover:bg-slate-50"><div className="flex justify-between"><b>{plan.name}</b><span className="capitalize">{plan.status ?? (plan.isActive?"active":"draft")}</span></div><p className="text-sm text-slate-500">{plan.audience} · {plan.currency} {(plan.priceMinor/100).toLocaleString()} / {plan.billingInterval}</p><p className="mt-1 text-xs text-slate-500">{plan.enabledEntitlements?.length ?? 0} entitlements</p></button>)}</div></PlatformCard>
+      <PlatformCard title={selected?"Edit plan":"Create plan"}><form key={selected?.id ?? "new-plan"} onSubmit={submit} className="space-y-3">
         <input name="name" required defaultValue={current.name ?? ""} placeholder="Plan name" className="w-full rounded-xl border p-3"/>
         <input name="code" required defaultValue={current.code ?? ""} placeholder="plan_code" className="w-full rounded-xl border p-3"/>
         <div className="grid grid-cols-2 gap-3"><select name="audience" defaultValue={current.audience ?? "institution"} className="rounded-xl border p-3"><option value="institution">Institution</option><option value="tutor">Tutor</option><option value="student">Student</option></select><select name="status" defaultValue={current.status ?? (current.isActive?"active":"draft")} className="rounded-xl border p-3"><option value="draft">Draft</option><option value="active">Active</option><option value="retired">Retired</option></select></div>

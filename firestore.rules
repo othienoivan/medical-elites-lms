@@ -35,6 +35,16 @@ service cloud.firestore {
         ];
     }
 
+    function isMarketplaceReviewer() {
+      return isAdmin()
+        && userDocument().data.keys().hasAny(['platformRole'])
+        && userDocument().data.platformRole in [
+          'super_admin',
+          'platform_admin',
+          'platform_support'
+        ];
+    }
+
 
     function currentInstitutionId() {
       return hasProfile() && userDocument().data.keys().hasAny(['institutionId'])
@@ -959,9 +969,40 @@ service cloud.firestore {
     }
 
     match /examinations/{documentId} {
-      allow read: if signedIn() && (ownsRecord(resource.data) || assignedTutor(resource.data) || (isAdmin() && sameInstitution(resource.data)) || (hasRole('student') && resource.data.courseUnitId != null && (hasCourseUnitAssignment(resource.data.courseUnitId) || hasMarketplaceCourseAccess(resource.data.courseUnitId))));
-      allow create: if isTutorOrAdmin() && request.resource.data.ownerUserId == request.auth.uid;
-      allow update, delete: if canManageRecord(resource.data);
+      allow read: if signedIn() && (
+        ownsRecord(resource.data)
+        || assignedTutor(resource.data)
+        // Legacy examination drafts stored the verified tutor email in
+        // `createdBy` instead of the UID. This is intentionally restricted to
+        // the authenticated token's own verified email for compatibility.
+        || (resource.data.keys().hasAny(['createdBy'])
+          && request.auth.token.email != null
+          && resource.data.createdBy == request.auth.token.email)
+        || (isAdmin() && sameInstitution(resource.data))
+        || (hasRole('student') && resource.data.courseUnitId != null && (hasCourseUnitAssignment(resource.data.courseUnitId) || hasMarketplaceCourseAccess(resource.data.courseUnitId)))
+      );
+      allow create: if isTutorOrAdmin()
+        && request.resource.data.ownerUserId == request.auth.uid
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.createdBy == request.auth.uid
+        && request.auth.uid in request.resource.data.assignedTutorIds;
+      // Existing legacy drafts can be migrated by their original authenticated
+      // tutor. An update must atomically stamp the canonical UID ownership
+      // fields; deletion is allowed only to that same verified email owner.
+      allow update: if canManageRecord(resource.data)
+        || (signedIn()
+          && resource.data.keys().hasAny(['createdBy'])
+          && request.auth.token.email != null
+          && resource.data.createdBy == request.auth.token.email
+          && request.resource.data.ownerUserId == request.auth.uid
+          && request.resource.data.createdByUid == request.auth.uid
+          && request.resource.data.createdBy == request.auth.uid
+          && request.auth.uid in request.resource.data.assignedTutorIds);
+      allow delete: if canManageRecord(resource.data)
+        || (signedIn()
+          && resource.data.keys().hasAny(['createdBy'])
+          && request.auth.token.email != null
+          && resource.data.createdBy == request.auth.token.email);
     }
 
     match /osceStations/{documentId} {
@@ -1018,6 +1059,16 @@ service cloud.firestore {
         || (signedIn() && resource.data.tenantId is string && canManageTenant(resource.data.tenantId));
       allow create, update, delete: if isPlatformAdmin();
     }
+    // Storage metering ledger.
+    // Members may read usage for their own active tenant.
+    // All mutations are performed exclusively by trusted Cloud Functions.
+    match /tenantStorageUsage/{tenantId} {
+      allow read: if isPlatformAdmin()
+        || hasTenantMembership(tenantId);
+
+      allow create, update, delete: if false;
+    }
+
     match /plans/{documentId} {
       allow read: if signedIn();
       // Plans are written only by trusted Cloud Functions.
@@ -1097,12 +1148,15 @@ service cloud.firestore {
     match /marketplaceProducts/{productId} {
       allow read: if resource.data.status == 'published'
         || isPlatformAdmin()
+        || isMarketplaceReviewer()
         || (signedIn() && resource.data.sellerId == request.auth.uid);
       allow create: if signedIn()
         && (hasRole('tutor') || isAdmin())
         && request.resource.data.sellerId == request.auth.uid
         && request.resource.data.status in ['draft', 'submitted'];
-      allow update: if isPlatformAdmin() || (
+      allow update: if ((isPlatformAdmin() || isMarketplaceReviewer())
+        && (request.resource.data.status == resource.data.status
+          || request.resource.data.status in ['review', 'hidden', 'archived'])) || (
         signedIn()
         && resource.data.sellerId == request.auth.uid
         && request.resource.data.sellerId == resource.data.sellerId
@@ -1114,6 +1168,12 @@ service cloud.firestore {
       );
       allow delete: if isPlatformAdmin() || (signedIn() && resource.data.sellerId == request.auth.uid && resource.data.status == 'draft');
     }
+    // Immutable server-written audit trail for AI advisory reviews and human approval decisions.
+    match /marketplaceApprovalAudits/{auditId} {
+      allow read: if isPlatformAdmin() || isMarketplaceReviewer();
+      allow create, update, delete: if false;
+    }
+
     match /sellerProfiles/{sellerId} {
       allow read: if resource.data.status == 'active' || isPlatformAdmin() || (signedIn() && sellerId == request.auth.uid);
       allow create, update: if isPlatformAdmin() || (signedIn() && sellerId == request.auth.uid && request.resource.data.ownerUid == request.auth.uid);

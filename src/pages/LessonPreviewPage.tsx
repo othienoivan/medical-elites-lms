@@ -69,7 +69,7 @@ export default function LessonPreviewPage() {
       subtitle={lesson.description}
     >
       <Card>
-        <LessonViewer blocks={lesson.blocks ?? []} />
+        <LessonViewer blocks={lesson.blocks ?? []} lessonId={lesson.id} courseUnitId={lesson.courseUnitId || lesson.courseId} />
       </Card>
     </TutorLayout>
   );

@@ -57,11 +57,12 @@ export default function EnrollmentManagerPage() {
   const { courseUnits: scopedCourseUnits, loading: courseUnitsLoading } = useCourseUnits(true);
   const [trustedCourseUnits, setTrustedCourseUnits] = useState<CourseUnit[]>([]);
   const [trustedCourseUnitsLoading, setTrustedCourseUnitsLoading] = useState(true);
+  const [trustedCourseUnitsAvailable, setTrustedCourseUnitsAvailable] = useState(false);
 
   useEffect(() => {
     let active = true;
     void getTutorEnrollmentCourseUnits()
-      .then((rows) => { if (active) setTrustedCourseUnits(rows); })
+      .then((rows) => { if (active) { setTrustedCourseUnits(rows); setTrustedCourseUnitsAvailable(true); } })
       .catch((error) => {
         console.warn("Trusted tutor enrollment catalogue could not be loaded; using scoped course units.", error);
       })
@@ -70,10 +71,11 @@ export default function EnrollmentManagerPage() {
   }, []);
 
   const courseUnits = useMemo(() => {
+    const source = trustedCourseUnitsAvailable ? trustedCourseUnits : scopedCourseUnits;
     const merged = new Map<string, CourseUnit>();
-    [...scopedCourseUnits, ...trustedCourseUnits].forEach((item) => merged.set(item.id, item));
+    source.forEach((item) => merged.set(item.id, item));
     return [...merged.values()];
-  }, [scopedCourseUnits, trustedCourseUnits]);
+  }, [scopedCourseUnits, trustedCourseUnits, trustedCourseUnitsAvailable]);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] =
@@ -184,6 +186,19 @@ export default function EnrollmentManagerPage() {
   const loading =
     enrollmentsLoading || studentsLoading || programmesLoading || courseUnitsLoading || trustedCourseUnitsLoading;
 
+  const courseUnitNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    courseUnits.forEach((courseUnit) => {
+      map.set(courseUnit.id, courseUnit.title);
+      ((courseUnit as CourseUnit & { aliasCourseUnitIds?: string[] }).aliasCourseUnitIds ?? []).forEach((id) => map.set(String(id), courseUnit.title));
+    });
+    return map;
+  }, [courseUnits]);
+  function enrollmentCourseUnitNames(courseUnitIds: string[] | undefined) {
+    const ids = courseUnitIds ?? [];
+    return ids.length ? ids.map((id) => courseUnitNameById.get(id) || `Course unit ${id}`).join(", ") : "No course units assigned";
+  }
+
   function updateField<K extends keyof EnrollmentForm>(
     field: K,
     value: EnrollmentForm[K]
@@ -247,19 +262,8 @@ export default function EnrollmentManagerPage() {
       return false;
     }
 
-    const duplicate = enrollments.some(
-      (enrollment) =>
-        enrollment.studentId === selectedStudent.id &&
-        enrollment.programmeId === selectedProgramme.id &&
-        enrollment.academicYear === form.academicYear.trim() &&
-        enrollment.semester === form.semester.trim() &&
-        enrollment.status !== "transferred"
-    );
-
-    if (duplicate) {
-      alert(
-        "This student already has an enrolment for the selected programme, academic year and semester."
-      );
+    if (form.courseUnitIds.length === 0) {
+      alert("Please select at least one course unit.");
       return false;
     }
 
@@ -272,24 +276,41 @@ export default function EnrollmentManagerPage() {
     try {
       setSaving(true);
 
+      const academicYear = form.academicYear.trim();
+      const semester = form.semester.trim();
+      const existingEnrollment = enrollments.find(
+        (enrollment) =>
+          enrollment.studentId === selectedStudent.id &&
+          enrollment.programmeId === selectedProgramme.id &&
+          enrollment.academicYear === academicYear &&
+          enrollment.semester === semester &&
+          enrollment.status !== "transferred"
+      );
+
+      if (existingEnrollment) {
+        const existingCourseUnitIds = existingEnrollment.courseUnitIds || [];
+        const newCourseUnitIds = form.courseUnitIds.filter((courseUnitId) => !existingCourseUnitIds.includes(courseUnitId));
+        if (newCourseUnitIds.length === 0) { alert("This student is already enrolled in the selected course unit(s)."); return; }
+        await updateEnrollment(existingEnrollment.id, {
+          courseUnitIds: [...new Set([...existingCourseUnitIds, ...newCourseUnitIds])],
+          studentAuthUid: selectedStudent.authUid || existingEnrollment.studentAuthUid || "",
+          studentEmailNormalized: selectedStudent.email.trim().toLowerCase(),
+          studentName: selectedStudent.fullName, registrationNumber: selectedStudent.registrationNumber,
+          programmeTitle: selectedProgramme.title, intake: form.intake.trim(), classGroup: form.classGroup.trim(), status: form.status,
+        });
+        setForm(initialForm);
+        alert(newCourseUnitIds.length === 1 ? "Course unit added to the student's existing enrolment." : `${newCourseUnitIds.length} course units added to the student's existing enrolment.`);
+        return;
+      }
+
       await createEnrollment({
-        studentId: selectedStudent.id,
-        studentAuthUid: selectedStudent.authUid || "",
-        studentEmailNormalized: selectedStudent.email.trim().toLowerCase(),
-        studentName: selectedStudent.fullName,
-        registrationNumber: selectedStudent.registrationNumber,
-        programmeId: selectedProgramme.id,
-        programmeTitle: selectedProgramme.title,
-        courseUnitIds: form.courseUnitIds,
-        academicYear: form.academicYear.trim(),
-        semester: form.semester.trim(),
-        intake: form.intake.trim(),
-        classGroup: form.classGroup.trim(),
-        status: form.status,
+        studentId: selectedStudent.id, studentAuthUid: selectedStudent.authUid || "",
+        studentEmailNormalized: selectedStudent.email.trim().toLowerCase(), studentName: selectedStudent.fullName,
+        registrationNumber: selectedStudent.registrationNumber, programmeId: selectedProgramme.id, programmeTitle: selectedProgramme.title,
+        courseUnitIds: form.courseUnitIds, academicYear, semester, intake: form.intake.trim(), classGroup: form.classGroup.trim(), status: form.status,
       });
 
-      setForm(initialForm);
-      alert("Student enrolled successfully.");
+      setForm(initialForm); alert("Student enrolled successfully.");
     } catch (error) {
       console.error("Failed to create enrolment:", error);
       alert("Failed to create enrolment.");
@@ -596,7 +617,7 @@ export default function EnrollmentManagerPage() {
                         <InfoLine
                           icon={BookOpen}
                           label="Course Units"
-                          value={`${enrollment.courseUnitIds?.length || 0}`}
+                          value={enrollmentCourseUnitNames(enrollment.courseUnitIds)}
                         />
                         <InfoLine
                           icon={User}

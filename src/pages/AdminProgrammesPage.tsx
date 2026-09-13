@@ -1,17 +1,19 @@
 import { Archive, Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import AdminLayout from "../components/layout/AdminLayout";
+import FileUpload from "../components/upload/FileUpload";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import { getDepartments } from "../firebase/institutionCore";
 import { createProgramme, deleteProgramme, getAllProgrammes, updateProgramme } from "../firebase/programmes";
+import { deleteFileFromStorage } from "../firebase/storage";
 import useAuth from "../hooks/useAuth";
 import useAccessScope from "../hooks/useAccessScope";
 import type { Department } from "../models/InstitutionCore";
 import type { Programme, ProgrammeLevel } from "../models/Programme";
 
 const levels: ProgrammeLevel[] = ["Certificate", "Diploma", "Higher Diploma", "Degree", "Postgraduate Diploma", "Master's", "PhD", "CPD"];
-const blank = { title: "", code: "", level: "Diploma" as ProgrammeLevel, department: "", duration: "", description: "", published: true };
+const blank = { title: "", code: "", level: "Diploma" as ProgrammeLevel, department: "", duration: "", description: "", published: true, image: "", imagePath: "" };
 
 function slugify(value: string) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
@@ -24,6 +26,7 @@ export default function AdminProgrammesPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [form, setForm] = useState(blank);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [originalImagePath, setOriginalImagePath] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
@@ -52,7 +55,7 @@ export default function AdminProgrammesPage() {
     return records.filter((item) => [item.title, item.code, item.department, item.level].some((value) => String(value ?? "").toLowerCase().includes(keyword)));
   }, [records, search]);
 
-  function reset() { setForm(blank); setEditingId(null); }
+  async function reset() { if (form.imagePath && form.imagePath !== originalImagePath) { await deleteFileFromStorage(form.imagePath).catch((error) => console.warn("Unsaved programme cover could not be deleted.", error)); } setForm(blank); setEditingId(null); setOriginalImagePath(""); }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -60,13 +63,13 @@ export default function AdminProgrammesPage() {
     setSaving(true);
     try {
       if (editingId) {
-        await updateProgramme(editingId, { ...form, slug: slugify(form.title) });
+        await updateProgramme(editingId, { ...form, imagePath: form.imagePath || undefined, slug: slugify(form.title) }); if (originalImagePath && originalImagePath !== form.imagePath) { await deleteFileFromStorage(originalImagePath).catch((error) => console.warn("Previous programme cover could not be deleted.", error)); }
         alert("Programme updated successfully.");
       } else {
-        await createProgramme({ id: "", ...form, slug: slugify(form.title), faculty: "", createdBy: currentUser.uid, createdAt: new Date(), updatedAt: new Date() });
+        await createProgramme({ id: "", ...form, imagePath: form.imagePath || undefined, slug: slugify(form.title), faculty: "", createdBy: currentUser.uid, ownerUserId: currentUser.uid, createdByUid: currentUser.uid, assignedTutorIds: [currentUser.uid], createdAt: new Date(), updatedAt: new Date() });
         alert("Programme created successfully.");
       }
-      reset();
+      setForm(blank); setEditingId(null); setOriginalImagePath("");
       await reload();
     } catch (error) {
       console.error(error);
@@ -78,7 +81,7 @@ export default function AdminProgrammesPage() {
 
   function edit(item: Programme) {
     setEditingId(item.id);
-    setForm({ title: item.title, code: item.code ?? "", level: item.level, department: item.department ?? "", duration: item.duration, description: item.description, published: item.published });
+    if (form.imagePath && form.imagePath !== originalImagePath) { void deleteFileFromStorage(form.imagePath).catch((error) => console.warn("Unsaved programme cover could not be deleted.", error)); } setOriginalImagePath(item.imagePath ?? ""); setForm({ title: item.title, code: item.code ?? "", level: item.level, department: item.department ?? "", duration: item.duration, description: item.description, published: item.published, image: item.image ?? "", imagePath: item.imagePath ?? "" });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -86,7 +89,7 @@ export default function AdminProgrammesPage() {
     const confirmation = window.prompt(`Delete ${item.title}?\n\nType DELETE to confirm.`);
     if (confirmation !== "DELETE") return;
     try {
-      await deleteProgramme(item.id);
+      await deleteProgramme(item.id); if (item.imagePath) { await deleteFileFromStorage(item.imagePath).catch((error) => console.warn("Programme cover could not be deleted.", error)); }
       alert("Programme deleted successfully.");
       await reload();
     } catch (error) {
@@ -113,9 +116,14 @@ export default function AdminProgrammesPage() {
           <Field label="Department"><select value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} className="w-full rounded-xl border border-slate-300 px-4 py-3"><option value="">Select Department</option>{departments.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></Field>
           <Field label="Duration"><Input required value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} placeholder="3 Years"/></Field>
           <Field label="Description"><textarea required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="min-h-28 w-full rounded-xl border border-slate-300 px-4 py-3"/></Field>
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-slate-700">Programme Cover Image</label>
+            {form.image && <div className="mb-4 overflow-hidden rounded-2xl border bg-slate-50"><img src={form.image} alt="Programme cover" className="aspect-[16/7] w-full object-cover"/><div className="p-3"><button type="button" className="text-sm font-bold text-red-600" onClick={() => { const pending = form.imagePath && form.imagePath !== originalImagePath ? form.imagePath : ""; setForm({ ...form, image: "", imagePath: "" }); if (pending) void deleteFileFromStorage(pending).catch((error) => console.warn("Unsaved programme cover could not be deleted.", error)); }}>Remove cover</button></div></div>}
+            <FileUpload folder="images" accept="image/jpeg,image/png,image/webp" label={form.image ? "Replace Programme Cover" : "Upload Programme Cover"} customMetadata={{ imagePurpose: "programme-cover", ...(editingId ? { programmeId: editingId } : {}) }} onUploaded={(file) => { const previousPending = form.imagePath && form.imagePath !== originalImagePath ? form.imagePath : ""; setForm({ ...form, image: file.downloadUrl, imagePath: file.filePath }); if (previousPending && previousPending !== file.filePath) void deleteFileFromStorage(previousPending).catch((error) => console.warn("Previous unsaved programme cover could not be deleted.", error)); }}/>
+          </div>
           <label className="flex items-center gap-3 text-sm font-semibold text-slate-700"><input type="checkbox" checked={form.published} onChange={(e) => setForm({ ...form, published: e.target.checked })}/> Active / Published</label>
         </div>
-        <div className="mt-6 flex gap-3"><Button type="submit" loading={saving}>{editingId ? "Save Changes" : "Create Programme"}</Button>{editingId && <Button type="button" variant="outline" onClick={reset}>Cancel</Button>}</div>
+        <div className="mt-6 flex gap-3"><Button type="submit" loading={saving}>{editingId ? "Save Changes" : "Create Programme"}</Button>{editingId && <Button type="button" variant="outline" onClick={() => void reset()}>Cancel</Button>}</div>
       </form>
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">

@@ -24,23 +24,41 @@ type StudentGrade = {
   finalTotal: number;
   grade: string;
   passed: boolean;
+  cohortId: string;
+  cohortName: string;
 };
 
 export default function AutomaticGradebookPage() {
   const navigate = useNavigate();
   const { attempts, loading } = useTutorQuizAttempts();
   const [search, setSearch] = useState("");
+  const [cohortFilter, setCohortFilter] = useState("all");
+
+  const cohorts = useMemo(() => {
+    const values = new Map<string, string>();
+    attempts.forEach((attempt) => {
+      const id = attempt.assessmentGroupId || attempt.studentGroupId || attempt.registrationLinkId || "legacy";
+      const name = attempt.registrationLinkName || attempt.classInstitutionName || (id === "legacy" ? "Legacy / ungrouped" : id);
+      values.set(id, name);
+    });
+    return [...values.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [attempts]);
 
   const studentGrades = useMemo<StudentGrade[]>(() => {
     const grouped = new Map<string, typeof attempts>();
 
     attempts.forEach((attempt) => {
-      const current = grouped.get(attempt.studentId) || [];
-      grouped.set(attempt.studentId, [...current, attempt]);
+      const cohortId = attempt.assessmentGroupId || attempt.studentGroupId || attempt.registrationLinkId || "legacy";
+      const groupKey = `${cohortId}::${attempt.studentId}`;
+      const current = grouped.get(groupKey) || [];
+      grouped.set(groupKey, [...current, attempt]);
     });
 
     return Array.from(grouped.entries())
-      .map(([studentId, studentAttempts]) => {
+      .map(([_groupKey, studentAttempts]) => {
+        const studentId = studentAttempts[0]?.studentId || "";
+        const cohortId = studentAttempts[0]?.assessmentGroupId || studentAttempts[0]?.studentGroupId || studentAttempts[0]?.registrationLinkId || "legacy";
+        const cohortName = studentAttempts[0]?.registrationLinkName || studentAttempts[0]?.classInstitutionName || (cohortId === "legacy" ? "Legacy / ungrouped" : cohortId);
         const percentages = studentAttempts.map(
           (attempt) => attempt.finalPercentage ?? attempt.percentage
         );
@@ -66,6 +84,8 @@ export default function AutomaticGradebookPage() {
           finalTotal: average,
           grade: getGrade(average),
           passed: average >= 50,
+          cohortId,
+          cohortName,
         };
       })
       .sort((a, b) => b.finalTotal - a.finalTotal);
@@ -75,9 +95,10 @@ export default function AutomaticGradebookPage() {
     const keyword = search.toLowerCase();
 
     return studentGrades.filter((student) =>
-      student.studentName.toLowerCase().includes(keyword)
+      (student.studentName.toLowerCase().includes(keyword) || student.cohortName.toLowerCase().includes(keyword))
+      && (cohortFilter === "all" || student.cohortId === cohortFilter)
     );
-  }, [studentGrades, search]);
+  }, [cohortFilter, studentGrades, search]);
 
   const average =
     filteredGrades.length > 0
@@ -94,6 +115,8 @@ export default function AutomaticGradebookPage() {
     const rows = filteredGrades.map((student, index) => ({
       Position: index + 1,
       Student: student.studentName,
+      "Class / Registration Link": student.cohortName,
+      "Assessment Cohort ID": student.cohortId,
       "Assessments Completed": student.attemptsCompleted,
       Average: `${student.average}%`,
       Highest: `${student.highest}%`,
@@ -143,7 +166,7 @@ export default function AutomaticGradebookPage() {
         <StatCard title="Failed" value={failed} icon={XCircle} />
       </section>
 
-      <section className="mb-6">
+      <section className="mb-6 flex flex-col gap-3 lg:flex-row">
         <div className="relative w-full lg:max-w-lg">
           <Search size={18} className="absolute left-4 top-4 text-slate-400" />
 
@@ -154,6 +177,10 @@ export default function AutomaticGradebookPage() {
             className="w-full rounded-xl border border-slate-300 py-3 pl-11 pr-4 outline-none focus:border-blue-700"
           />
         </div>
+        <select value={cohortFilter} onChange={(event) => setCohortFilter(event.target.value)} className="rounded-xl border border-slate-300 px-4 py-3" aria-label="Filter by class or registration link">
+          <option value="all">All classes / registration links</option>
+          {cohorts.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+        </select>
       </section>
 
       {loading ? (
@@ -182,6 +209,7 @@ export default function AutomaticGradebookPage() {
                 <tr className="border-b bg-slate-50">
                   <th className="p-3">Position</th>
                   <th className="p-3">Student</th>
+                  <th className="p-3">Class / Link</th>
                   <th className="p-3">Completed</th>
                   <th className="p-3">Average</th>
                   <th className="p-3">Highest</th>
@@ -195,9 +223,9 @@ export default function AutomaticGradebookPage() {
               <tbody>
                 {filteredGrades.map((student, index) => (
                   <tr
-                    key={student.studentId}
+                    key={`${student.cohortId}-${student.studentId}`}
                     onClick={() =>
-                      navigate(`/tutor/student-performance/${student.studentId}`)
+                      navigate(`/tutor/student-performance/${student.studentId}?cohort=${encodeURIComponent(student.cohortId)}`)
                     }
                     className="cursor-pointer border-b align-top transition hover:bg-blue-50"
                   >
@@ -208,6 +236,7 @@ export default function AutomaticGradebookPage() {
                     <td className="p-3 font-semibold text-slate-950">
                       {student.studentName}
                     </td>
+                    <td className="p-3"><span className="rounded-full bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700">{student.cohortName}</span></td>
 
                     <td className="p-3">{student.attemptsCompleted}</td>
 

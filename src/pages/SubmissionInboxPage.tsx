@@ -23,6 +23,17 @@ export default function SubmissionInboxPage() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [cohortFilter, setCohortFilter] = useState("all");
+
+  const cohorts = useMemo(() => {
+    const values = new Map<string, string>();
+    attempts.forEach((attempt) => {
+      const id = attempt.assessmentGroupId || attempt.studentGroupId || attempt.registrationLinkId || "legacy";
+      const label = attempt.registrationLinkName || attempt.classInstitutionName || (id === "legacy" ? "Legacy / ungrouped" : id);
+      values.set(id, label);
+    });
+    return [...values.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [attempts]);
 
   const filteredAttempts = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -41,9 +52,12 @@ export default function SubmissionInboxPage() {
         (statusFilter === "passed" && attempt.passed) ||
         (statusFilter === "failed" && !attempt.passed);
 
-      return matchesSearch && matchesStatus;
+      const cohortId = attempt.assessmentGroupId || attempt.studentGroupId || attempt.registrationLinkId || "legacy";
+      const matchesCohort = cohortFilter === "all" || cohortId === cohortFilter;
+
+      return matchesSearch && matchesStatus && matchesCohort;
     });
-  }, [attempts, search, statusFilter]);
+  }, [attempts, cohortFilter, search, statusFilter]);
 
   const passed = filteredAttempts.filter((attempt) => attempt.passed).length;
   const failed = filteredAttempts.length - passed;
@@ -91,6 +105,11 @@ export default function SubmissionInboxPage() {
           />
         </div>
 
+        <div className="flex flex-col gap-3 sm:flex-row">
+        <select value={cohortFilter} onChange={(event) => setCohortFilter(event.target.value)} className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-700" aria-label="Filter by class or registration link">
+          <option value="all">All classes / links</option>
+          {cohorts.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+        </select>
         <select
           value={statusFilter}
           onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
@@ -102,6 +121,7 @@ export default function SubmissionInboxPage() {
           <option value="passed">Passed Only</option>
           <option value="failed">Failed Only</option>
         </select>
+        </div>
       </section>
 
       {loading ? (
@@ -126,6 +146,7 @@ export default function SubmissionInboxPage() {
                 <tr className="border-b bg-slate-50">
                   <th className="p-3">Student</th>
                   <th className="p-3">Assessment</th>
+                  <th className="p-3">Class / Link</th>
                   <th className="p-3">Submitted</th>
                   <th className="p-3">Duration</th>
                   <th className="p-3">Auto Score</th>
@@ -142,6 +163,7 @@ export default function SubmissionInboxPage() {
                     </td>
 
                     <td className="p-3">{attempt.quizTitle || "Untitled assessment"}</td>
+                    <td className="p-3"><span className="rounded-full bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700">{attempt.registrationLinkName || attempt.classInstitutionName || attempt.assessmentGroupId || attempt.studentGroupId || "Legacy / ungrouped"}</span></td>
 
                     <td className="p-3">
                       <InfoInline

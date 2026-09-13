@@ -1,0 +1,10 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+const enrollmentPage=fs.readFileSync("src/pages/EnrollmentManagerPage.tsx","utf8");
+const coursePage=fs.readFileSync("src/pages/CourseUnitDetailsPage.tsx","utf8");
+const functions=fs.readFileSync("functions/src/index.ts","utf8");
+test("manual enrollment merges additional course units",()=>{assert.match(enrollmentPage,/existingEnrollment/);assert.match(enrollmentPage,/new Set\(\[\.\.\.existingCourseUnitIds, \.\.\.newCourseUnitIds\]\)/);});
+test("enrollment roster shows course-unit titles",()=>{assert.match(enrollmentPage,/enrollmentCourseUnitNames/);});
+test("tutor enrollment selector is ownership scoped and deduplicated",()=>{assert.match(functions,/Programme membership alone is intentionally NOT sufficient/);assert.match(functions,/aliasCourseUnitIds/);});
+test("course detail uses trusted alias-aware published modules",()=>{assert.match(coursePage,/getPublishedCourseModulesV2/);assert.match(functions,/export const getPublishedCourseModulesV2/);});

@@ -13,10 +13,12 @@ import {
   deleteQuizDraftAttempt,
   getQuizDraftAttempt,
   getQuizAttemptUsage,
+  getStudentPostQuizDestination,
+  requestStudentQuizReattempt,
   saveQuizDraftAttempt,
 } from "../firebase/quizAttempts";
-import { getQuizById } from "../firebase/quizzes";
-import { getQuestionById } from "../firebase/questions";
+import { getStudentAssessmentPackage } from "../firebase/studentAssessments";
+import { completeLessonLearning } from "../firebase/lessonProgress";
 import useAuth from "../hooks/useAuth";
 import type { Question } from "../models/Question";
 import type { Quiz } from "../models/Quiz";
@@ -49,9 +51,17 @@ export default function TakeQuizPage() {
   const [submitted, setSubmitted] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
   const [savingAttempt, setSavingAttempt] = useState(false);
+  const [aiFinalResult, setAiFinalResult] = useState<{
+    finalScore?: number;
+    finalPercentage?: number;
+    passed?: boolean;
+    needsTutorReview?: boolean;
+  } | null>(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [attemptUsage, setAttemptUsage] = useState<QuizAttemptUsage | null>(null);
   const [attemptUsageLoading, setAttemptUsageLoading] = useState(true);
+  const [requestingReattempt, setRequestingReattempt] = useState(false);
+  const [reattemptRequestMessage, setReattemptRequestMessage] = useState<string | null>(null);
   const submitHandlerRef = useRef<(autoSubmit?: boolean) => Promise<void>>(
     async () => undefined
   );
@@ -63,31 +73,18 @@ export default function TakeQuizPage() {
       try {
         setLoadingQuiz(true);
 
-        const data = await getQuizById(quizId);
+        const assessmentPackage = await getStudentAssessmentPackage(quizId);
+        const data = assessmentPackage.quiz;
+        const questions = Array.isArray(assessmentPackage.questions)
+          ? assessmentPackage.questions
+          : [];
 
         setQuiz(data);
+        setLinkedQuestions(questions);
 
         if (data) {
-          const embeddedQuestions = data.questions
-            .map((ref) => toEmbeddedQuestion(ref, data))
-            .filter((question): question is Question => Boolean(question));
-
-          if (embeddedQuestions.length === data.questions.length) {
-            setLinkedQuestions(embeddedQuestions);
-          } else {
-            const loaded = await Promise.all(
-              data.questions.map((ref) => getQuestionById(ref.questionId))
-            );
-            setLinkedQuestions(
-              loaded.filter((question): question is Question => Boolean(question))
-            );
-          }
-        } else {
-          setLinkedQuestions([]);
-        }
-
-        if (data?.timeLimitMinutes) {
-          setSecondsRemaining(data.timeLimitMinutes * 60);
+          const configuredTimeLimit = Number(data.timeLimitMinutes ?? (data as Quiz & { durationMinutes?: number }).durationMinutes ?? 0);
+          setSecondsRemaining(Number.isFinite(configuredTimeLimit) && configuredTimeLimit > 0 ? Math.floor(configuredTimeLimit) * 60 : 0);
         }
       } catch (error) {
         console.error("Failed to load quiz:", error);
@@ -125,10 +122,11 @@ export default function TakeQuizPage() {
     void loadAttemptUsage();
   }, [quiz, currentUser]);
 
-  const attemptsExhausted = Boolean(attemptUsage && attemptUsage.attemptsRemaining <= 0);
+  const attemptsExhausted = Boolean(attemptUsage && attemptUsage.attemptsRemaining <= 0 && !(attemptUsage.masteryRetakesEnabled && !attemptUsage.hasPassed));
+  const hasTimeLimit = Boolean(quiz && Number(quiz.timeLimitMinutes ?? (quiz as Quiz & { durationMinutes?: number }).durationMinutes ?? 0) > 0);
 
   useEffect(() => {
-    if (!quiz || submitted || attemptsExhausted || secondsRemaining <= 0) return;
+    if (!quiz || !hasTimeLimit || submitted || attemptsExhausted || secondsRemaining <= 0) return;
 
     const interval = window.setInterval(() => {
       setSecondsRemaining((current) => {
@@ -143,7 +141,7 @@ export default function TakeQuizPage() {
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [quiz, submitted, attemptsExhausted, secondsRemaining]);
+  }, [quiz, hasTimeLimit, submitted, attemptsExhausted, secondsRemaining]);
 
   useEffect(() => {
     if (submitted) return;
@@ -202,7 +200,7 @@ export default function TakeQuizPage() {
               setCurrentIndex(draft.currentIndex);
             }
 
-            if (typeof draft.secondsRemaining === "number") {
+            if (hasTimeLimit && typeof draft.secondsRemaining === "number") {
               setSecondsRemaining(draft.secondsRemaining);
             }
           }
@@ -215,7 +213,7 @@ export default function TakeQuizPage() {
     }
 
     loadDraftAttempt();
-  }, [quiz, currentUser, draftLoaded, attemptsExhausted]);
+  }, [quiz, currentUser, draftLoaded, attemptsExhausted, hasTimeLimit]);
 
   useEffect(() => {
     if (!quiz || !currentUser || submitted || !draftLoaded || attemptsExhausted) return;
@@ -231,7 +229,7 @@ export default function TakeQuizPage() {
             answers,
             flaggedQuestions,
             currentIndex,
-            secondsRemaining,
+            secondsRemaining: hasTimeLimit ? secondsRemaining : null,
             startedAt,
             completed: false,
           },
@@ -251,6 +249,7 @@ export default function TakeQuizPage() {
     flaggedQuestions,
     currentIndex,
     secondsRemaining,
+    hasTimeLimit,
     startedAt,
     attemptsExhausted,
   ]);
@@ -384,6 +383,20 @@ export default function TakeQuizPage() {
     );
   }
 
+  async function requestExtraAttempt() {
+    if (!quiz) return;
+    try {
+      setRequestingReattempt(true);
+      const result = await requestStudentQuizReattempt({ quizId: quiz.id });
+      setReattemptRequestMessage(result.message);
+    } catch (error) {
+      console.error("Failed to request an extra attempt:", error);
+      setReattemptRequestMessage(error instanceof Error ? error.message : "Unable to send the request to your tutor.");
+    } finally {
+      setRequestingReattempt(false);
+    }
+  }
+
   async function handleSubmit(autoSubmit = false) {
     if (!quiz || submitted || attemptsExhausted) return;
 
@@ -431,6 +444,9 @@ export default function TakeQuizPage() {
       });
 
       setAttemptUsage(submissionResult);
+      if (submissionResult.aiMarking?.aiMarked) {
+        setAiFinalResult(submissionResult.aiMarking);
+      }
 
       // The completed attempt is already safely stored at this point.
       // Draft cleanup and fullscreen exit are non-critical and must not
@@ -452,7 +468,25 @@ export default function TakeQuizPage() {
         console.warn("Attempt saved, but fullscreen exit failed:", fullscreenError);
       }
 
+      const finalPassed = submissionResult.aiMarking?.passed ?? passed;
+      const progressionAllowed = finalPassed || quiz.requiresPassForProgression === false;
       setSubmitted(true);
+      if (progressionAllowed) {
+        try {
+          if (quiz.lessonId) {
+            await completeLessonLearning(quiz.lessonId);
+          }
+          const destination = await getStudentPostQuizDestination(quiz.id);
+          navigate(destination.path, { replace: true });
+          return;
+        } catch (destinationError) {
+          console.warn("The next learning destination could not be resolved after assessment completion.", destinationError);
+          if (quiz.moduleId) {
+            navigate(`/lesson/${encodeURIComponent(quiz.moduleId)}`, { replace: true });
+            return;
+          }
+        }
+      }
     } catch (error) {
       console.error("Failed to save quiz attempt:", error);
       alert(
@@ -499,7 +533,17 @@ export default function TakeQuizPage() {
               <p><span className="block text-sm text-slate-500">Maximum attempts</span><strong>{attemptUsage?.maximumAttempts ?? Math.max(1, quiz.attemptsAllowed ?? 1)}</strong></p>
               <p><span className="block text-sm text-slate-500">Attempts remaining</span><strong>0</strong></p>
             </div>
-            <Button className="mt-8" onClick={() => navigate("/assessments")}>Back to Assessments</Button>
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
+              <Button disabled={requestingReattempt} onClick={() => void requestExtraAttempt()}>
+                {requestingReattempt ? "Sending Request..." : "Ask Tutor for an Extra Attempt"}
+              </Button>
+              <Button variant="outline" onClick={() => navigate("/assessments")}>Back to Assessments</Button>
+            </div>
+            {reattemptRequestMessage && (
+              <p className="mx-auto mt-4 max-w-xl rounded-xl bg-blue-50 p-3 text-sm font-semibold text-blue-800">
+                {reattemptRequestMessage}
+              </p>
+            )}
           </Card>
         </div>
       </main>
@@ -516,6 +560,10 @@ export default function TakeQuizPage() {
     );
   }
 
+  const displayedScore = aiFinalResult?.finalScore ?? score;
+  const displayedPercentage = aiFinalResult?.finalPercentage ?? percentage;
+  const displayedPassed = aiFinalResult?.passed ?? passed;
+
   if (submitted && !reviewMode) {
     return (
       <main className="min-h-screen bg-slate-100 p-8">
@@ -526,28 +574,38 @@ export default function TakeQuizPage() {
             </h1>
 
             <p className="mt-4 text-6xl font-bold text-blue-700">
-              {percentage}%
+              {displayedPercentage}%
             </p>
 
             <p className="mt-3 text-xl font-semibold">
-              Score: {score}/{totalMarks}
+              Score: {displayedScore}/{totalMarks}
             </p>
 
             <p
               className={`mt-3 text-lg font-bold ${
-                passed ? "text-green-700" : "text-red-700"
+                displayedPassed ? "text-green-700" : "text-red-700"
               }`}
             >
-              {passed ? "Passed" : "Not Passed"}
+              {displayedPassed ? "Passed" : "Not Passed"}
             </p>
 
+            {aiFinalResult && (
+              <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-left text-sm text-blue-900">
+                <strong>AI-assisted marking was applied to essay/short-answer responses.</strong>
+                <p className="mt-1">
+                  {aiFinalResult.needsTutorReview
+                    ? "One or more answers were flagged for tutor review. The tutor can override AI marks before results are formally released."
+                    : "The AI marks remain reviewable by the tutor before formal release."}
+                </p>
+              </div>
+            )}
             <div className="mt-6 grid gap-3 rounded-2xl bg-slate-50 p-5 text-left text-sm text-slate-700 md:grid-cols-2">
               <p>Questions: {quizQuestions.length}</p>
               <p>Answered: {answers.length}</p>
               <p>Unanswered: {quizQuestions.length - answers.length}</p>
               <p>Flagged: {flaggedQuestions.length}</p>
               <p>Correct: {markedAnswers.filter((answer) => answer.isCorrect).length}</p>
-              <p>Wrong: {markedAnswers.filter((answer) => !answer.isCorrect).length}</p>
+              <p>Needs review: {markedAnswers.filter((answer) => !answer.isCorrect).length}</p>
             </div>
 
             <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -558,6 +616,16 @@ export default function TakeQuizPage() {
               <Button variant="outline" onClick={() => setReviewMode(true)}>
                 Review Answers
               </Button>
+              {!displayedPassed && attemptUsage?.masteryRetakesEnabled && (
+                <Button onClick={() => window.location.reload()}>
+                  Try Again to Reach the Pass Mark
+                </Button>
+              )}
+              {!displayedPassed && !attemptUsage?.masteryRetakesEnabled && attemptUsage?.attemptsRemaining === 0 && (
+                <Button disabled={requestingReattempt} onClick={() => void requestExtraAttempt()}>
+                  {requestingReattempt ? "Sending Request..." : "Ask Tutor for an Extra Attempt"}
+                </Button>
+              )}
             </div>
           </Card>
         </div>
@@ -582,7 +650,7 @@ export default function TakeQuizPage() {
           title={quiz.title}
           totalQuestions={quizQuestions.length}
           currentQuestion={currentIndex + 1}
-          minutesRemaining={minutesRemaining}
+          minutesRemaining={hasTimeLimit ? minutesRemaining : null}
         />
 
         <Card>
@@ -619,10 +687,8 @@ export default function TakeQuizPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                  <div
-                    className={`rounded-xl px-4 py-3 text-sm font-semibold ${timerClass}`}
-                  >
-                    Time: {formattedTime}
+                  <div className={`rounded-xl px-4 py-3 text-sm font-semibold ${hasTimeLimit ? timerClass : "bg-slate-100 text-slate-700"}`}>
+                    {hasTimeLimit ? `Time: ${formattedTime}` : "No time limit"}
                   </div>
 
                   {!submitted && (
@@ -778,36 +844,7 @@ function ReviewFeedback({
     </div>
   );
 }
-function toEmbeddedQuestion(
-  ref: Quiz["questions"][number],
-  quiz: Quiz
-): Question | null {
-  if (!ref.question || !Array.isArray(ref.options) || ref.options.length === 0) {
-    return null;
-  }
 
-  return {
-    id: ref.questionId,
-    programmeId: quiz.programmeId,
-    programmeTitle: quiz.programmeTitle,
-    courseUnitId: quiz.courseUnitId,
-    courseUnitTitle: quiz.courseUnitTitle,
-    moduleId: quiz.moduleId,
-    moduleTitle: quiz.moduleTitle,
-    topic: quiz.moduleTitle || quiz.courseUnitTitle || "Assessment",
-    type: "mcq",
-    difficulty: "medium",
-    bloomLevel: "understand",
-    questionText: ref.question,
-    options: ref.options.map((text, index) => ({
-      id: `${ref.questionId}-${index + 1}`,
-      label: String.fromCharCode(65 + index),
-      text,
-    })),
-    correctAnswer: ref.correctAnswer || "",
-    explanation: ref.explanation || "",
-    marks: ref.marks,
-    tags: [],
-    isPublished: true,
-  };
-}
+
+
+

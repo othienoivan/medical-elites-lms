@@ -22,6 +22,8 @@ export interface RegistrationLink {
   yearOfStudy?: string;
   semester?: string;
   studentGroupId?: string;
+  /** Unique assessment/reporting cohort. Defaults to the registration-link code. */
+  assessmentGroupId?: string;
   allocationMode?: AcademicAllocationMode;
   courseUnitIds: string[];
   moduleIds?: string[];
@@ -47,6 +49,8 @@ export interface RegistrationLinkEnrollment {
   yearOfStudy?: string;
   semester?: string;
   studentGroupId?: string;
+  /** Unique assessment/reporting cohort. Defaults to the registration-link code. */
+  assessmentGroupId?: string;
   allocationMode?: AcademicAllocationMode;
   courseUnitIds: string[];
   moduleIds?: string[];

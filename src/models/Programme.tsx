@@ -26,6 +26,7 @@ export interface Programme {
   description: string;
   duration: string;
   image?: string;
+  imagePath?: string;
 
   // Academic Metadata
   code?: string;              // e.g. DCM, BME, MBChB

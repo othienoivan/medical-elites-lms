@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useEffect, useState } from "react";
 import FileUpload from "../upload/FileUpload";
 import RichTextEditor from "./RichTextEditor";
 import type { LessonBlock } from "../../models/LessonBlock";
@@ -6,6 +6,8 @@ import {
   waitForPowerPointHtmlConversion,
   type PowerPointHtmlFormat,
 } from "../../firebase/powerPointHtmlConversion";
+import { getLessonResourceAccessUrl } from "../../firebase/lessonResourceAccess";
+import { extractReadableTextFromFile } from "../../utils/readableFileText";
 
 type Props = {
   block: LessonBlock;
@@ -97,6 +99,17 @@ export default function LessonBlockRenderer({
           accept="image/*"
           uploadLabel="Upload Image"
           titlePlaceholder="Image title or caption"
+        />
+      )}
+
+      {block.type === "video" && (
+        <ResourceUploadBlock
+          block={block}
+          onChange={onChange}
+          folder="videos"
+          accept="video/mp4,video/webm,video/ogg,.mp4,.webm,.ogv,.mov"
+          uploadLabel="Upload Video"
+          titlePlaceholder="Video title"
         />
       )}
 
@@ -420,6 +433,20 @@ function Html5LessonEditor({
   const [format, setFormat] = useState<PowerPointHtmlFormat>(initialFormat);
   const [converting, setConverting] = useState(false);
   const [conversionMessage, setConversionMessage] = useState("");
+  const [securePreviewUrl, setSecurePreviewUrl] = useState("");
+
+  useEffect(() => {
+    const filePath = String(block.metadata?.filePath || "").trim();
+    if (!filePath || String(block.metadata?.htmlConversionStatus || "") !== "ready") {
+      setSecurePreviewUrl("");
+      return;
+    }
+    let cancelled = false;
+    void getLessonResourceAccessUrl({ filePath, lessonId, courseUnitId, disposition: "inline" })
+      .then((url) => { if (!cancelled) setSecurePreviewUrl(url); })
+      .catch((error) => console.warn("Secure HTML conversion preview could not be prepared:", error));
+    return () => { cancelled = true; };
+  }, [block.metadata?.filePath, block.metadata?.htmlConversionStatus, courseUnitId, lessonId]);
 
   function chooseSource(next: "html" | "powerpoint") {
     setSourceType(next);
@@ -576,6 +603,17 @@ function Html5LessonEditor({
                     contentType: "text/html",
                   },
                 });
+                try {
+                  const accessUrl = await getLessonResourceAccessUrl({
+                    filePath: converted.outputPath,
+                    lessonId,
+                    courseUnitId,
+                    disposition: "inline",
+                  });
+                  setSecurePreviewUrl(accessUrl);
+                } catch (accessError) {
+                  console.warn("Converted lesson is ready but secure preview authorization is still initializing:", accessError);
+                }
                 setConversionMessage("Conversion complete. Use Preview to inspect the HTML lesson before saving.");
               } catch (error) {
                 console.error("PowerPoint HTML conversion failed:", error);
@@ -608,8 +646,10 @@ function Html5LessonEditor({
               <p className="text-sm font-semibold text-emerald-700">Converted HTML lesson is ready.</p>
               <iframe
                 title={block.title || "Converted PowerPoint lesson preview"}
-                src={block.url}
-                sandbox="allow-scripts allow-forms allow-modals allow-popups allow-presentation"
+                src={securePreviewUrl || block.url}
+                sandbox="allow-scripts allow-forms allow-modals allow-popups allow-presentation allow-downloads"
+                allow="fullscreen; autoplay"
+                allowFullScreen
                 className="min-h-[520px] w-full rounded-xl border bg-white"
                 referrerPolicy="no-referrer"
               />
@@ -631,7 +671,7 @@ function ResourceUploadBlock({
 }: {
   block: LessonBlock;
   onChange: (updatedBlock: LessonBlock) => void;
-  folder: "images" | "pdfs" | "powerpoints" | "documents" | "html5";
+  folder: "images" | "pdfs" | "powerpoints" | "documents" | "html5" | "videos";
   accept: string;
   uploadLabel: string;
   titlePlaceholder: string;
@@ -648,20 +688,41 @@ function ResourceUploadBlock({
         folder={folder}
         accept={accept}
         label={uploadLabel}
-        onUploaded={(file) =>
+        onUploaded={async (uploaded) => {
+          let extractedText = "";
+          try {
+            extractedText = await extractReadableTextFromFile(uploaded.file);
+          } catch (error) {
+            console.warn("Readable text could not be extracted from the uploaded lesson resource.", error);
+          }
+
           onChange({
             ...block,
-            url: file.downloadUrl,
+            url: uploaded.downloadUrl,
             metadata: {
               ...block.metadata,
-              fileName: file.fileName,
-              filePath: file.filePath,
-              contentType: file.contentType,
-              size: file.size,
+              fileName: uploaded.fileName,
+              filePath: uploaded.filePath,
+              contentType: uploaded.contentType,
+              size: uploaded.size,
+              ...(extractedText ? { extractedText } : {}),
             },
-          })
-        }
+          });
+        }}
       />
+
+      {block.url && block.type === "video" && (
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-black">
+          <video
+            src={block.url}
+            controls
+            preload="metadata"
+            className="aspect-video w-full bg-black"
+          >
+            Your browser does not support HTML5 video playback.
+          </video>
+        </div>
+      )}
 
       {block.url && block.type === "image" && (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -673,7 +734,13 @@ function ResourceUploadBlock({
         </div>
       )}
 
-      {block.url && block.type !== "image" && (
+      {Boolean(block.metadata?.extractedText) && (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+          Readable text captured from this resource and available to AI for SMART objectives and lesson-question generation.
+        </p>
+      )}
+
+      {block.url && block.type !== "image" && block.type !== "video" && (
         <a
           href={block.url}
           target="_blank"

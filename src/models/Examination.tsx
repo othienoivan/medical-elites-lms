@@ -1,6 +1,6 @@
 export type ExaminationStatus = "draft" | "published" | "archived";
 export type ExaminationType = "cat" | "midterm" | "final" | "mock" | "supplementary" | "osce" | "practical";
-export type ExaminationTemplate = "institutional" | "uaheb" | "nche" | "university";
+export type ExaminationTemplate = "uhpab" | "institutional" | "nche" | "university";
 
 export type ExaminationSectionType =
   | "mcq" | "true-false" | "short-answer" | "structured" | "essay"
@@ -63,8 +63,10 @@ export interface Examination {
   versionLabel?: string;
   sourceExaminationId?: string;
   status: ExaminationStatus;
+  ownerUserId?: string;
   createdBy?: string;
   createdByUid?: string;
+  assignedTutorIds?: string[];
   institutionId?: string;
   createdAt?: Date;
   updatedAt?: Date;

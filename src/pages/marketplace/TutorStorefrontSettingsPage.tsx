@@ -5,6 +5,8 @@ import TutorLayout from "../../components/layout/TutorLayout";
 import useAuth from "../../hooks/useAuth";
 import { MarketplaceService, normalizeMarketplaceSlug, type SellerProfile } from "../../domains/marketplace";
 
+import FileUpload from "../../components/upload/FileUpload";
+import { deleteFileFromStorage } from "../../firebase/storage";
 const PUBLIC_ORIGIN = "https://medicalelites.org";
 
 function csv(value?: string[]) { return (value ?? []).join(", "); }
@@ -42,7 +44,7 @@ export default function TutorStorefrontSettingsPage() {
   }, [currentUser]);
 
   const storePath = useMemo(() => currentUser ? `/store/${currentUser.uid}` : "", [currentUser]);
-  if (!profile) return <TutorLayout title="Storefront" subtitle="Loading your public tutor store…"><div className="rounded-2xl border bg-white p-8">Loading…</div></TutorLayout>;
+  if (!profile) return <TutorLayout title="Storefront" subtitle="Loading your public tutor storeÃ¢â‚¬Â¦"><div className="rounded-2xl border bg-white p-8">LoadingÃ¢â‚¬Â¦</div></TutorLayout>;
 
   const update = (key: keyof SellerProfile, value: unknown) => setProfile((current) => current ? { ...current, [key]: value } : current);
   const save = async () => {
@@ -71,7 +73,7 @@ export default function TutorStorefrontSettingsPage() {
           <div className="flex items-center gap-2"><Store className="text-cyan-700"/><h3 className="text-lg font-black">Identity & profile</h3></div>
           <label className="block text-sm font-bold">Display name<input className="mt-1 w-full rounded-xl border p-3 font-normal" value={profile.displayName} onChange={(e)=>update("displayName",e.target.value)}/></label>
           <label className="block text-sm font-bold">Store URL slug<div className="mt-1 flex rounded-xl border bg-white"><span className="self-center pl-3 text-sm text-slate-500">/store/</span><input className="min-w-0 flex-1 rounded-xl p-3 outline-none" value={profile.slug ?? ""} onChange={(e)=>update("slug",normalizeMarketplaceSlug(e.target.value))}/></div></label>
-          <label className="block text-sm font-bold">Professional headline<input className="mt-1 w-full rounded-xl border p-3 font-normal" placeholder="Clinical Medicine Tutor · Pharmacology Educator" value={profile.headline ?? ""} onChange={(e)=>update("headline",e.target.value)}/></label>
+          <label className="block text-sm font-bold">Professional headline<input className="mt-1 w-full rounded-xl border p-3 font-normal" placeholder="Clinical Medicine Tutor Ã‚Â· Pharmacology Educator" value={profile.headline ?? ""} onChange={(e)=>update("headline",e.target.value)}/></label>
           <label className="block text-sm font-bold">Biography<textarea rows={5} className="mt-1 w-full rounded-xl border p-3 font-normal" value={profile.bio} onChange={(e)=>update("bio",e.target.value)}/></label>
           <label className="block text-sm font-bold">Qualifications<input className="mt-1 w-full rounded-xl border p-3 font-normal" value={profile.qualifications ?? ""} onChange={(e)=>update("qualifications",e.target.value)}/></label>
           <label className="block text-sm font-bold">Institution<input className="mt-1 w-full rounded-xl border p-3 font-normal" value={profile.institutionName ?? ""} onChange={(e)=>update("institutionName",e.target.value)}/></label>
@@ -81,17 +83,120 @@ export default function TutorStorefrontSettingsPage() {
 
         <section className="space-y-4 rounded-2xl border bg-white p-6">
           <h3 className="text-lg font-black">Branding & contact</h3>
-          <label className="block text-sm font-bold">Profile photo URL<input className="mt-1 w-full rounded-xl border p-3 font-normal" value={profile.photoUrl ?? ""} onChange={(e)=>update("photoUrl",e.target.value)}/></label>
-          <label className="block text-sm font-bold">Banner image URL<input className="mt-1 w-full rounded-xl border p-3 font-normal" value={profile.bannerUrl ?? ""} onChange={(e)=>update("bannerUrl",e.target.value)}/></label>
+          <div>
+  <span className="mb-2 block text-sm font-bold">Storefront profile photo</span>
+
+  {profile.photoUrl && (
+    <div className="mb-3 flex items-center gap-4 rounded-2xl border bg-slate-50 p-4">
+      <img
+        src={profile.photoUrl}
+        alt={profile.displayName}
+        className="h-24 w-24 rounded-2xl object-cover"
+      />
+      <button
+        type="button"
+        className="text-sm font-bold text-red-600"
+        onClick={() => {
+          const previousPath = profile.photoPath;
+
+          update("photoUrl", undefined);
+          update("photoPath", undefined);
+
+          if (previousPath) {
+            void deleteFileFromStorage(previousPath).catch((error) =>
+              console.warn("Storefront photo could not be deleted.", error),
+            );
+          }
+        }}
+      >
+        Remove photo
+      </button>
+    </div>
+  )}
+
+  <FileUpload
+    folder="images"
+    accept="image/jpeg,image/png,image/webp"
+    label={profile.photoUrl ? "Replace Storefront Photo" : "Upload Storefront Photo"}
+    customMetadata={{ imagePurpose: "storefront-photo" }}
+    onUploaded={(file) => {
+      const previousPath = profile.photoPath;
+
+      update("photoUrl", file.downloadUrl);
+      update("photoPath", file.filePath);
+
+      if (previousPath && previousPath !== file.filePath) {
+        void deleteFileFromStorage(previousPath).catch((error) =>
+          console.warn("Old storefront photo could not be deleted.", error),
+        );
+      }
+    }}
+  />
+</div>
+          <div>
+  <span className="mb-2 block text-sm font-bold">Storefront banner</span>
+
+  {profile.bannerUrl && (
+    <div className="mb-3 overflow-hidden rounded-2xl border bg-slate-50">
+      <img
+        src={profile.bannerUrl}
+        alt="Storefront banner"
+        className="aspect-[16/5] w-full object-cover"
+      />
+      <div className="p-3">
+        <button
+          type="button"
+          className="text-sm font-bold text-red-600"
+          onClick={() => {
+          const previousPath = profile.bannerPath;
+
+          update("bannerUrl", undefined);
+          update("bannerPath", undefined);
+
+          if (previousPath) {
+            void deleteFileFromStorage(previousPath).catch((error) =>
+              console.warn("Storefront banner could not be deleted.", error),
+            );
+          }
+        }}
+        >
+          Remove banner
+        </button>
+      </div>
+    </div>
+  )}
+
+  <FileUpload
+    folder="images"
+    accept="image/jpeg,image/png,image/webp"
+    label={profile.bannerUrl ? "Replace Banner" : "Upload Banner"}
+    customMetadata={{ imagePurpose: "storefront-banner" }}
+    onUploaded={(file) => {
+      const previousPath = profile.bannerPath;
+
+      update("bannerUrl", file.downloadUrl);
+      update("bannerPath", file.filePath);
+
+      if (previousPath && previousPath !== file.filePath) {
+        void deleteFileFromStorage(previousPath).catch((error) =>
+          console.warn("Old storefront banner could not be deleted.", error),
+        );
+      }
+    }}
+  />
+</div>
           <label className="block text-sm font-bold">Welcome message<textarea rows={3} className="mt-1 w-full rounded-xl border p-3 font-normal" value={profile.welcomeMessage ?? ""} onChange={(e)=>update("welcomeMessage",e.target.value)}/></label>
           <label className="block text-sm font-bold">Public contact email<input type="email" className="mt-1 w-full rounded-xl border p-3 font-normal" value={profile.contactEmail ?? ""} onChange={(e)=>update("contactEmail",e.target.value)}/></label>
-          <label className="block text-sm font-bold">WhatsApp number<input className="mt-1 w-full rounded-xl border p-3 font-normal" placeholder="+256…" value={profile.whatsappNumber ?? ""} onChange={(e)=>update("whatsappNumber",e.target.value)}/></label>
+          <label className="block text-sm font-bold">WhatsApp number<input className="mt-1 w-full rounded-xl border p-3 font-normal" placeholder="+256Ã¢â‚¬Â¦" value={profile.whatsappNumber ?? ""} onChange={(e)=>update("whatsappNumber",e.target.value)}/></label>
           <label className="block text-sm font-bold">Website<input className="mt-1 w-full rounded-xl border p-3 font-normal" value={profile.websiteUrl ?? ""} onChange={(e)=>update("websiteUrl",e.target.value)}/></label>
           <label className="block text-sm font-bold">Teaching experience (years)<input type="number" min="0" className="mt-1 w-full rounded-xl border p-3 font-normal" value={profile.teachingExperienceYears ?? ""} onChange={(e)=>update("teachingExperienceYears",e.target.value ? Number(e.target.value) : undefined)}/></label>
         </section>
       </div>
       {message && <p className="rounded-xl border bg-white p-4 font-bold text-slate-700">{message}</p>}
-      <button type="button" disabled={saving} onClick={()=>void save()} className="inline-flex items-center gap-2 rounded-xl bg-cyan-700 px-5 py-3 font-bold text-white disabled:opacity-60"><Save size={18}/>{saving ? "Saving…" : "Save storefront"}</button>
+      <button type="button" disabled={saving} onClick={()=>void save()} className="inline-flex items-center gap-2 rounded-xl bg-cyan-700 px-5 py-3 font-bold text-white disabled:opacity-60"><Save size={18}/>{saving ? "SavingÃ¢â‚¬Â¦" : "Save storefront"}</button>
     </div>
   </TutorLayout>;
 }
+
+
+
