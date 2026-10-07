@@ -40,6 +40,9 @@ const DashboardPage = lazy(() => import("../pages/DashboardPage"));
 const MyCoursesPage = lazy(() => import("../pages/MyCoursesPage"));
 const RegisterStudentPage = lazy(() => import("../pages/RegisterStudentPage"));
 const StudentAssessmentPage = lazy(() => import("../pages/StudentAssessmentPage"));
+const LiveClassesPage = lazy(() => import("../pages/LiveClassesPage"));
+const LiveClassRoomPage = lazy(() => import("../pages/LiveClassRoomPage"));
+const OpenLiveClassPage = lazy(() => import("../pages/OpenLiveClassPage"));
 const AssessmentEntryPage = lazy(() => import("../pages/AssessmentEntryPage"));
 const TakeQuizPage = lazy(() => import("../pages/TakeQuizPage"));
 const AssessmentHistoryPage = lazy(() => import("../pages/AssessmentHistoryPage"));
@@ -267,6 +270,7 @@ export default function AppRouter() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/join/:code" element={<JoinPage />} />
+        <Route path="/open-live/:shareToken" element={<OpenLiveClassPage />} />
         <Route path="/about" element={<PublicPageShell><AboutPage /></PublicPageShell>} />
         <Route path="/privacy" element={<PublicPageShell><PrivacyPolicyPage /></PublicPageShell>} />
         <Route path="/terms" element={<PublicPageShell><TermsPage /></PublicPageShell>} />
@@ -408,6 +412,8 @@ export default function AppRouter() {
             </ProtectedRoute>
           }
         />
+        <Route path="/live-classes" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><LiveClassesPage /></ProtectedRoute>} />
+        <Route path="/live-classes/:sessionId" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><LiveClassRoomPage /></ProtectedRoute>} />
         <Route
           path="/timetable"
           element={
@@ -848,6 +854,7 @@ export default function AppRouter() {
           }
         />
 
+        <Route path="/tutor/live-classes" element={<ProtectedRoute allowedRoles={ADMIN_OPERATION_ROLES}><LiveClassesPage /></ProtectedRoute>} />
         <Route
           path="/tutor/timetable"
           element={

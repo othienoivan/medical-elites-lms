@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateTenantStatus = exports.updateTenantProfile = exports.createTenant = exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.aiMarkEssayAttempt = exports.completeLessonLearning = exports.getLessonModuleProgress = exports.submitQuizAttempt = exports.getStudentPostQuizDestination = exports.requestStudentQuizReattempt = exports.grantStudentLearningProgressionOverride = exports.permanentlyDeleteQuizTrusted = exports.permanentlyDeleteQuestionTrusted = exports.createAiExaminationQuestionsTrusted = exports.grantStudentQuizReattempt = exports.getStudentQuizAttemptUsage = exports.getTutorMarketplaceAnalytics = exports.reconcileTutorMarketplaceRevenue = exports.getTutorAssessmentAttempt = exports.saveTutorAssessmentMarking = exports.getTutorAssessmentAttempts = exports.getTutorQuizAnalytics = exports.getLessonResourceAccessUrl = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.validateMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.cancelTutorSubscriptionAtPeriodEnd = exports.refreshTutorSubscriptionLifecycle = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.completeFinanceWithdrawal = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = exports.removeTutorFromInstitution = exports.setInstitutionTutorAccess = exports.getInstitutionTutorMemberships = void 0;
-exports.decideMarketplaceProductApproval = exports.reviewMarketplaceCourseUnitForApproval = exports.cancelStorageUploadReservation = exports.reserveStorageUpload = exports.onStorageObjectDeleted = exports.onStorageObjectFinalized = exports.getStudentAssessmentPackage = exports.getPublishedModuleLessonsV2 = exports.getTutorRegistrationLinkStudents = exports.claimRegistrationLinkTrusted = exports.listSubscriptionPlansTrusted = exports.getPlatformOverviewSnapshot = exports.notifyStudentsWhenLessonPublished = exports.getPublicCourseCatalogueSnapshotV2 = exports.getPublishedCourseModulesV2 = exports.getTutorEnrollmentCourseUnits = exports.resolveTenantWorkspaceTrusted = exports.updateOwnStudentProfile = exports.updateOwnTutorProfile = exports.synchronizeStudentIdentity = exports.getStudentLearningOverview = exports.getPublicCourseCatalogueSnapshot = exports.refreshMarketplaceLearningAccess = exports.updateTenantSubscriptionStatus = exports.assignTenantSubscription = exports.saveSubscriptionPlan = exports.assignTenantOwner = void 0;
+exports.updateTenantProfile = exports.createTenant = exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.aiMarkEssayAttempt = exports.completeLessonLearning = exports.getLessonModuleProgress = exports.submitQuizAttempt = exports.getStudentPostQuizDestination = exports.requestStudentQuizReattempt = exports.grantStudentLearningProgressionOverride = exports.permanentlyDeleteQuizTrusted = exports.permanentlyDeleteQuestionTrusted = exports.createAiExaminationQuestionsTrusted = exports.grantStudentQuizReattempt = exports.getStudentQuizAttemptUsage = exports.getTutorMarketplaceAnalytics = exports.reconcileTutorMarketplaceRevenue = exports.getStudentAssessmentAttemptReview = exports.getTutorAssessmentAttempt = exports.saveTutorAssessmentMarking = exports.getTutorAssessmentAttempts = exports.getTutorQuizAnalytics = exports.getLessonResourceAccessUrl = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.validateMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.cancelTutorSubscriptionAtPeriodEnd = exports.refreshTutorSubscriptionLifecycle = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.completeFinanceWithdrawal = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = exports.removeTutorFromInstitution = exports.setInstitutionTutorAccess = exports.getInstitutionTutorMemberships = void 0;
+exports.getLiveClassRoster = exports.updateLiveClassPresence = exports.updateOpenLiveClassPresence = exports.joinOpenLiveClass = exports.getOpenLiveClass = exports.joinLiveClass = exports.manageLiveClass = exports.listLiveClasses = exports.saveLiveClass = exports.decideMarketplaceProductApproval = exports.reviewMarketplaceCourseUnitForApproval = exports.cancelStorageUploadReservation = exports.reserveStorageUpload = exports.onStorageObjectDeleted = exports.onStorageObjectFinalized = exports.getStudentAssessmentPackage = exports.getPublishedModuleLessonsV2 = exports.getTutorRegistrationLinkStudents = exports.claimRegistrationLinkTrusted = exports.listSubscriptionPlansTrusted = exports.getPlatformOverviewSnapshot = exports.notifyStudentsWhenAssignmentPublished = exports.notifyStudentsWhenExaminationPublished = exports.notifyStudentsWhenAssessmentPublished = exports.notifyStudentsWhenLessonPublished = exports.getPublicCourseCatalogueSnapshotV2 = exports.getPublishedCourseModulesV2 = exports.getTutorEnrollmentCourseUnits = exports.resolveTenantWorkspaceTrusted = exports.updateOwnStudentProfile = exports.updateOwnTutorProfile = exports.synchronizeStudentIdentity = exports.getStudentLearningOverview = exports.getPublicCourseCatalogueSnapshot = exports.refreshMarketplaceLearningAccess = exports.updateTenantSubscriptionStatus = exports.assignTenantSubscription = exports.saveSubscriptionPlan = exports.assignTenantOwner = exports.updateTenantStatus = void 0;
 const app_1 = require("firebase-admin/app");
 const auth_1 = require("firebase-admin/auth");
 const storage_1 = require("firebase-admin/storage");
@@ -17,7 +17,13 @@ Object.defineProperty(exports, "setInstitutionTutorAccess", { enumerable: true, 
 Object.defineProperty(exports, "removeTutorFromInstitution", { enumerable: true, get: function () { return institutionTutors_1.removeTutorFromInstitution; } });
 (0, app_1.initializeApp)();
 const OPENAI_API_KEY = (0, params_1.defineSecret)("OPENAI_API_KEY");
+const DAILY_API_KEY = (0, params_1.defineSecret)("DAILY_API_KEY");
 const db = (0, firestore_1.getFirestore)();
+const LIVE_CLASS_CORS = [
+    /^https:\/\/medical-elites-lms\.web\.app$/,
+    /^https:\/\/(www\.)?medicalelites\.org$/,
+    /^http:\/\/localhost(:\d+)?$/,
+];
 const allowedModes = new Set([
     "student_explain",
     "student_summarize",
@@ -2150,6 +2156,53 @@ exports.getTutorAssessmentAttempt = (0, https_1.onCall)({ region: "us-central1",
     const passMark = Math.max(0, Math.min(100, finiteNumber(quiz?.get("passMark"), finiteNumber(attempt.get("passMarkAtSubmission"), 50))));
     return { attempt: { ...serializeTutorAttempt(attempt), passMark, questionSnapshots } };
 });
+/** Student-safe review package with full question snapshots. Correct/model answers
+ * are exposed immediately only when the tutor enabled instant feedback; tutor
+ * marking comments remain hidden until results are formally released. */
+exports.getStudentAssessmentAttemptReview = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60 }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const uid = request.auth.uid;
+    const data = (request.data ?? {});
+    const attemptId = financeText(data.attemptId, 180);
+    if (!attemptId)
+        throw new https_1.HttpsError("invalid-argument", "Attempt ID is required.");
+    const profile = await db.collection("users").doc(uid).get();
+    if (!profile.exists || profile.get("role") !== "student" || profile.get("isActive") === false) {
+        throw new https_1.HttpsError("permission-denied", "Student access is required.");
+    }
+    const attempt = await db.collection("quizAttempts").doc(attemptId).get();
+    if (!attempt.exists)
+        throw new https_1.HttpsError("not-found", "Attempt not found.");
+    if (financeText(attempt.get("studentId"), 180) !== uid) {
+        throw new https_1.HttpsError("permission-denied", "This attempt does not belong to you.");
+    }
+    const quizId = financeText(attempt.get("quizId"), 180);
+    const quiz = quizId ? await db.collection("quizzes").doc(quizId).get() : null;
+    if (!quiz?.exists)
+        throw new https_1.HttpsError("not-found", "Quiz not found for this attempt.");
+    const released = attempt.get("released") === true;
+    const instantFeedback = quiz.get("showFeedbackImmediately") !== false
+        || attempt.get("showFeedbackImmediatelyAtSubmission") === true;
+    const canReviewAnswers = released || instantFeedback;
+    const questionSnapshots = await loadTutorQuizQuestionSnapshots(quiz.data() ?? {});
+    const safeSnapshots = canReviewAnswers ? questionSnapshots : questionSnapshots.map((item) => ({
+        ...item, correctAnswer: undefined, explanation: undefined,
+    }));
+    const serialized = serializeTutorAttempt(attempt);
+    if (!released) {
+        serialized.manualMarks = [];
+        serialized.tutorRemarks = "";
+    }
+    return {
+        attempt: {
+            ...serialized,
+            questionSnapshots: safeSnapshots,
+            reviewAvailable: canReviewAnswers,
+            tutorFeedbackAvailable: released,
+        },
+    };
+});
 exports.reconcileTutorMarketplaceRevenue = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 120 }, async (request) => {
     if (!request.auth)
         throw new https_1.HttpsError("unauthenticated", "Please sign in.");
@@ -2291,13 +2344,22 @@ exports.getStudentQuizAttemptUsage = (0, https_1.onCall)({ region: "us-central1"
     const configuredAttempts = Math.max(1, Math.floor(finiteNumber(quiz.get("attemptsAllowed"), 1)));
     const allowance = await resolveQuizAttemptAllowance(uid, quizId, configuredAttempts);
     const attempts = await db.collection("quizAttempts").where("studentId", "==", uid).where("quizId", "==", quizId).get();
-    const attemptsUsed = attempts.docs.filter((item) => item.get("completed") !== false).length;
+    const completedAttempts = attempts.docs.filter((item) => item.get("completed") !== false);
+    const attemptsUsed = completedAttempts.length;
+    const passMark = Math.max(0, Math.min(100, finiteNumber(quiz.get("passMark"), 50)));
+    const hasPassed = completedAttempts.some((item) => finiteNumber(item.get("finalPercentage") ?? item.get("percentage"), 0) >= passMark);
+    const masteryRetakesEnabled = quiz.get("allowRetakesUntilPass") === true && quiz.get("requiresPassForProgression") !== false;
+    const effectiveMaximum = masteryRetakesEnabled && !hasPassed
+        ? Math.max(allowance.maximumAttempts, attemptsUsed + 1)
+        : allowance.maximumAttempts;
     return {
         attemptsUsed,
-        maximumAttempts: allowance.maximumAttempts,
+        maximumAttempts: effectiveMaximum,
         baseAttempts: allowance.baseAttempts,
         extraAttemptsGranted: allowance.extraAttemptsGranted,
-        attemptsRemaining: Math.max(allowance.maximumAttempts - attemptsUsed, 0),
+        attemptsRemaining: masteryRetakesEnabled && !hasPassed ? 1 : Math.max(effectiveMaximum - attemptsUsed, 0),
+        masteryRetakesEnabled,
+        hasPassed,
     };
 });
 /** Tutor-only grant of additional attempts to one learner for one assessment. */
@@ -2721,11 +2783,16 @@ exports.getStudentPostQuizDestination = (0, https_1.onCall)({ region: "us-centra
     if (!quiz.exists)
         throw new https_1.HttpsError("not-found", "Assessment not found.");
     const passMark = Math.max(0, Math.min(100, finiteNumber(quiz.get("passMark"), 50)));
+    const requiresPassForProgression = quiz.get("requiresPassForProgression") !== false;
     const attempts = await db.collection("quizAttempts").where("studentId", "==", uid).where("quizId", "==", quizId).get();
-    const hasPassed = attempts.docs.some((item) => item.get("completed") !== false
-        && finiteNumber(item.get("finalPercentage") ?? item.get("percentage"), 0) >= passMark);
-    if (!hasPassed)
+    const completedAttempts = attempts.docs.filter((item) => item.get("completed") !== false);
+    const hasPassed = completedAttempts.some((item) => finiteNumber(item.get("finalPercentage") ?? item.get("percentage"), 0) >= passMark);
+    if (requiresPassForProgression && !hasPassed) {
         throw new https_1.HttpsError("failed-precondition", "The pass mark has not yet been attained.");
+    }
+    if (!requiresPassForProgression && completedAttempts.length === 0) {
+        throw new https_1.HttpsError("failed-precondition", "Complete the assessment before continuing.");
+    }
     const moduleId = financeText(quiz.get("moduleId"), 180);
     const lessonId = financeText(quiz.get("lessonId"), 180);
     const courseUnitId = financeText(quiz.get("courseUnitId"), 180);
@@ -2798,20 +2865,30 @@ exports.submitQuizAttempt = (0, https_1.onCall)({ region: "us-central1", timeout
         const extraAttemptsGranted = grantSnapshot.exists
             ? Math.max(0, Math.floor(finiteNumber(grantSnapshot.get("extraAttemptsGranted"), 0)))
             : 0;
-        const maximumAttempts = Math.max(configuredAttempts, 1) + extraAttemptsGranted;
+        const baseMaximumAttempts = Math.max(configuredAttempts, 1) + extraAttemptsGranted;
         const attemptsSnapshot = await transaction.get(db.collection("quizAttempts")
             .where("studentId", "==", uid)
             .where("quizId", "==", quizId));
-        const existingAttempts = attemptsSnapshot.docs.filter((item) => {
+        const completedAttemptDocs = attemptsSnapshot.docs.filter((item) => {
             const attempt = item.data();
             return attempt.completed !== false;
-        }).length;
+        });
+        const existingAttempts = completedAttemptDocs.length;
+        const passMarkForMastery = Math.max(0, Math.min(100, finiteNumber(quiz.passMark, 50)));
+        const masteryRetakesEnabled = quiz.allowRetakesUntilPass === true && quiz.requiresPassForProgression !== false;
+        const alreadyPassed = completedAttemptDocs.some((item) => finiteNumber(item.get("finalPercentage") ?? item.get("percentage"), 0) >= passMarkForMastery);
+        const maximumAttempts = masteryRetakesEnabled && !alreadyPassed
+            ? Math.max(baseMaximumAttempts, existingAttempts + 1)
+            : baseMaximumAttempts;
         const counterSnapshot = await transaction.get(counterRef);
         const counterUsed = counterSnapshot.exists
             ? Math.max(0, Math.floor(finiteNumber(counterSnapshot.get("attemptsUsed"), 0)))
             : 0;
         const attemptsUsed = Math.max(existingAttempts, counterUsed);
-        if (attemptsUsed >= maximumAttempts) {
+        if (masteryRetakesEnabled && alreadyPassed) {
+            throw new https_1.HttpsError("failed-precondition", "You have already attained the required pass mark for this quiz.");
+        }
+        if (!masteryRetakesEnabled && attemptsUsed >= maximumAttempts) {
             throw new https_1.HttpsError("resource-exhausted", "You have used all the attempts allowed for this quiz.");
         }
         const nextUsed = attemptsUsed + 1;
@@ -2919,6 +2996,7 @@ exports.submitQuizAttempt = (0, https_1.onCall)({ region: "us-central1", timeout
             tutorRemarks: "",
             released: false,
             releasedAt: null,
+            showFeedbackImmediatelyAtSubmission: quiz.showFeedbackImmediately !== false,
             createdAt: firestore_1.FieldValue.serverTimestamp(),
             updatedAt: firestore_1.FieldValue.serverTimestamp(),
         });
@@ -2950,8 +3028,10 @@ exports.submitQuizAttempt = (0, https_1.onCall)({ region: "us-central1", timeout
         return {
             attemptId: attemptRef.id,
             attemptsUsed: nextUsed,
-            maximumAttempts,
-            attemptsRemaining: Math.max(maximumAttempts - nextUsed, 0),
+            maximumAttempts: masteryRetakesEnabled && !passed ? Math.max(maximumAttempts, nextUsed + 1) : maximumAttempts,
+            attemptsRemaining: masteryRetakesEnabled && !passed ? 1 : Math.max(maximumAttempts - nextUsed, 0),
+            masteryRetakesEnabled,
+            hasPassed: passed,
         };
     });
 });
@@ -4423,21 +4503,9 @@ exports.getPublicCourseCatalogueSnapshotV2 = (0, https_1.onCall)({ region: "us-c
     }));
     return { courseUnits: rows.filter((row) => row !== null), version: "v2" };
 });
-/** Notify active learners whenever any tutor publishing workflow transitions a lesson to published. */
-exports.notifyStudentsWhenLessonPublished = (0, firestore_2.onDocumentUpdated)({ document: "lessons/{lessonId}", region: "us-central1", memory: "512MiB", timeoutSeconds: 120 }, async (event) => {
-    const before = event.data?.before.data();
-    const after = event.data?.after.data();
-    if (!after)
-        return;
-    const wasPublished = before ? isPublishedAcademicRecord(before) : false;
-    const isPublished = isPublishedAcademicRecord(after);
-    if (wasPublished || !isPublished)
-        return;
-    const lessonId = String(event.params.lessonId);
-    const courseId = financeText(after.courseUnitId ?? after.courseId, 180);
-    if (!courseId)
-        return;
+async function collectSubscribedLearnerUids(courseId) {
     const recipients = new Set();
+    const linkedStudentIds = new Set();
     const queries = await Promise.allSettled([
         db.collection("enrollments").where("courseUnitId", "==", courseId).get(),
         db.collection("enrollments").where("courseId", "==", courseId).get(),
@@ -4457,27 +4525,81 @@ exports.notifyStudentsWhenLessonPublished = (0, firestore_2.onDocumentUpdated)({
             }
             if (index === 3 && String(row.status ?? "active").toLowerCase() !== "active")
                 return;
-            const uid = financeText(row.studentAuthUid ?? row.userId ?? row.customerUid ?? row.authUid ?? row.studentId ?? item.id, 180);
+            const uid = financeText(row.studentAuthUid ?? row.userId ?? row.customerUid ?? row.authUid, 180);
+            if (uid)
+                recipients.add(uid);
+            const studentId = financeText(row.studentId, 180);
+            if (!uid && studentId)
+                linkedStudentIds.add(studentId);
+            if (index === 4)
+                recipients.add(item.id);
+        });
+    });
+    if (linkedStudentIds.size > 0) {
+        const studentDocs = await Promise.all([...linkedStudentIds].map((studentId) => db.collection("students").doc(studentId).get()));
+        studentDocs.forEach((student) => {
+            if (!student.exists)
+                return;
+            const uid = financeText(student.get("authUid") ?? student.get("studentAuthUid") ?? student.get("userId"), 180);
             if (uid)
                 recipients.add(uid);
         });
-    });
-    const title = financeText(after.title, 180) || "New lesson available";
+    }
+    return recipients;
+}
+async function learnerAllowsInAppNotification(uid, notificationType) {
+    const [userSnapshot, preferenceSnapshot] = await Promise.all([
+        db.collection("users").doc(uid).get(),
+        db.collection("notificationPreferences").doc(uid).get(),
+    ]);
+    if (userSnapshot.exists && userSnapshot.get("isActive") === false)
+        return false;
+    if (!preferenceSnapshot.exists)
+        return true;
+    const categories = (preferenceSnapshot.data()?.categories ?? {});
+    const preferenceCategory = categories[notificationType];
+    return preferenceCategory?.inApp !== false;
+}
+async function deliverAcademicPublication(input) {
+    const { before, after, recordId, kind } = input;
+    if (!after)
+        return;
+    const wasPublished = before ? isPublishedAcademicRecord(before) : false;
+    const isPublished = isPublishedAcademicRecord(after);
+    if (wasPublished || !isPublished)
+        return;
+    const courseId = financeText(after.courseUnitId ?? after.courseId, 180);
+    if (!courseId)
+        return;
+    const recipients = await collectSubscribedLearnerUids(courseId);
+    if (recipients.size === 0)
+        return;
+    const title = financeText(after.title ?? after.name ?? after.examinationName, 180) || `New ${kind}`;
     const courseTitle = financeText(after.courseUnitTitle ?? after.courseTitle, 180) || "your course unit";
+    const notificationType = kind === "lesson" ? "academic" : "assessment";
+    const kindLabel = kind === "assessment" ? "assessment" : kind;
+    const link = kind === "lesson" ? `/courses/${encodeURIComponent(courseId)}` : "/assessments";
+    const subject = `New ${kindLabel}: ${title}`.slice(0, 160);
+    const body = `${title} has been published in ${courseTitle}. Sign in to Medical Elites to view it.`.slice(0, 2000);
     const recipientList = [...recipients];
-    for (let start = 0; start < recipientList.length; start += 400) {
+    const eligible = [];
+    for (let start = 0; start < recipientList.length; start += 50) {
+        const checks = await Promise.all(recipientList.slice(start, start + 50).map(async (uid) => ({ uid, allowed: await learnerAllowsInAppNotification(uid, notificationType) })));
+        eligible.push(...checks.filter((item) => item.allowed).map((item) => item.uid));
+    }
+    for (let start = 0; start < eligible.length; start += 400) {
         const batch = db.batch();
-        recipientList.slice(start, start + 400).forEach((uid) => {
-            const ref = db.collection("notifications").doc(`lesson_${lessonId}_${uid}`);
+        eligible.slice(start, start + 400).forEach((uid) => {
+            const ref = db.collection("notifications").doc(`${kind}_${recordId}_${uid}`);
             batch.set(ref, {
                 createdByUid: financeText(after.ownerUserId ?? after.createdByUid ?? after.createdBy, 180) || "system",
                 userUid: uid,
-                title: `New lesson: ${title}`.slice(0, 160),
-                body: `${title} has been published in ${courseTitle}. Open the course unit to continue learning.`.slice(0, 2000),
-                type: "academic",
+                title: subject,
+                body,
+                type: notificationType,
                 priority: "normal",
-                link: `/courses/${encodeURIComponent(courseId)}`,
-                eventKey: `lesson-published:${lessonId}`,
+                link,
+                eventKey: `${kind}-published:${recordId}`,
                 isRead: false,
                 isPinned: false,
                 isArchived: false,
@@ -4488,7 +4610,42 @@ exports.notifyStudentsWhenLessonPublished = (0, firestore_2.onDocumentUpdated)({
         });
         await batch.commit();
     }
-});
+    await db.collection("notificationDeliveries").doc(`${kind}_${recordId}`).set({
+        eventKey: `${kind}-published:${recordId}`,
+        kind,
+        recordId,
+        courseUnitId: courseId,
+        recipientCount: recipientList.length,
+        inAppEligible: eligible.length,
+        inAppCreated: eligible.length,
+        deliveryChannels: ["firebase_in_app"],
+        deliveredAt: firestore_1.FieldValue.serverTimestamp(),
+    }, { merge: true });
+}
+exports.notifyStudentsWhenLessonPublished = (0, firestore_2.onDocumentWritten)({ document: "lessons/{recordId}", region: "us-central1", memory: "512MiB", timeoutSeconds: 540 }, async (event) => deliverAcademicPublication({
+    before: event.data?.before.exists ? event.data.before.data() : undefined,
+    after: event.data?.after.exists ? event.data.after.data() : undefined,
+    recordId: String(event.params.recordId),
+    kind: "lesson",
+}));
+exports.notifyStudentsWhenAssessmentPublished = (0, firestore_2.onDocumentWritten)({ document: "quizzes/{recordId}", region: "us-central1", memory: "512MiB", timeoutSeconds: 540 }, async (event) => deliverAcademicPublication({
+    before: event.data?.before.exists ? event.data.before.data() : undefined,
+    after: event.data?.after.exists ? event.data.after.data() : undefined,
+    recordId: String(event.params.recordId),
+    kind: "assessment",
+}));
+exports.notifyStudentsWhenExaminationPublished = (0, firestore_2.onDocumentWritten)({ document: "examinations/{recordId}", region: "us-central1", memory: "512MiB", timeoutSeconds: 540 }, async (event) => deliverAcademicPublication({
+    before: event.data?.before.exists ? event.data.before.data() : undefined,
+    after: event.data?.after.exists ? event.data.after.data() : undefined,
+    recordId: String(event.params.recordId),
+    kind: "examination",
+}));
+exports.notifyStudentsWhenAssignmentPublished = (0, firestore_2.onDocumentWritten)({ document: "assignments/{recordId}", region: "us-central1", memory: "512MiB", timeoutSeconds: 540 }, async (event) => deliverAcademicPublication({
+    before: event.data?.before.exists ? event.data.before.data() : undefined,
+    after: event.data?.after.exists ? event.data.after.data() : undefined,
+    recordId: String(event.params.recordId),
+    kind: "assignment",
+}));
 function platformSafeDate(value) {
     if (!value)
         return null;
@@ -6082,5 +6239,377 @@ exports.decideMarketplaceProductApproval = (0, https_1.onCall)({
         createdAt: firestore_1.FieldValue.serverTimestamp(),
     });
     return { productId, status, action, overrodeAiDecision, reviewerUid: request.auth.uid, reviewerName };
+});
+function liveText(value, max = 400) {
+    return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+function liveDate(value, field) {
+    const date = new Date(liveText(value, 80));
+    if (!Number.isFinite(date.getTime()))
+        throw new https_1.HttpsError("invalid-argument", `${field} is invalid.`);
+    return date;
+}
+async function liveProfile(uid) {
+    const snap = await db.collection("users").doc(uid).get();
+    if (!snap.exists || snap.get("isActive") === false)
+        throw new https_1.HttpsError("permission-denied", "Your account is not active.");
+    return snap;
+}
+function liveName(profile, fallback) {
+    const composed = [profile.get("firstName"), profile.get("lastName")].map((value) => liveText(value, 80)).filter(Boolean).join(" ");
+    const resolved = liveText(profile.get("fullName") ?? profile.get("displayName") ?? profile.get("name") ?? composed, 160);
+    return resolved && !resolved.includes("@") ? resolved : fallback;
+}
+function liveInstitution(profile) {
+    return liveText(profile.get("institutionId") ?? profile.get("activeTenantId") ?? profile.get("tenantId"), 180);
+}
+async function notifyLiveClassStudents(courseUnitId, title, message, link) {
+    const recipients = [...await collectSubscribedLearnerUids(courseUnitId)];
+    for (let offset = 0; offset < recipients.length; offset += 450) {
+        const batch = db.batch();
+        recipients.slice(offset, offset + 450).forEach((uid) => {
+            const ref = db.collection("notifications").doc();
+            batch.set(ref, {
+                userUid: uid,
+                title,
+                body: message,
+                type: "academic",
+                priority: "high",
+                link,
+                eventKey: `live-class:${link}:${title}`,
+                isRead: false,
+                isPinned: false,
+                isArchived: false,
+                createdAt: firestore_1.FieldValue.serverTimestamp(),
+                readAt: null,
+                archivedAt: null,
+            });
+        });
+        await batch.commit();
+    }
+}
+async function dailyRequest(path, init) {
+    const response = await fetch(`https://api.daily.co/v1${path}`, {
+        ...init,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${DAILY_API_KEY.value()}`, ...(init.headers ?? {}) },
+    });
+    const body = await response.json();
+    if (!response.ok) {
+        console.error("Daily API error", response.status, body);
+        throw new https_1.HttpsError("internal", "The secure classroom provider could not complete this request.");
+    }
+    return body;
+}
+async function ensureLiveClassRoom(sessionId, data) {
+    let roomName = liveText(data.dailyRoomName, 180);
+    let roomUrl = liveText(data.dailyRoomUrl, 3000);
+    if (roomName && roomUrl)
+        return { roomName, roomUrl };
+    roomName = `medical-elites-${sessionId}`.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 120);
+    const endValue = data.endsAt;
+    const end = endValue instanceof Date ? endValue : endValue?.toDate?.() ?? new Date(Date.now() + 4 * 60 * 60_000);
+    const room = await dailyRequest("/rooms", { method: "POST", body: JSON.stringify({ name: roomName, privacy: "private", properties: { exp: Math.floor((end.getTime() + 60 * 60_000) / 1000), eject_at_room_exp: true, enable_chat: true, enable_screenshare: true, enable_prejoin_ui: false, enable_recording: "cloud", start_video_off: false } }) });
+    roomUrl = String(room.url ?? "");
+    return { roomName, roomUrl };
+}
+/** Creates or updates a scheduled class. Video-provider secrets never reach Firestore or the browser. */
+exports.saveLiveClass = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", cors: LIVE_CLASS_CORS, secrets: [DAILY_API_KEY], enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const profile = await liveProfile(request.auth.uid);
+    if (!["tutor", "admin"].includes(String(profile.get("role") ?? "")))
+        throw new https_1.HttpsError("permission-denied", "Only tutors can schedule live classes.");
+    const input = (request.data ?? {});
+    const title = liveText(input.title, 180);
+    const courseUnitId = liveText(input.courseUnitId, 180);
+    const startsAt = liveDate(input.startsAt, "Start time");
+    const endsAt = liveDate(input.endsAt, "End time");
+    if (!title || !courseUnitId)
+        throw new https_1.HttpsError("invalid-argument", "Title and course unit are required.");
+    if (endsAt <= startsAt)
+        throw new https_1.HttpsError("invalid-argument", "End time must be after the start time.");
+    const id = liveText(input.sessionId, 180) || db.collection("liveClasses").doc().id;
+    const ref = db.collection("liveClasses").doc(id);
+    const current = await ref.get();
+    if (current.exists && current.get("tutorUid") !== request.auth.uid && String(profile.get("role")) !== "admin")
+        throw new https_1.HttpsError("permission-denied", "You cannot edit this class.");
+    const earlyJoinMinutes = Math.min(240, Math.max(0, Number(input.earlyJoinMinutes) || 30));
+    const allowJoinBeforeTutor = input.allowJoinBeforeTutor !== false;
+    const room = current.exists && current.get("dailyRoomName") && current.get("dailyRoomUrl")
+        ? { roomName: String(current.get("dailyRoomName")), roomUrl: String(current.get("dailyRoomUrl")) }
+        : await ensureLiveClassRoom(id, { endsAt });
+    const openShareToken = current.exists && current.get("openShareToken")
+        ? String(current.get("openShareToken"))
+        : input.generateOpenLink === true ? (0, node_crypto_1.randomUUID)().replace(/-/g, "") : null;
+    const payload = {
+        title,
+        description: liveText(input.description, 4000),
+        courseUnitId,
+        courseUnitTitle: liveText(input.courseUnitTitle, 220),
+        startsAt,
+        endsAt,
+        tutorUid: current.exists ? current.get("tutorUid") : request.auth.uid,
+        tutorName: current.exists ? current.get("tutorName") : liveName(profile, "Tutor"),
+        institutionId: liveInstitution(profile) || null,
+        presentationName: liveText(input.presentationName, 260) || null,
+        presentationUrl: liveText(input.presentationUrl, 3000) || null,
+        presentationPath: liveText(input.presentationPath, 600) || null,
+        quizId: liveText(input.quizId, 180) || null,
+        quizTitle: liveText(input.quizTitle, 220) || null,
+        status: current.exists ? current.get("status") ?? "scheduled" : "scheduled",
+        dailyRoomName: room.roomName,
+        dailyRoomUrl: room.roomUrl,
+        allowJoinBeforeTutor,
+        earlyJoinMinutes,
+        openShareToken,
+        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        ...(current.exists ? {} : { createdAt: firestore_1.FieldValue.serverTimestamp() }),
+    };
+    await ref.set(payload, { merge: true });
+    if (openShareToken) {
+        await db.collection("liveClassLinks").doc(openShareToken).set({ sessionId: id, tutorUid: request.auth.uid, active: true, createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    }
+    if (!current.exists)
+        await notifyLiveClassStudents(courseUnitId, "New live class scheduled", `${title} has been scheduled.`, `/live-classes/${id}`);
+    return { sessionId: id, openShareToken };
+});
+exports.listLiveClasses = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 30, memory: "256MiB", cors: LIVE_CLASS_CORS, enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const profile = await liveProfile(request.auth.uid);
+    const role = String(profile.get("role") ?? "");
+    let sessionDocs;
+    if (role === "tutor")
+        sessionDocs = (await db.collection("liveClasses").where("tutorUid", "==", request.auth.uid).limit(200).get()).docs;
+    else if (role === "admin")
+        sessionDocs = (await db.collection("liveClasses").limit(300).get()).docs;
+    else {
+        const candidates = await db.collection("liveClasses").limit(300).get();
+        const courseIds = [...new Set(candidates.docs.map((doc) => liveText(doc.get("courseUnitId"), 180)).filter(Boolean))];
+        const access = new Map();
+        await Promise.all(courseIds.map(async (courseId) => access.set(courseId, await userHasCourseAccess(request.auth.uid, courseId))));
+        sessionDocs = candidates.docs.filter((doc) => access.get(liveText(doc.get("courseUnitId"), 180)) === true);
+    }
+    const canManage = role === "tutor" || role === "admin";
+    const tutorUids = [...new Set(sessionDocs.map((doc) => liveText(doc.get("tutorUid"), 180)).filter(Boolean))];
+    const tutorProfiles = await Promise.all(tutorUids.map((uid) => db.collection("users").doc(uid).get()));
+    const tutorNames = new Map(tutorProfiles.map((tutorProfile, index) => [tutorUids[index], tutorProfile.exists ? liveName(tutorProfile, "Tutor") : "Tutor"]));
+    const sessions = sessionDocs.map((doc) => {
+        const data = { ...doc.data() };
+        data.tutorName = tutorNames.get(liveText(data.tutorUid, 180)) ?? (liveText(data.tutorName, 160).includes("@") ? "Tutor" : liveText(data.tutorName, 160) || "Tutor");
+        if (!canManage) {
+            delete data.openShareToken;
+            delete data.dailyRoomName;
+            delete data.dailyRoomUrl;
+        }
+        return { id: doc.id, ...data, startsAt: doc.get("startsAt")?.toDate?.()?.toISOString?.() ?? null, endsAt: doc.get("endsAt")?.toDate?.()?.toISOString?.() ?? null };
+    }).sort((a, b) => String(b.startsAt).localeCompare(String(a.startsAt)));
+    return { sessions };
+});
+exports.manageLiveClass = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", cors: LIVE_CLASS_CORS, secrets: [DAILY_API_KEY], enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const profile = await liveProfile(request.auth.uid);
+    const input = (request.data ?? {});
+    const sessionId = liveText(input.sessionId, 180);
+    const action = liveText(input.action, 40);
+    const ref = db.collection("liveClasses").doc(sessionId);
+    const snap = await ref.get();
+    if (!snap.exists)
+        throw new https_1.HttpsError("not-found", "Live class not found.");
+    const data = snap.data() ?? {};
+    const owner = data.tutorUid === request.auth.uid || String(profile.get("role")) === "admin";
+    if (!owner)
+        throw new https_1.HttpsError("permission-denied", "Only the class tutor can use this control.");
+    if (action === "delete") {
+        const openShareToken = liveText(data.openShareToken, 180);
+        if (openShareToken)
+            await db.collection("liveClassLinks").doc(openShareToken).set({ active: false, revokedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+        await ref.delete();
+        return { deleted: true };
+    }
+    if (action === "create_open_link") {
+        const openShareToken = liveText(data.openShareToken, 180) || (0, node_crypto_1.randomUUID)().replace(/-/g, "");
+        await ref.set({ openShareToken, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+        await db.collection("liveClassLinks").doc(openShareToken).set({ sessionId, tutorUid: liveText(data.tutorUid, 180) || request.auth.uid, active: true, createdAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+        return { openShareToken };
+    }
+    if (action === "revoke_open_link") {
+        const openShareToken = liveText(data.openShareToken, 180);
+        if (openShareToken)
+            await db.collection("liveClassLinks").doc(openShareToken).set({ active: false, revokedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+        await ref.set({ openShareToken: null, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+        return { revoked: true };
+    }
+    if (action === "end") {
+        await ref.set({ status: "ended", endedAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+        return { status: "ended" };
+    }
+    if (action === "launch_test") {
+        const quizId = liveText(input.quizId, 180) || liveText(data.quizId, 180);
+        if (!quizId)
+            throw new https_1.HttpsError("failed-precondition", "Attach an assessment before launching a live test.");
+        const minutes = Math.min(240, Math.max(1, Number(input.testDurationMinutes) || 20));
+        const testEndsAt = new Date(Date.now() + minutes * 60_000);
+        await ref.set({ activeQuizId: quizId, activeQuizTitle: liveText(input.quizTitle, 220) || data.quizTitle || "Live test", testStartedAt: firestore_1.FieldValue.serverTimestamp(), testEndsAt, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+        await notifyLiveClassStudents(String(data.courseUnitId ?? ""), "Live test started", `${data.title}: your test is now available.`, `/live-classes/${sessionId}`);
+        return { activeQuizId: quizId, testEndsAt: testEndsAt.toISOString() };
+    }
+    if (action !== "start")
+        throw new https_1.HttpsError("invalid-argument", "Unknown live-class action.");
+    let roomName = liveText(data.dailyRoomName, 180);
+    let roomUrl = liveText(data.dailyRoomUrl, 3000);
+    if (!roomName || !roomUrl) {
+        roomName = `medical-elites-${sessionId}`.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 120);
+        const room = await ensureLiveClassRoom(sessionId, data);
+        roomName = room.roomName;
+        roomUrl = room.roomUrl;
+    }
+    await ref.set({ dailyRoomName: roomName, dailyRoomUrl: roomUrl, status: "live", startedAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    await notifyLiveClassStudents(String(data.courseUnitId ?? ""), "Live class has started", `${data.title} is live now.`, `/live-classes/${sessionId}`);
+    return { status: "live" };
+});
+exports.joinLiveClass = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", cors: LIVE_CLASS_CORS, secrets: [DAILY_API_KEY], enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const profile = await liveProfile(request.auth.uid);
+    const sessionId = liveText(request.data?.sessionId, 180);
+    const ref = db.collection("liveClasses").doc(sessionId);
+    const snap = await ref.get();
+    if (!snap.exists)
+        throw new https_1.HttpsError("not-found", "Live class not found.");
+    const data = snap.data() ?? {};
+    const owner = data.tutorUid === request.auth.uid || String(profile.get("role")) === "admin";
+    const assigned = await userHasCourseAccess(request.auth.uid, String(data.courseUnitId ?? ""));
+    if (!owner && !assigned)
+        throw new https_1.HttpsError("permission-denied", "You are not enrolled in this live class.");
+    const startsAt = data.startsAt?.toDate?.();
+    const earlyJoinMinutes = Math.min(240, Math.max(0, Number(data.earlyJoinMinutes) || 30));
+    const earlyWindowOpen = data.allowJoinBeforeTutor !== false && startsAt instanceof Date && Date.now() >= startsAt.getTime() - earlyJoinMinutes * 60_000;
+    if (data.status !== "live" && !owner && !earlyWindowOpen)
+        throw new https_1.HttpsError("failed-precondition", `This classroom opens ${earlyJoinMinutes} minutes before the scheduled start.`);
+    if (data.status === "ended" || data.status === "cancelled")
+        throw new https_1.HttpsError("failed-precondition", "This live class has ended.");
+    const roomName = liveText(data.dailyRoomName, 180);
+    const roomUrl = liveText(data.dailyRoomUrl, 3000);
+    if (!roomName || !roomUrl)
+        throw new https_1.HttpsError("failed-precondition", "The classroom is not ready.");
+    const exp = Math.floor(Date.now() / 1000) + 6 * 60 * 60;
+    const participantName = liveName(profile, owner ? "Tutor" : "Student");
+    const participantEmail = liveText(profile.get("email") ?? request.auth.token.email, 240).toLowerCase();
+    const tokenResult = await dailyRequest("/meeting-tokens", { method: "POST", body: JSON.stringify({ properties: { room_name: roomName, user_id: request.auth.uid, user_name: participantName, is_owner: owner, exp } }) });
+    const attendanceRef = db.collection("liveClassAttendance").doc(`${sessionId}_${request.auth.uid}`);
+    await attendanceRef.set({ sessionId, studentUid: request.auth.uid, studentName: participantName, studentEmail: participantEmail || null, role: owner ? "tutor" : "student", courseUnitId: data.courseUnitId, joinedAt: firestore_1.FieldValue.serverTimestamp(), lastSeenAt: firestore_1.FieldValue.serverTimestamp(), status: "present", joinCount: firestore_1.FieldValue.increment(1) }, { merge: true });
+    return { roomUrl, token: String(tokenResult.token ?? ""), isOwner: owner };
+});
+exports.getOpenLiveClass = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 30, memory: "256MiB", cors: LIVE_CLASS_CORS, enforceAppCheck: false }, async (request) => {
+    const shareToken = liveText(request.data?.shareToken, 180);
+    const link = await db.collection("liveClassLinks").doc(shareToken).get();
+    if (!link.exists || link.get("active") !== true)
+        throw new https_1.HttpsError("not-found", "This live-class link is invalid or has been closed.");
+    const session = await db.collection("liveClasses").doc(String(link.get("sessionId"))).get();
+    if (!session.exists)
+        throw new https_1.HttpsError("not-found", "Live class not found.");
+    return { session: { id: session.id, title: session.get("title"), description: session.get("description") ?? "", courseUnitTitle: session.get("courseUnitTitle") ?? "", tutorName: session.get("tutorName") ?? "", startsAt: session.get("startsAt")?.toDate?.()?.toISOString?.() ?? null, endsAt: session.get("endsAt")?.toDate?.()?.toISOString?.() ?? null, status: session.get("status") ?? "scheduled" } };
+});
+exports.joinOpenLiveClass = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", cors: LIVE_CLASS_CORS, secrets: [DAILY_API_KEY], enforceAppCheck: false }, async (request) => {
+    const input = (request.data ?? {});
+    const shareToken = liveText(input.shareToken, 180);
+    const guestName = liveText(input.guestName, 160);
+    const guestEmail = liveText(input.guestEmail, 240).toLowerCase();
+    const guestPhone = liveText(input.guestPhone, 80);
+    const guestInstitution = liveText(input.guestInstitution, 220);
+    if (!guestName || !guestEmail || !guestEmail.includes("@") || !guestPhone)
+        throw new https_1.HttpsError("invalid-argument", "Enter your full name, valid email address and phone number.");
+    const link = await db.collection("liveClassLinks").doc(shareToken).get();
+    if (!link.exists || link.get("active") !== true)
+        throw new https_1.HttpsError("not-found", "This live-class link is invalid or has been closed.");
+    const sessionId = String(link.get("sessionId") ?? "");
+    const session = await db.collection("liveClasses").doc(sessionId).get();
+    if (!session.exists)
+        throw new https_1.HttpsError("not-found", "Live class not found.");
+    const data = session.data() ?? {};
+    if (["ended", "cancelled"].includes(String(data.status ?? "")))
+        throw new https_1.HttpsError("failed-precondition", "This live class has ended.");
+    const startsAt = data.startsAt?.toDate?.();
+    const earlyJoinMinutes = Math.min(240, Math.max(0, Number(data.earlyJoinMinutes) || 30));
+    const earlyWindowOpen = data.allowJoinBeforeTutor !== false && startsAt instanceof Date && Date.now() >= startsAt.getTime() - earlyJoinMinutes * 60_000;
+    if (data.status !== "live" && !earlyWindowOpen)
+        throw new https_1.HttpsError("failed-precondition", `This classroom opens ${earlyJoinMinutes} minutes before the scheduled start.`);
+    const roomName = liveText(data.dailyRoomName, 180);
+    const roomUrl = liveText(data.dailyRoomUrl, 3000);
+    if (!roomName || !roomUrl)
+        throw new https_1.HttpsError("failed-precondition", "The classroom is not ready.");
+    const guestKey = (0, node_crypto_1.createHash)("sha256").update(`${sessionId}:${guestEmail}`).digest("hex").slice(0, 32);
+    const tokenResult = await dailyRequest("/meeting-tokens", { method: "POST", body: JSON.stringify({ properties: { room_name: roomName, user_id: `guest_${guestKey}`, user_name: guestName, is_owner: false, exp: Math.floor(Date.now() / 1000) + 6 * 60 * 60 } }) });
+    await db.collection("liveClassGuests").doc(guestKey).set({ guestKey, sessionId, shareToken, fullName: guestName, email: guestEmail, phoneNumber: guestPhone, institutionName: guestInstitution, tutorUid: link.get("tutorUid"), updatedAt: firestore_1.FieldValue.serverTimestamp(), createdAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    await db.collection("liveClassAttendance").doc(`${sessionId}_guest_${guestKey}`).set({ sessionId, studentUid: `guest_${guestKey}`, studentName: guestName, studentEmail: guestEmail, phoneNumber: guestPhone, institutionName: guestInstitution, role: "guest", courseUnitId: data.courseUnitId, joinedAt: firestore_1.FieldValue.serverTimestamp(), lastSeenAt: firestore_1.FieldValue.serverTimestamp(), status: "present", joinCount: firestore_1.FieldValue.increment(1) }, { merge: true });
+    return { roomUrl, token: String(tokenResult.token ?? ""), attendeeKey: guestKey };
+});
+exports.updateOpenLiveClassPresence = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 30, memory: "256MiB", cors: LIVE_CLASS_CORS, enforceAppCheck: false }, async (request) => {
+    const input = (request.data ?? {});
+    const shareToken = liveText(input.shareToken, 180);
+    const attendeeKey = liveText(input.attendeeKey, 80);
+    const action = liveText(input.action, 20);
+    const link = await db.collection("liveClassLinks").doc(shareToken).get();
+    if (!link.exists || link.get("active") !== true)
+        throw new https_1.HttpsError("not-found", "This live-class link is no longer active.");
+    const sessionId = String(link.get("sessionId") ?? "");
+    const attendanceRef = db.collection("liveClassAttendance").doc(`${sessionId}_guest_${attendeeKey}`);
+    const attendance = await attendanceRef.get();
+    if (!attendeeKey || !attendance.exists || attendance.get("studentUid") !== `guest_${attendeeKey}`)
+        throw new https_1.HttpsError("permission-denied", "Attendance record not found.");
+    await attendanceRef.set({ lastSeenAt: firestore_1.FieldValue.serverTimestamp(), ...(action === "leave" ? { leftAt: firestore_1.FieldValue.serverTimestamp() } : {}) }, { merge: true });
+    return { updated: true };
+});
+exports.updateLiveClassPresence = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 30, memory: "256MiB", cors: LIVE_CLASS_CORS, enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const input = (request.data ?? {});
+    const sessionId = liveText(input.sessionId, 180);
+    const action = liveText(input.action, 40);
+    const profile = await liveProfile(request.auth.uid);
+    const session = await db.collection("liveClasses").doc(sessionId).get();
+    if (!session.exists)
+        throw new https_1.HttpsError("not-found", "Live class not found.");
+    const isTutor = session.get("tutorUid") === request.auth.uid || String(profile.get("role")) === "admin";
+    if (action === "attendance") {
+        if (!isTutor)
+            throw new https_1.HttpsError("permission-denied", "Only the tutor can amend attendance.");
+        const studentUid = liveText(input.studentUid, 180);
+        const status = liveText(input.attendanceStatus, 20);
+        if (!studentUid || !["present", "late", "absent", "excused"].includes(status))
+            throw new https_1.HttpsError("invalid-argument", "Invalid attendance update.");
+        await db.collection("liveClassAttendance").doc(`${sessionId}_${studentUid}`).set({ sessionId, studentUid, status, manuallyMarkedBy: request.auth.uid, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    }
+    else {
+        await db.collection("liveClassAttendance").doc(`${sessionId}_${request.auth.uid}`).set({ lastSeenAt: firestore_1.FieldValue.serverTimestamp(), ...(action === "leave" ? { leftAt: firestore_1.FieldValue.serverTimestamp() } : {}) }, { merge: true });
+    }
+    return { updated: true };
+});
+exports.getLiveClassRoster = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 30, memory: "256MiB", cors: LIVE_CLASS_CORS, enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const sessionId = liveText(request.data?.sessionId, 180);
+    const session = await db.collection("liveClasses").doc(sessionId).get();
+    if (!session.exists || session.get("tutorUid") !== request.auth.uid)
+        throw new https_1.HttpsError("permission-denied", "Only the class tutor can view attendance.");
+    const records = await db.collection("liveClassAttendance").where("sessionId", "==", sessionId).limit(500).get();
+    const normalized = await Promise.all(records.docs.map(async (doc) => {
+        const data = doc.data();
+        let studentName = liveText(data.studentName, 160);
+        let studentEmail = liveText(data.studentEmail, 240).toLowerCase();
+        if (data.role !== "guest" && liveText(data.studentUid, 180) && (!studentName || studentName.includes("@") || !studentEmail)) {
+            const participant = await db.collection("users").doc(String(data.studentUid)).get();
+            if (participant.exists) {
+                studentName = liveName(participant, data.role === "tutor" ? "Tutor" : "Student");
+                studentEmail = liveText(participant.get("email"), 240).toLowerCase();
+            }
+            else
+                studentName = data.role === "tutor" ? "Tutor" : "Student";
+        }
+        return { id: doc.id, ...data, studentName: studentName && !studentName.includes("@") ? studentName : data.role === "guest" ? "Guest" : "Student", studentEmail, joinedAt: doc.get("joinedAt")?.toDate?.()?.toISOString?.() ?? null, lastSeenAt: doc.get("lastSeenAt")?.toDate?.()?.toISOString?.() ?? null, leftAt: doc.get("leftAt")?.toDate?.()?.toISOString?.() ?? null };
+    }));
+    return { records: normalized };
 });
 //# sourceMappingURL=index.js.map

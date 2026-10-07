@@ -3,6 +3,7 @@ import {
   Bell, BookOpen, CalendarCheck, CalendarDays, ChevronRight, ClipboardCheck,
   Clock3, GraduationCap, Home, LogOut, Menu, MessageCircle, ReceiptText, ShoppingBag, Library, Heart,
   Sparkles, Stethoscope, User, HeartHandshake, X,
+  Video,
 } from "lucide-react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 
@@ -18,6 +19,7 @@ const groups: Group[] = [
   { title: "Learning", items: [
     { name: "Course Units", path: "/student/course-units", icon: BookOpen },
     { name: "Assessments", path: "/assessments", icon: ClipboardCheck },
+    { name: "Live Classes", path: "/live-classes", icon: Video },
     { name: "Assessment History", path: "/assessment-history", icon: Clock3 },
   ]},
   { title: "Marketplace", items: [
@@ -46,6 +48,7 @@ const groups: Group[] = [
 const labels: Record<string, string> = {
   dashboard: "Dashboard", "my-courses": "My Courses", "course-units": "Course Units", assessments: "Assessments",
   "assessment-history": "Assessment History", timetable: "Timetable", attendance: "Attendance",
+  "live-classes": "Live Classes",
   "clinical-logbook": "Clinical Logbook", finance: "Finance", messages: "Messages",
   notifications: "Notifications", "ai-assistant": "Medi AI", lesson: "Lesson", marketplace: "Marketplace", purchases: "My Purchases", library: "My Library", wishlist: "My Wishlist",
 };
