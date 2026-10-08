@@ -62,6 +62,18 @@ export interface Examination {
   targetMarks?: number;
   versionLabel?: string;
   sourceExaminationId?: string;
+  uploadedExamUrl?: string;
+  uploadedExamFileName?: string;
+  uploadedExamFilePath?: string;
+  uploadedExamContentType?: string;
+  uploadedExamExtractedText?: string;
+  uploadedMarkingGuideUrl?: string;
+  uploadedMarkingGuideFileName?: string;
+  uploadedMarkingGuideFilePath?: string;
+  uploadedMarkingGuideContentType?: string;
+  uploadedMarkingGuideExtractedText?: string;
+  generatedMarkingGuideText?: string;
+  markingGuideGeneratedAt?: string;
   status: ExaminationStatus;
   ownerUserId?: string;
   createdBy?: string;
@@ -71,3 +83,4 @@ export interface Examination {
   createdAt?: Date;
   updatedAt?: Date;
 }
+

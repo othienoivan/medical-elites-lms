@@ -33,6 +33,9 @@ const LoginPage = lazy(() => import("../pages/LoginPage"));
 const RegisterPage = lazy(() => import("../pages/RegisterPage"));
 const JoinPage = lazy(() => import("../pages/JoinPage"));
 const RegistrationLinksPage = lazy(() => import("../pages/RegistrationLinksPage"));
+const TutorContentCampaignsPage = lazy(() => import("../pages/TutorContentCampaignsPage"));
+const TutorContentCampaignResultsPage = lazy(() => import("../pages/TutorContentCampaignResultsPage"));
+const PublicSharedContentPage = lazy(() => import("../pages/PublicSharedContentPage"));
 const TutorRegisteredLearnersPage = lazy(() => import("../pages/TutorRegisteredLearnersPage"));
 const StudentDirectoryPage = lazy(() => import("../pages/StudentDirectoryPage"));
 const BulkImportStudentsPage = lazy(() => import("../pages/BulkImportStudentsPage"));
@@ -40,6 +43,9 @@ const DashboardPage = lazy(() => import("../pages/DashboardPage"));
 const MyCoursesPage = lazy(() => import("../pages/MyCoursesPage"));
 const RegisterStudentPage = lazy(() => import("../pages/RegisterStudentPage"));
 const StudentAssessmentPage = lazy(() => import("../pages/StudentAssessmentPage"));
+const StudentExaminationsPage = lazy(() => import("../pages/StudentExaminationsPage"));
+const StudentExaminationSittingPage = lazy(() => import("../pages/StudentExaminationSittingPage"));
+const ExaminationSubmissionsPage = lazy(() => import("../pages/ExaminationSubmissionsPage"));
 const LiveClassesPage = lazy(() => import("../pages/LiveClassesPage"));
 const LiveClassRoomPage = lazy(() => import("../pages/LiveClassRoomPage"));
 const OpenLiveClassPage = lazy(() => import("../pages/OpenLiveClassPage"));
@@ -270,6 +276,7 @@ export default function AppRouter() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/join/:code" element={<JoinPage />} />
+        <Route path="/share/:code" element={<PublicSharedContentPage />} />
         <Route path="/open-live/:shareToken" element={<OpenLiveClassPage />} />
         <Route path="/about" element={<PublicPageShell><AboutPage /></PublicPageShell>} />
         <Route path="/privacy" element={<PublicPageShell><PrivacyPolicyPage /></PublicPageShell>} />
@@ -500,6 +507,9 @@ export default function AppRouter() {
           }
         />
 
+        <Route path="/examinations" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><StudentExaminationsPage /></ProtectedRoute>} />
+        <Route path="/examinations/:examId" element={<ProtectedRoute allowedRoles={LEARNER_ROLES}><StudentExaminationSittingPage /></ProtectedRoute>} />
+
         <Route
           path="/assessments/quizzes/:quizId/take"
           element={
@@ -597,6 +607,8 @@ export default function AppRouter() {
         />
         <Route path="/tutor/curriculum-import" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><TutorCurriculumImportPage /></ProtectedRoute>} />
         <Route path="/tutor/registration-links" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><RegistrationLinksPage /></ProtectedRoute>} />
+        <Route path="/tutor/content-campaigns" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><TutorContentCampaignsPage /></ProtectedRoute>} />
+        <Route path="/tutor/content-campaign-results" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><TutorContentCampaignResultsPage /></ProtectedRoute>} />
         <Route path="/tutor/registered-learners" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><TutorRegisteredLearnersPage /></ProtectedRoute>} />
 
         <Route
@@ -721,6 +733,8 @@ export default function AppRouter() {
             </ProtectedRoute>
           }
         />
+
+        <Route path="/tutor/exam-submissions" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><ExaminationSubmissionsPage /></ProtectedRoute>} />
 
         <Route
           path="/tutor/questions"

@@ -694,11 +694,9 @@ service cloud.firestore {
           ).data.registrationLinkCode == linkCode;
       }
 
-      allow read: if resource.data.status == 'active' || (
-        signedIn() && (
+      allow read: if signedIn() && (
           (resource.data.keys().hasAny(['createdByUid']) && resource.data.createdByUid == request.auth.uid)
           || isAdmin()
-        )
       );
       allow create: if isTutorOrAdmin()
         && request.resource.data.createdByUid == request.auth.uid
@@ -710,6 +708,22 @@ service cloud.firestore {
         || isValidStudentClaimIncrement()
       );
       allow delete: if false;
+    }
+
+    // Public content campaigns, lead identities, engagement tokens and guest
+    // attempts are mediated by trusted Cloud Functions to prevent scraping,
+    // contact spoofing and cross-tutor disclosure.
+    match /contentShareLinks/{documentId} {
+      allow read, create, update, delete: if false;
+    }
+    match /tutorLeadContacts/{documentId} {
+      allow read, create, update, delete: if false;
+    }
+    match /contentShareEngagements/{documentId} {
+      allow read, create, update, delete: if false;
+    }
+    match /sharedContentAttempts/{documentId} {
+      allow read, create, update, delete: if false;
     }
 
     match /registrationLinkEnrollments/{enrollmentId} {
@@ -979,13 +993,18 @@ service cloud.firestore {
           && request.auth.token.email != null
           && resource.data.createdBy == request.auth.token.email)
         || (isAdmin() && sameInstitution(resource.data))
-        || (hasRole('student') && resource.data.courseUnitId != null && (hasCourseUnitAssignment(resource.data.courseUnitId) || hasMarketplaceCourseAccess(resource.data.courseUnitId)))
+        || (hasRole('student')
+          && resource.data.keys().hasAny(['status'])
+          && resource.data.status == 'published'
+          && resource.data.courseUnitId != null
+          && (hasCourseUnitAssignment(resource.data.courseUnitId) || hasMarketplaceCourseAccess(resource.data.courseUnitId)))
       );
       allow create: if isTutorOrAdmin()
         && request.resource.data.ownerUserId == request.auth.uid
         && request.resource.data.createdByUid == request.auth.uid
         && request.resource.data.createdBy == request.auth.uid
-        && request.auth.uid in request.resource.data.assignedTutorIds;
+        && request.auth.uid in request.resource.data.assignedTutorIds
+        && validCreateInstitution(request.resource.data);
       // Existing legacy drafts can be migrated by their original authenticated
       // tutor. An update must atomically stamp the canonical UID ownership
       // fields; deletion is allowed only to that same verified email owner.
@@ -1003,6 +1022,32 @@ service cloud.firestore {
           && resource.data.keys().hasAny(['createdBy'])
           && request.auth.token.email != null
           && resource.data.createdBy == request.auth.token.email);
+    }
+
+    match /examinationSubmissions/{documentId} {
+      allow read: if signedIn() && (
+        resource.data.studentId == request.auth.uid
+        || resource.data.ownerUserId == request.auth.uid
+        || (isAdmin() && sameInstitution(resource.data))
+      );
+      allow create: if hasRole('student')
+        && request.resource.data.studentId == request.auth.uid
+        && request.resource.data.status == 'submitted'
+        && request.resource.data.keys().hasAll(['examinationId', 'courseUnitId', 'ownerUserId', 'answerText'])
+        && get(/databases/$(database)/documents/examinations/$(request.resource.data.examinationId)).data.status == 'published'
+        && get(/databases/$(database)/documents/examinations/$(request.resource.data.examinationId)).data.courseUnitId == request.resource.data.courseUnitId
+        && (hasCourseUnitAssignment(request.resource.data.courseUnitId) || hasMarketplaceCourseAccess(request.resource.data.courseUnitId));
+      allow update: if isTutorOrAdmin()
+        && resource.data.ownerUserId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['score', 'totalMarks', 'percentage', 'tutorFeedback', 'status', 'markedAt', 'markedByUid', 'aiSuggestedScore', 'aiSuggestedFeedback', 'aiMarkedAt', 'released', 'releasedAt']);
+      allow delete: if false;
+    }
+
+    match /examinationMarkingReviews/{documentId} {
+      allow read: if isTutorOrAdmin() && (resource.data.ownerUserId == request.auth.uid || isAdmin());
+      allow create: if isTutorOrAdmin() && request.resource.data.ownerUserId == request.auth.uid;
+      allow update: if isTutorOrAdmin() && resource.data.ownerUserId == request.auth.uid;
+      allow delete: if false;
     }
 
     match /osceStations/{documentId} {
@@ -1301,3 +1346,4 @@ service cloud.firestore {
     }
   }
 }
+

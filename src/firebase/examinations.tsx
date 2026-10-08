@@ -17,15 +17,29 @@ import { writeAuditLog } from "./auditLogs";
 
 const COLLECTION = "examinations";
 
+function removeUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.filter((item) => item !== undefined).map(removeUndefined) as T;
+  }
+  if (value && typeof value === "object" && !(value instanceof Date)) {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, item]) => item !== undefined)
+        .map(([key, item]) => [key, removeUndefined(item)])
+    ) as T;
+  }
+  return value;
+}
+
 export async function createExamination(
   examination: Examination
 ): Promise<string> {
-  const docRef = await addDoc(collection(db, COLLECTION), {
+  const docRef = await addDoc(collection(db, COLLECTION), removeUndefined({
     ...examination,
     id: "",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  }));
 
   await updateDoc(doc(db, COLLECTION, docRef.id), {
     id: docRef.id,
@@ -67,7 +81,20 @@ export async function getExaminations(): Promise<Examination[]> {
     lookups.push(query(collection(db, COLLECTION), where("createdBy", "==", user.email)));
   }
 
-  const snapshots = await Promise.all(lookups.map((lookup) => getDocs(lookup)));
+  // The ownership lookup is the canonical path for every newly-created
+  // examination and must remain authoritative. Compatibility lookups are
+  // best-effort: an older deployed ruleset may reject one of them, but that
+  // must not make the entire Examination Bank appear unavailable.
+  const canonicalSnapshot = await getDocs(lookups[0]);
+  const compatibilityResults = await Promise.allSettled(
+    lookups.slice(1).map((lookup) => getDocs(lookup))
+  );
+  const snapshots = [
+    canonicalSnapshot,
+    ...compatibilityResults.flatMap((result) =>
+      result.status === "fulfilled" ? [result.value] : []
+    ),
+  ];
   const byId = new Map<string, Examination>();
   for (const snapshot of snapshots) {
     for (const docSnap of snapshot.docs) {
@@ -96,15 +123,48 @@ export async function getExaminationById(
   };
 }
 
+export async function getPublishedStudentExaminations(
+  courseUnitIds: Iterable<string>
+): Promise<Examination[]> {
+  const ids = [...new Set(courseUnitIds)].filter(Boolean);
+  if (!auth.currentUser || ids.length === 0) return [];
+
+  const results = await Promise.allSettled(
+    ids.map((courseUnitId) =>
+      getDocs(query(
+        collection(db, COLLECTION),
+        where("courseUnitId", "==", courseUnitId),
+        where("status", "==", "published")
+      ))
+    )
+  );
+  const byId = new Map<string, Examination>();
+  results.forEach((result) => {
+    if (result.status === "rejected") {
+      console.warn("A published examination source could not be loaded:", result.reason);
+      return;
+    }
+    result.value.docs.forEach((snapshot) => byId.set(snapshot.id, {
+      ...(snapshot.data() as Omit<Examination, "id">),
+      id: snapshot.id,
+    }));
+  });
+  return [...byId.values()].sort((a, b) => {
+    const aDate = a.opensAt ? new Date(a.opensAt).getTime() : 0;
+    const bDate = b.opensAt ? new Date(b.opensAt).getTime() : 0;
+    return bDate - aDate || a.title.localeCompare(b.title);
+  });
+}
+
 export async function updateExamination(
   id: string,
   data: Partial<Examination>,
   actor?: { uid: string; role: "tutor" | "admin"; institutionId?: string | null }
 ): Promise<void> {
-  await updateDoc(doc(db, COLLECTION, id), {
+  await updateDoc(doc(db, COLLECTION, id), removeUndefined({
     ...data,
     updatedAt: serverTimestamp(),
-  });
+  }));
 
   if (actor) {
     void writeAuditLog({
@@ -175,3 +235,4 @@ export async function createExaminationVersions(
   }
   return ids;
 }
+

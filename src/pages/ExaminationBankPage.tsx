@@ -6,6 +6,7 @@ import {
   Plus,
   Search,
   Timer,
+  Trash2,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -14,10 +15,15 @@ import TutorLayout from "../components/layout/TutorLayout";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import useExaminations from "../hooks/useExaminations";
+import { deleteExamination } from "../firebase/examinations";
+import useAuth from "../hooks/useAuth";
+import { deleteFileFromStorage } from "../firebase/storage";
 
 export default function ExaminationBankPage() {
   const navigate = useNavigate();
-  const { examinations, loading } = useExaminations();
+  const { examinations, loading, refresh } = useExaminations();
+  const { currentUser, role, userProfile } = useAuth();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "published" | "archived">("all");
@@ -37,6 +43,30 @@ export default function ExaminationBankPage() {
       );
     });
   }, [examinations, search, statusFilter]);
+
+  async function removeExamination(exam: (typeof examinations)[number]) {
+    const { id, title } = exam;
+    if (!currentUser || !window.confirm(`Permanently delete “${title}”? This examination and its student listing will be removed. This action cannot be undone.`)) return;
+    try {
+      setDeletingId(id);
+      await deleteExamination(id, {
+        uid: currentUser.uid,
+        role: role === "admin" ? "admin" : "tutor",
+        institutionId: userProfile?.institutionId ?? null,
+      });
+      await Promise.allSettled(
+        [exam.uploadedExamFilePath, exam.uploadedMarkingGuideFilePath]
+          .filter((path): path is string => Boolean(path))
+          .map((path) => deleteFileFromStorage(path))
+      );
+      await refresh();
+    } catch (error) {
+      console.error("Failed to delete examination:", error);
+      alert("The examination could not be deleted. Check your permission and try again.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <TutorLayout
@@ -194,6 +224,16 @@ export default function ExaminationBankPage() {
                   >
                     Open Builder
                   </Button>
+
+                  <Button
+                    variant="outline"
+                    disabled={deletingId === exam.id}
+                    className="border-red-200 text-red-700 hover:bg-red-50"
+                    onClick={() => void removeExamination(exam)}
+                  >
+                    <Trash2 size={17}/>
+                    {deletingId === exam.id ? "Deleting..." : "Delete"}
+                  </Button>
                 </div>
               </div>
             </Card>
@@ -249,3 +289,4 @@ function Badge({ children }: { children: React.ReactNode }) {
     </span>
   );
 }
+

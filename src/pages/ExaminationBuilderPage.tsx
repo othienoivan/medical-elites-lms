@@ -14,6 +14,7 @@ import ExaminationBlueprint from "../components/assessment/ExaminationBlueprint"
 import MarkingGuidePreview from "../components/assessment/MarkingGuidePreview";
 import ExaminationDetailsPanel from "../components/assessment/ExaminationDetailsPanel";
 import ExaminationSettingsPanel from "../components/assessment/ExaminationSettingsPanel";
+import ExaminationDocumentPanel, { type ExaminationDocumentState } from "../components/assessment/ExaminationDocumentPanel";
 import SectionBuilder from "../components/assessment/SectionBuilder";
 import TutorLayout from "../components/layout/TutorLayout";
 import Button from "../components/ui/Button";
@@ -40,7 +41,7 @@ import type {
 export default function ExaminationBuilderPage() {
   const navigate = useNavigate();
   const { examId } = useParams();
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
 
   const [title, setTitle] = useState("");
   const [examinationName, setExaminationName] = useState("");
@@ -65,9 +66,24 @@ export default function ExaminationBuilderPage() {
   const [courseUnitId, setCourseUnitId] = useState("");
   const [courseUnitTitle, setCourseUnitTitle] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiMarkingGuideGenerating, setAiMarkingGuideGenerating] = useState(false);
   const [aiSectionSelection, setAiSectionSelection] = useState({ A: true, B: true, C: true });
   const [targetMarks, setTargetMarks] = useState(100);
   const [previewMode, setPreviewMode] = useState<"candidate" | "marking">("candidate");
+  const [documents, setDocuments] = useState<ExaminationDocumentState>({
+    uploadedExamUrl: "",
+    uploadedExamFileName: "",
+    uploadedExamFilePath: "",
+    uploadedExamContentType: "",
+    uploadedExamExtractedText: "",
+    uploadedMarkingGuideUrl: "",
+    uploadedMarkingGuideFileName: "",
+    uploadedMarkingGuideFilePath: "",
+    uploadedMarkingGuideContentType: "",
+    uploadedMarkingGuideExtractedText: "",
+    generatedMarkingGuideText: "",
+    markingGuideGeneratedAt: "",
+  });
 
   const [sections, setSections] = useState<ExaminationSection[]>(() => createUhpabSections());
   const [saving, setSaving] = useState(false);
@@ -116,6 +132,20 @@ export default function ExaminationBuilderPage() {
         setCourseUnitTitle(existing.courseUnitTitle || "");
         setTargetMarks(existing.targetMarks || existing.totalMarks || 100);
         setSections(existing.sections || []);
+        setDocuments({
+          uploadedExamUrl: existing.uploadedExamUrl || "",
+          uploadedExamFileName: existing.uploadedExamFileName || "",
+          uploadedExamFilePath: existing.uploadedExamFilePath || "",
+          uploadedExamContentType: existing.uploadedExamContentType || "",
+          uploadedExamExtractedText: existing.uploadedExamExtractedText || "",
+          uploadedMarkingGuideUrl: existing.uploadedMarkingGuideUrl || "",
+          uploadedMarkingGuideFileName: existing.uploadedMarkingGuideFileName || "",
+          uploadedMarkingGuideFilePath: existing.uploadedMarkingGuideFilePath || "",
+          uploadedMarkingGuideContentType: existing.uploadedMarkingGuideContentType || "",
+          uploadedMarkingGuideExtractedText: existing.uploadedMarkingGuideExtractedText || "",
+          generatedMarkingGuideText: existing.generatedMarkingGuideText || "",
+          markingGuideGeneratedAt: existing.markingGuideGeneratedAt || "",
+        });
       } catch (error) {
         console.error("Failed to load examination:", error);
         alert("Failed to load examination.");
@@ -160,8 +190,9 @@ export default function ExaminationBuilderPage() {
     courseUnitId,
     courseUnitTitle,
     targetMarks,
+    ...documents,
     sections,
-    totalMarks,
+    totalMarks: totalMarks || (documents.uploadedExamUrl ? targetMarks : 0),
     status: "draft",
   };
 
@@ -233,6 +264,42 @@ export default function ExaminationBuilderPage() {
     } catch (error) { console.error("AI examination generation failed:", error); alert(error instanceof Error ? error.message : "AI examination generation failed."); } finally { setAiGenerating(false); }
   }
 
+  async function generateUploadedExamMarkingGuide() {
+    const source = documents.uploadedExamExtractedText.trim();
+    if (source.length < 80) {
+      alert("Upload an examination containing readable text before generating a marking guide.");
+      return;
+    }
+    try {
+      setAiMarkingGuideGenerating(true);
+      const response = await generateAiResponse({
+        mode: "tutor_questions",
+        prompt: [
+          "Prepare a complete professional marking guide strictly from the uploaded examination.",
+          "Preserve every question number and section heading.",
+          "For MCQs, state the correct option and answer. For structured and essay questions, provide a point-based marking scheme with marks allocated to each expected response.",
+          "Ensure the allocated marks for each question add up to the marks indicated in the examination. If marks are not stated, propose reasonable marks and label them as proposed.",
+          "Include acceptable alternative responses where clinically appropriate. Use clear examiner-ready plain text. Do not use markdown code fences.",
+        ].join(" "),
+        context: source.slice(0, 40000),
+      });
+      const guide = response.text.replace(/^```(?:text|markdown)?\s*/i, "").replace(/```$/i, "").trim();
+      if (guide.length < 100) throw new Error("AI returned an incomplete marking guide. Please try again.");
+      setDocuments((current) => ({
+        ...current,
+        generatedMarkingGuideText: guide,
+        markingGuideGeneratedAt: new Date().toISOString(),
+      }));
+      setPreviewMode("marking");
+      alert("The draft marking guide was generated. Review and edit it, then save the examination.");
+    } catch (error) {
+      console.error("AI marking guide generation failed:", error);
+      alert(error instanceof Error ? error.message : "AI could not generate the marking guide.");
+    } finally {
+      setAiMarkingGuideGenerating(false);
+    }
+  }
+
   async function handleSave(status: ExaminationStatus) {
     if (!currentUser) {
       alert("Please login first.");
@@ -249,13 +316,18 @@ export default function ExaminationBuilderPage() {
       return;
     }
 
-    if (sections.length === 0) {
+    if (!documents.uploadedExamUrl && sections.length === 0) {
       alert("Please add at least one examination section.");
       return;
     }
 
-    if (sections.some((section) => section.questions.length === 0)) {
+    if (!documents.uploadedExamUrl && sections.some((section) => section.questions.length === 0)) {
       alert("Every examination section must contain at least one question.");
+      return;
+    }
+
+    if (status === "published" && !courseUnitId) {
+      alert("Select the Course Unit before publishing so assigned students can be notified and access the examination.");
       return;
     }
 
@@ -269,12 +341,12 @@ export default function ExaminationBuilderPage() {
       return;
     }
 
-    if (targetMarks > 0 && totalMarks !== targetMarks) {
+    if (!documents.uploadedExamUrl && targetMarks > 0 && totalMarks !== targetMarks) {
       alert(`Mark total mismatch: the paper has ${totalMarks} marks but the target is ${targetMarks}.`);
       return;
     }
 
-    if (template === "uhpab") {
+    if (!documents.uploadedExamUrl && template === "uhpab") {
       const sectionA = sections.find((section) => section.order === 1);
       const sectionB = sections.find((section) => section.order === 2);
       const sectionC = sections.find((section) => section.order === 3);
@@ -300,6 +372,10 @@ export default function ExaminationBuilderPage() {
         createdBy: currentUser.uid,
         createdByUid: currentUser.uid,
         assignedTutorIds: [currentUser.uid],
+        institutionId:
+          courseUnits.find((unit) => unit.id === courseUnitId)?.institutionId
+          ?? userProfile?.institutionId
+          ?? undefined,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -355,14 +431,14 @@ export default function ExaminationBuilderPage() {
 
       <section className="mb-8 grid gap-4 md:grid-cols-3">
         <StatCard
-          title="Sections"
-          value={sections.length}
+          title={documents.uploadedExamUrl ? "Examination Source" : "Sections"}
+          value={documents.uploadedExamUrl ? "Uploaded file" : sections.length}
           icon={Layers}
         />
 
         <StatCard
           title="Total Marks"
-          value={totalMarks}
+          value={documents.uploadedExamUrl ? targetMarks : totalMarks}
           icon={GraduationCap}
         />
 
@@ -375,7 +451,7 @@ export default function ExaminationBuilderPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <Card>
+          {!documents.uploadedExamUrl && <Card>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="flex-1">
                 <label className="mb-2 block font-semibold text-slate-700">Course Unit</label>
@@ -400,7 +476,7 @@ export default function ExaminationBuilderPage() {
                 </div>
               </div>
             </div>
-          </Card>
+          </Card>}
           <ExaminationDetailsPanel
             title={title}
             setTitle={setTitle}
@@ -426,6 +502,13 @@ export default function ExaminationBuilderPage() {
             setTargetMarks={setTargetMarks}
           />
 
+          <ExaminationDocumentPanel
+            value={documents}
+            onChange={setDocuments}
+            generating={aiMarkingGuideGenerating}
+            onGenerateMarkingGuide={() => void generateUploadedExamMarkingGuide()}
+          />
+
           <ExaminationSettingsPanel
             durationMinutes={durationMinutes} setDurationMinutes={setDurationMinutes}
             passMark={passMark} setPassMark={setPassMark}
@@ -437,8 +520,10 @@ export default function ExaminationBuilderPage() {
             showResultsImmediately={showResultsImmediately} setShowResultsImmediately={setShowResultsImmediately}
           />
 
-          <SectionBuilder sections={sections} setSections={setSections} />
-          <ExaminationBlueprint sections={sections} totalMarks={totalMarks} />
+          {!documents.uploadedExamUrl && <>
+            <SectionBuilder sections={sections} setSections={setSections} />
+            <ExaminationBlueprint sections={sections} totalMarks={totalMarks} />
+          </>}
         </div>
 
         <div className="space-y-6">
@@ -456,14 +541,14 @@ export default function ExaminationBuilderPage() {
 
               <SummaryItem
                 icon={Layers}
-                label="Sections"
-                value={`${sections.length}`}
+                label={documents.uploadedExamUrl ? "Uploaded Paper" : "Sections"}
+                value={documents.uploadedExamUrl ? (documents.uploadedExamFileName || "Uploaded") : `${sections.length}`}
               />
 
               <SummaryItem
                 icon={GraduationCap}
                 label="Total Marks"
-                value={`${totalMarks}`}
+                value={`${documents.uploadedExamUrl ? targetMarks : totalMarks}`}
               />
 
               <SummaryItem
@@ -562,3 +647,4 @@ function createUhpabSections(): ExaminationSection[] {
     { id: crypto.randomUUID(), title: "Section C: Essay Questions", instructions: "Answer the essay questions as instructed. Section total: 60 marks.", type: "essay", order: 3, questions: [], totalMarks: 0 },
   ];
 }
+

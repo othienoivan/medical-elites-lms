@@ -88,6 +88,7 @@ const navigationGroups: NavigationGroup[] = [
       { name: "Quiz Bank", icon: FileQuestion, path: "/tutor/quizzes" },
       { name: "Examination Bank", icon: FileQuestion, path: "/tutor/exams" },
       { name: "Submission Inbox", icon: FileEdit, path: "/tutor/submissions" },
+      { name: "Examination Submissions", icon: FileEdit, path: "/tutor/exam-submissions" },
       { name: "Gradebook", icon: BarChart3, path: "/tutor/gradebook" },
       { name: "Class Analytics", icon: BarChart3, path: "/tutor/class-analytics" },
     ],
@@ -97,6 +98,8 @@ const navigationGroups: NavigationGroup[] = [
     items: [
       { name: "Students", icon: Users, path: "/tutor/students" },
       { name: "Registration Links", icon: Link2, path: "/tutor/registration-links" },
+      { name: "Lead Generation", icon: Megaphone, path: "/tutor/content-campaigns" },
+      { name: "Campaign Results", icon: BarChart3, path: "/tutor/content-campaign-results" },
       { name: "Registered Learners", icon: Users, path: "/tutor/registered-learners" },
       { name: "Enrolments", icon: GraduationCap, path: "/tutor/enrollments" },
       { name: "Clinical Logbook", icon: Stethoscope, path: "/tutor/clinical-logbook" },
@@ -350,3 +353,4 @@ export default function TutorLayout({ title, subtitle, children }: Props) {
     </div>
   );
 }
+

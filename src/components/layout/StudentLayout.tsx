@@ -19,6 +19,7 @@ const groups: Group[] = [
   { title: "Learning", items: [
     { name: "Course Units", path: "/student/course-units", icon: BookOpen },
     { name: "Assessments", path: "/assessments", icon: ClipboardCheck },
+    { name: "Examinations", path: "/examinations", icon: GraduationCap },
     { name: "Live Classes", path: "/live-classes", icon: Video },
     { name: "Assessment History", path: "/assessment-history", icon: Clock3 },
   ]},
@@ -46,7 +47,7 @@ const groups: Group[] = [
 ];
 
 const labels: Record<string, string> = {
-  dashboard: "Dashboard", "my-courses": "My Courses", "course-units": "Course Units", assessments: "Assessments",
+  dashboard: "Dashboard", "my-courses": "My Courses", "course-units": "Course Units", assessments: "Assessments", examinations: "Examinations",
   "assessment-history": "Assessment History", timetable: "Timetable", attendance: "Attendance",
   "live-classes": "Live Classes",
   "clinical-logbook": "Clinical Logbook", finance: "Finance", messages: "Messages",
@@ -116,3 +117,4 @@ export default function StudentLayout({ children }: Props) {
     </div>
 </div>;
 }
+

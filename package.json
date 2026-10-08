@@ -33,11 +33,14 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@tailwindcss/vite": "^4.3.2",
+    "@tiptap/extension-link": "^3.27.1",
+    "@tiptap/extension-underline": "^3.27.1",
     "@tiptap/react": "^3.27.1",
     "@tiptap/starter-kit": "^3.27.1",
     "firebase": "^12.15.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
+    "jszip": "^3.10.2",
     "lucide-react": "^1.23.0",
     "mammoth": "^1.12.0",
     "pdfjs-dist": "^6.1.200",
@@ -47,9 +50,7 @@
     "react-router-dom": "^7.18.1",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.2",
-    "xlsx": "^0.18.5",
-    "@tiptap/extension-link": "^3.27.1",
-    "@tiptap/extension-underline": "^3.27.1"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -66,3 +67,4 @@
     "vite": "^8.1.1"
   }
 }
+

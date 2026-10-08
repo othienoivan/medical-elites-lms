@@ -1,11 +1,12 @@
 import {
   BookOpen,
+  Copy,
   Clock,
   Edit,
   Eye,
   Layers,
   Plus,
-  Search, ArrowUp, ArrowDown, Trash2, X, Save,
+  Search, ArrowUp, ArrowDown, Trash2, X, Save, Link2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -19,6 +20,7 @@ import { deleteLesson, moveLessonToModule, updateLesson } from "../firebase/less
 import type { Lesson } from "../models/Lesson";
 import type { Module } from "../models/Module";
 import useAuth from "../hooks/useAuth";
+import { createContentShareLink } from "../firebase/contentShareLinks";
 
 export default function LessonManagerPage() {
   const navigate = useNavigate();
@@ -171,6 +173,9 @@ function ModuleLessonsCard({
   const [moving, setMoving] = useState(false);
   const [busyLessonId, setBusyLessonId] = useState<string | null>(null);
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
+  const [sharingLesson, setSharingLesson] = useState<Lesson | null>(null);
+  const [shareForm, setShareForm] = useState({ nicheName: "Open audience", campaignName: "" });
+  const [shareResult, setShareResult] = useState("");
   const [editForm, setEditForm] = useState({
     title: "",
     order: 1,
@@ -268,6 +273,25 @@ function ModuleLessonsCard({
     } finally { setBusyLessonId(null); }
   }
 
+  async function createShareLink() {
+    if (!sharingLesson || !shareForm.nicheName.trim()) return;
+    setBusyLessonId(sharingLesson.id);
+    try {
+      const result = await createContentShareLink({ contentType: "lesson", resourceId: sharingLesson.id, nicheName: shareForm.nicheName.trim(), campaignName: shareForm.campaignName.trim() || `${sharingLesson.title} — ${shareForm.nicheName.trim()}` });
+      const url = `${window.location.origin}${result.path}`;
+      setShareResult(url);
+      try { await navigator.clipboard.writeText(url); } catch { /* The visible link remains available for manual copying. */ }
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "The lesson link could not be created.");
+    } finally { setBusyLessonId(null); }
+  }
+
+  function openShareDialog(lesson: Lesson) {
+    setSharingLesson(lesson);
+    setShareForm({ nicheName: "Open audience", campaignName: "" });
+    setShareResult("");
+  }
+
 
   const filteredLessons = useMemo(() => {
     const keyword = search.toLowerCase();
@@ -332,7 +356,7 @@ function ModuleLessonsCard({
               >
                 <div className="flex flex-wrap gap-2">
                   <Badge>Lesson {lesson.order}</Badge>
-                  <Badge>{lesson.isPublished ? "Published" : "Draft"}</Badge>
+                  <Badge>{lesson.isPublished === true || lesson.published === true ? "Published" : "Draft"}</Badge>
                   <button type="button" disabled={moving || orderedLessons.findIndex(item=>item.id===lesson.id)===0} onClick={()=>void moveLesson(lesson.id,-1)} className="rounded-lg border bg-white p-1.5 disabled:opacity-30" title="Move lesson earlier"><ArrowUp size={16}/></button>
                   <button type="button" disabled={moving || orderedLessons.findIndex(item=>item.id===lesson.id)===orderedLessons.length-1} onClick={()=>void moveLesson(lesson.id,1)} className="rounded-lg border bg-white p-1.5 disabled:opacity-30" title="Move lesson later"><ArrowDown size={16}/></button>
                 </div>
@@ -459,6 +483,11 @@ function ModuleLessonsCard({
                     Edit Lesson Details
                   </Button>
 
+                  <Button variant="outline" disabled={busyLessonId === lesson.id || !(lesson.isPublished === true || lesson.published === true)} onClick={() => openShareDialog(lesson)} title={lesson.isPublished === true || lesson.published === true ? "Generate a public lesson link" : "Publish this lesson before sharing"}>
+                    <Link2 size={16} />
+                    Share Lesson
+                  </Button>
+
                   <Button variant="outline" disabled={busyLessonId === lesson.id} onClick={() => void handleDelete(lesson)} className="border-red-200 text-red-700 hover:bg-red-50">
                     <Trash2 size={16} />
                     Delete Lesson
@@ -467,6 +496,7 @@ function ModuleLessonsCard({
               </div>
             ))}
           </div>
+          {sharingLesson && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-label="Share lesson"><section className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><h3 className="text-xl font-black">Share “{sharingLesson.title}”</h3><p className="mt-1 text-sm text-slate-600">Visitors provide their name, phone, email and institution before opening the lesson.</p></div><button aria-label="Close" onClick={()=>setSharingLesson(null)} className="rounded-lg p-2 hover:bg-slate-100"><X size={20}/></button></div>{!shareResult ? <div className="mt-6 space-y-4"><label className="block"><span className="mb-1 block text-sm font-bold">Niche / cohort name</span><input className="w-full rounded-xl border px-4 py-3" value={shareForm.nicheName} onChange={event=>setShareForm({...shareForm,nicheName:event.target.value})} placeholder="Open audience or institution name"/><span className="mt-1 block text-xs text-slate-500">People using this link are grouped under this name for follow-up and reporting.</span></label><label className="block"><span className="mb-1 block text-sm font-bold">Campaign label</span><input className="w-full rounded-xl border px-4 py-3" value={shareForm.campaignName} onChange={event=>setShareForm({...shareForm,campaignName:event.target.value})} placeholder="Optional internal label"/></label><Button className="w-full" disabled={busyLessonId === sharingLesson.id || !shareForm.nicheName.trim()} onClick={()=>void createShareLink()}><Link2 size={17}/>{busyLessonId === sharingLesson.id ? "Generating..." : "Generate & Copy Link"}</Button></div> : <div className="mt-6"><p className="rounded-xl bg-emerald-50 p-4 font-semibold text-emerald-800">The lesson link was created and copied.</p><label className="mt-4 block"><span className="mb-1 block text-sm font-bold">Shareable link</span><div className="flex gap-2"><input readOnly value={shareResult} className="min-w-0 flex-1 rounded-xl border bg-slate-50 px-4 py-3"/><Button variant="outline" onClick={()=>void navigator.clipboard.writeText(shareResult)}><Copy size={17}/>Copy</Button></div></label><Button className="mt-4 w-full" onClick={()=>setSharingLesson(null)}>Done</Button></div>}</section></div>}
         </div>
       )}
     </Card>
@@ -503,3 +533,4 @@ function Badge({ children }: { children: React.ReactNode }) {
     </span>
   );
 }
+
