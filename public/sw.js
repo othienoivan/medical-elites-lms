@@ -1,4 +1,4 @@
-const CACHE = "medical-elites-v3-subscription-resolution-20260808";
+const CACHE = "medical-elites-v3-route-recovery-20261014";
 const SHELL = ["/", "/index.html", "/manifest.webmanifest", "/favicon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -36,6 +36,11 @@ self.addEventListener("fetch", (event) => {
   // workspace resolution and payment flows.
   if (url.origin !== self.location.origin) return;
 
+  // Leave application data, route-prefetch and other non-static requests to
+  // the browser. Intercepting every same-origin GET previously converted an
+  // unrelated transient failure into a synthetic 503 "Offline" response.
+  if (!isCacheableSameOriginRequest(request)) return;
+
   event.respondWith(
     fetch(request)
       .then((response) => {
@@ -43,7 +48,7 @@ self.addEventListener("fetch", (event) => {
           const copy = response.clone();
           event.waitUntil(
             caches.open(CACHE)
-              .then((cache) => cache.put(request, copy))
+              .then((cache) => cache.put(request.mode === "navigate" ? "/index.html" : request, copy))
               .catch(() => undefined),
           );
         }
@@ -53,7 +58,7 @@ self.addEventListener("fetch", (event) => {
         const hit = await caches.match(request);
         if (hit) return hit;
         if (request.mode === "navigate") {
-          const shell = await caches.match("/index.html");
+          const shell = await caches.match("/index.html") || await caches.match("/");
           if (shell) return shell;
           return new Response(
             "The application is temporarily offline. Please reconnect and reload.",
