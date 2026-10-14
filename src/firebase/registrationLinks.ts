@@ -1,7 +1,6 @@
 import {
   collection,
   doc,
-  getDoc,
   getDocs,
   limit,
   query,
@@ -62,8 +61,12 @@ export async function createRegistrationLink(
 }
 
 export async function getRegistrationLink(code: string): Promise<RegistrationLink | null> {
-  const snapshot = await getDoc(doc(db, LINKS, code));
-  return snapshot.exists() ? ({ ...snapshot.data(), id: snapshot.id } as RegistrationLink) : null;
+  const callable = httpsCallable<{ code: string }, { link: RegistrationLink | null }>(
+    functions,
+    "getPublicRegistrationLinkTrusted",
+  );
+  const result = await callable({ code });
+  return result.data.link;
 }
 
 function timestampMillis(value: unknown): number {
