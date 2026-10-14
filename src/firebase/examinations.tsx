@@ -129,15 +129,20 @@ export async function getPublishedStudentExaminations(
   const ids = [...new Set(courseUnitIds)].filter(Boolean);
   if (!auth.currentUser || ids.length === 0) return [];
 
-  const results = await Promise.allSettled(
-    ids.map((courseUnitId) =>
-      getDocs(query(
-        collection(db, COLLECTION),
-        where("courseUnitId", "==", courseUnitId),
-        where("status", "==", "published")
-      ))
-    )
-  );
+  // `courseUnitId` is canonical. `courseId` is retained as a read-only
+  // compatibility path for examinations published by older releases.
+  const results = await Promise.allSettled(ids.flatMap((courseUnitId) => [
+    getDocs(query(
+      collection(db, COLLECTION),
+      where("courseUnitId", "==", courseUnitId),
+      where("status", "==", "published")
+    )),
+    getDocs(query(
+      collection(db, COLLECTION),
+      where("courseId", "==", courseUnitId),
+      where("status", "==", "published")
+    )),
+  ]));
   const byId = new Map<string, Examination>();
   results.forEach((result) => {
     if (result.status === "rejected") {

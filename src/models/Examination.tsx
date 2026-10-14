@@ -37,6 +37,8 @@ export interface Examination {
   programmeId?: string;
   programmeTitle?: string;
   courseUnitId?: string;
+  /** Compatibility field used by examinations created before courseUnitId was canonical. */
+  courseId?: string;
   courseUnitTitle?: string;
   moduleId?: string;
   moduleTitle?: string;

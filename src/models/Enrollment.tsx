@@ -12,7 +12,9 @@ export interface Enrollment {
   registrationNumber?: string;
   programmeId?: string;
   programmeTitle?: string;
+  courseUnitId?: string;
   courseUnitIds?: string[];
+  assignedCourseUnitIds?: string[];
   moduleIds?: string[];
   approvalStatus?: "approved" | "pending" | "rejected";
   academicYear?: string;

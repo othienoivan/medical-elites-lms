@@ -996,8 +996,18 @@ service cloud.firestore {
         || (hasRole('student')
           && resource.data.keys().hasAny(['status'])
           && resource.data.status == 'published'
-          && resource.data.courseUnitId != null
-          && (hasCourseUnitAssignment(resource.data.courseUnitId) || hasMarketplaceCourseAccess(resource.data.courseUnitId)))
+          && (
+            (resource.data.keys().hasAny(['courseUnitId'])
+              && resource.data.courseUnitId != null
+              && (hasCourseUnitAssignment(resource.data.courseUnitId)
+                || hasLegacyEnrollment(resource.data.courseUnitId)
+                || hasMarketplaceCourseAccess(resource.data.courseUnitId)))
+            || (resource.data.keys().hasAny(['courseId'])
+              && resource.data.courseId != null
+              && (hasCourseUnitAssignment(resource.data.courseId)
+                || hasLegacyEnrollment(resource.data.courseId)
+                || hasMarketplaceCourseAccess(resource.data.courseId)))
+          ))
       );
       allow create: if isTutorOrAdmin()
         && request.resource.data.ownerUserId == request.auth.uid

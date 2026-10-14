@@ -5114,6 +5114,35 @@ exports.claimRegistrationLinkTrusted = (0, https_1.onCall)({ region: "us-central
             userPayload.institutionName = financeText(linkSnap.get("institutionName"), 240) || null;
         }
         transaction.set(userRef, userPayload, { merge: true });
+        // Keep a canonical per-course enrollment alongside the cohort claim.
+        // Student learning pages support historical enrollment shapes, but this
+        // record makes all newly claimed links use one dependable contract.
+        if (approvalStatus === "approved") {
+            for (const courseUnitId of linkCourseUnitIds) {
+                const enrollmentRef = db.collection("enrollments").doc(`${uid}_${courseUnitId}`);
+                transaction.set(enrollmentRef, {
+                    id: enrollmentRef.id,
+                    userId: uid,
+                    studentId: uid,
+                    studentAuthUid: uid,
+                    studentName: String(userSnap.get("fullName") ?? "Student").trim(),
+                    studentEmailNormalized: String(userSnap.get("email") ?? request.auth?.token.email ?? "").trim().toLowerCase(),
+                    courseId: courseUnitId,
+                    courseUnitId,
+                    courseUnitIds: [courseUnitId],
+                    programmeId: programmeId || null,
+                    institutionId: linkInstitutionId || null,
+                    tutorId: owningTutorId || null,
+                    registrationLinkId: code,
+                    registrationLinkCode: code,
+                    approvalStatus: "approved",
+                    status: "active",
+                    enrollmentSource: "registration-link",
+                    enrolledAt: firestore_1.FieldValue.serverTimestamp(),
+                    updatedAt: firestore_1.FieldValue.serverTimestamp(),
+                }, { merge: true });
+            }
+        }
         if (tutorOwned && tutorTenantId) {
             transaction.set(db.collection("tenantMemberships").doc(`${tutorTenantId}_${uid}`), {
                 tenantId: tutorTenantId,

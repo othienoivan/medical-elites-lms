@@ -36,7 +36,8 @@ async function runEnrollmentQuery(
 }
 
 function isActiveEnrollment(item: Enrollment): boolean {
-  return item.status === "active" || item.approvalStatus === "approved";
+  return ["active", "approved", "enrolled", "accepted", "completed"].includes(item.status)
+    || item.approvalStatus === "approved";
 }
 
 export default function useStudentLearningAccess() {
@@ -79,6 +80,10 @@ export default function useStudentLearningAccess() {
           runEnrollmentQuery(
             ENROLLMENTS_COLLECTION,
             where("userId", "==", currentUser.uid)
+          ),
+          runEnrollmentQuery(
+            ENROLLMENTS_COLLECTION,
+            where("studentId", "==", currentUser.uid)
           ),
           runEnrollmentQuery(
             LINK_ENROLLMENTS_COLLECTION,
@@ -140,6 +145,8 @@ export default function useStudentLearningAccess() {
 
     enrollments.forEach((item) => {
       item.courseUnitIds?.forEach((id) => ids.add(id));
+      item.assignedCourseUnitIds?.forEach((id) => ids.add(id));
+      if (item.courseUnitId) ids.add(item.courseUnitId);
       if (item.courseId) ids.add(item.courseId);
     });
     studentRecord?.assignedCourseUnitIds?.forEach((id) => ids.add(id));
