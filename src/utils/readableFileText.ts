@@ -24,6 +24,30 @@ async function extractPdfText(file: File): Promise<string> {
   return pages.join("\n").trim();
 }
 
+function decodeXml(value: string) {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+async function extractPptxText(file: File): Promise<string> {
+  const { default: JSZip } = await import("jszip");
+  const archive = await JSZip.loadAsync(await file.arrayBuffer());
+  const slidePaths = Object.keys(archive.files)
+    .filter((path) => /^ppt\/slides\/slide\d+\.xml$/i.test(path))
+    .sort((a, b) => Number(a.match(/slide(\d+)/i)?.[1] ?? 0) - Number(b.match(/slide(\d+)/i)?.[1] ?? 0));
+  const slides = await Promise.all(slidePaths.map(async (path) => {
+    const xml = await archive.file(path)?.async("text") ?? "";
+    return [...xml.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)]
+      .map((match) => decodeXml(match[1]))
+      .join(" ");
+  }));
+  return slides.join("\n").trim();
+}
+
 function stripHtml(value: string) {
   return value
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
@@ -34,9 +58,18 @@ function stripHtml(value: string) {
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/\s+/g, " ")
-    .trim();
+    .replace(/&#39;/gi, "'");
+}
+
+function normalizeExtractedText(value: string) {
+  return value
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n")
+    .trim()
+    .slice(0, 44000);
 }
 
 export async function extractReadableTextFromFile(file: File): Promise<string> {
@@ -47,11 +80,13 @@ export async function extractReadableTextFromFile(file: File): Promise<string> {
     text = await extractPdfText(file);
   } else if (extension === "docx" || file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
     text = await extractDocxText(file);
+  } else if (extension === "pptx" || file.type === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
+    text = await extractPptxText(file);
   } else if (["txt", "csv", "md"].includes(extension || "") || file.type.startsWith("text/plain")) {
     text = await file.text();
   } else if (["html", "htm"].includes(extension || "") || file.type === "text/html") {
     text = stripHtml(await file.text());
   }
 
-  return text.replace(/\s+/g, " ").trim().slice(0, 44000);
+  return normalizeExtractedText(text);
 }
