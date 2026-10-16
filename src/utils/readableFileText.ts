@@ -1,9 +1,113 @@
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
+type WordNumberingDefinition = {
+  format: string;
+  template: string;
+  start: number;
+};
+
+function wordAttribute(element: Element | null, name: string) {
+  return element?.getAttribute(`w:${name}`) || element?.getAttribute(name) || "";
+}
+
+function alphabeticLabel(value: number, upper: boolean) {
+  let number = Math.max(1, value);
+  let label = "";
+  while (number > 0) {
+    number -= 1;
+    label = String.fromCharCode((upper ? 65 : 97) + (number % 26)) + label;
+    number = Math.floor(number / 26);
+  }
+  return label;
+}
+
+function romanLabel(value: number, upper: boolean) {
+  const symbols: Array<[number, string]> = [
+    [1000, "M"], [900, "CM"], [500, "D"], [400, "CD"], [100, "C"],
+    [90, "XC"], [50, "L"], [40, "XL"], [10, "X"], [9, "IX"],
+    [5, "V"], [4, "IV"], [1, "I"],
+  ];
+  let number = Math.max(1, value);
+  let result = "";
+  for (const [amount, symbol] of symbols) {
+    while (number >= amount) {
+      result += symbol;
+      number -= amount;
+    }
+  }
+  return upper ? result : result.toLowerCase();
+}
+
+function formatWordListNumber(value: number, format: string) {
+  if (format === "upperLetter") return alphabeticLabel(value, true);
+  if (format === "lowerLetter") return alphabeticLabel(value, false);
+  if (format === "upperRoman") return romanLabel(value, true);
+  if (format === "lowerRoman") return romanLabel(value, false);
+  return String(value);
+}
+
 async function extractDocxText(file: File): Promise<string> {
-  const { default: mammoth } = await import("mammoth");
-  const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
-  return result.value.trim();
+  const { default: JSZip } = await import("jszip");
+  const archive = await JSZip.loadAsync(await file.arrayBuffer());
+  const documentXml = await archive.file("word/document.xml")?.async("text");
+  const numberingXml = await archive.file("word/numbering.xml")?.async("text");
+  if (!documentXml) return "";
+
+  const parser = new DOMParser();
+  const numbering = new Map<string, WordNumberingDefinition>();
+
+  if (numberingXml) {
+    const numberingDocument = parser.parseFromString(numberingXml, "application/xml");
+    const abstracts = new Map<string, Element>();
+    Array.from(numberingDocument.getElementsByTagName("w:abstractNum")).forEach((item) => {
+      abstracts.set(wordAttribute(item, "abstractNumId"), item);
+    });
+
+    Array.from(numberingDocument.getElementsByTagName("w:num")).forEach((item) => {
+      const numId = wordAttribute(item, "numId");
+      const abstractId = wordAttribute(item.getElementsByTagName("w:abstractNumId")[0] || null, "val");
+      const abstract = abstracts.get(abstractId);
+      const level = Array.from(abstract?.getElementsByTagName("w:lvl") || [])
+        .find((candidate) => wordAttribute(candidate, "ilvl") === "0");
+      if (!numId || !level) return;
+      const override = Array.from(item.getElementsByTagName("w:lvlOverride"))
+        .find((candidate) => wordAttribute(candidate, "ilvl") === "0");
+      const startOverride = override?.getElementsByTagName("w:startOverride")[0];
+      const startElement = level.getElementsByTagName("w:start")[0];
+      numbering.set(numId, {
+        format: wordAttribute(level.getElementsByTagName("w:numFmt")[0], "val") || "decimal",
+        template: wordAttribute(level.getElementsByTagName("w:lvlText")[0], "val") || "%1.",
+        start: Number(wordAttribute(startOverride || startElement, "val") || "1"),
+      });
+    });
+  }
+
+  const document = parser.parseFromString(documentXml, "application/xml");
+  const counters = new Map<string, number>();
+  const lines: string[] = [];
+
+  Array.from(document.getElementsByTagName("w:p")).forEach((paragraph) => {
+    const text = Array.from(paragraph.getElementsByTagName("w:t"))
+      .map((node) => node.textContent || "")
+      .join("")
+      .trim();
+    if (!text) return;
+
+    const numIdElement = paragraph.getElementsByTagName("w:numId")[0];
+    const numId = wordAttribute(numIdElement || null, "val");
+    const definition = numbering.get(numId);
+    if (!definition) {
+      lines.push(text);
+      return;
+    }
+
+    const value = counters.get(numId) ?? definition.start;
+    counters.set(numId, value + 1);
+    const label = definition.template.replace(/%1/g, formatWordListNumber(value, definition.format));
+    lines.push(`${label} ${text}`);
+  });
+
+  return lines.join("\n").trim();
 }
 
 async function extractPdfText(file: File): Promise<string> {
