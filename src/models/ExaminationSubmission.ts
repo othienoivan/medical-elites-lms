@@ -9,6 +9,12 @@ export interface ExaminationSubmission {
   ownerUserId: string;
   answerText: string;
   answersJson?: Record<string, string>;
+  questionsSnapshot?: Array<{
+    number: number;
+    section: string;
+    prompt: string;
+    options: Array<{ label: string; text: string }>;
+  }>;
   status: "submitted" | "marked";
   score?: number;
   totalMarks: number;
