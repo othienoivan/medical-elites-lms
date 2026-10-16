@@ -1007,6 +1007,9 @@ service cloud.firestore {
               && (hasCourseUnitAssignment(resource.data.courseId)
                 || hasLegacyEnrollment(resource.data.courseId)
                 || hasMarketplaceCourseAccess(resource.data.courseId)))
+            || (resource.data.keys().hasAny(['programmeId'])
+              && resource.data.programmeId != null
+              && hasProgrammeAssignment(resource.data.programmeId))
           ))
       );
       allow create: if isTutorOrAdmin()
