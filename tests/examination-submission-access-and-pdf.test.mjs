@@ -26,3 +26,11 @@ test("tutor submissions are grouped and exportable as PDF", () => {
   assert.match(source, /grouped\.map/);
   assert.match(source, /Course Unit/);
 });
+
+test("mobile browsers without the Fullscreen API can start securely", () => {
+  const source = read("src/pages/StudentExaminationSittingPage.tsx");
+  assert.match(source, /if\(!fullscreenSupported\)\{setStarted\(true\);return\}/);
+  assert.match(source, /Start Secure Examination/);
+  assert.match(source, /document\.hidden/);
+  assert.match(source, /if\(fullscreenSupported\)document\.addEventListener\("fullscreenchange"/);
+});
