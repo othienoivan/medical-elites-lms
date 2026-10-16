@@ -3,6 +3,7 @@ import { FileText, GraduationCap, Timer } from "lucide-react";
 import Card from "../ui/Card";
 import useQuestions from "../../hooks/useQuestions";
 import type { Examination } from "../../models/Examination";
+import { parseOnlineExamination } from "../../utils/onlineExaminationParser";
 
 type Props = {
   examination: Examination;
@@ -12,6 +13,13 @@ export default function CandidatePaperPreview({ examination }: Props) {
   const { questions: questionBank } = useQuestions();
 
   let globalQuestionNumber = 1;
+  const uploadedQuestions = parseOnlineExamination(examination.uploadedExamExtractedText || "");
+  const uploadedSections = uploadedQuestions.reduce<Map<string, typeof uploadedQuestions>>((groups, question) => {
+    const current = groups.get(question.section) || [];
+    current.push(question);
+    groups.set(question.section, current);
+    return groups;
+  }, new Map());
 
   return (
     <Card>
@@ -73,7 +81,40 @@ export default function CandidatePaperPreview({ examination }: Props) {
         )}
 
         <div className="mt-8 space-y-8">
-          {examination.sections.length === 0 ? (
+          {uploadedQuestions.length > 0 ? (
+            [...uploadedSections.entries()].map(([sectionTitle, sectionQuestions]) => (
+              <section key={sectionTitle}>
+                <div className="border-b border-slate-300 pb-3">
+                  <h3 className="text-xl font-bold uppercase text-slate-950">{sectionTitle}</h3>
+                  <p className="mt-1 text-sm font-semibold text-blue-700">
+                    {sectionQuestions.length} question{sectionQuestions.length === 1 ? "" : "s"} · {sectionQuestions.reduce((sum, question) => sum + (question.marks || 0), 0) || "Marks as indicated"}
+                  </p>
+                </div>
+                <div className="mt-5 space-y-5">
+                  {sectionQuestions.map((question, questionIndex) => (
+                    <div key={`${sectionTitle}-${question.number}-${questionIndex}`} className="leading-7">
+                      <p className="font-semibold text-slate-950">
+                        {question.number}. {question.prompt}
+                        {question.marks ? <span className="ml-2 text-sm text-slate-500">({question.marks} marks)</span> : null}
+                      </p>
+                      {question.options.length > 0 ? (
+                        <div className="mt-2 space-y-1 pl-6 text-slate-700">
+                          {question.options.map((option) => <p key={option.label}>{option.label}. {option.text}</p>)}
+                        </div>
+                      ) : (
+                        <div className="mt-3 rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-400">Answer space</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))
+          ) : examination.uploadedExamUrl ? (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-6 text-amber-900">
+              <p className="font-bold">The paper was uploaded, but no numbered questions could be detected.</p>
+              <p className="mt-2 text-sm">Replace it with a text-based PDF, DOCX, PPTX, HTML or TXT file. Scanned image-only documents require OCR before they can be used for online sitting.</p>
+            </div>
+          ) : examination.sections.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-slate-500">
               No examination sections added yet.
             </div>
