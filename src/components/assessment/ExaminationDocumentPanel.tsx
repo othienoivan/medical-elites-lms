@@ -4,6 +4,7 @@ import FileUpload from "../upload/FileUpload";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
 import { extractReadableTextFromFile } from "../../utils/readableFileText";
+import { parseOnlineExamination } from "../../utils/onlineExaminationParser";
 
 export type ExaminationDocumentState = {
   uploadedExamUrl: string;
@@ -30,6 +31,8 @@ type Props = {
 const ACCEPTED_EXAM_FILES = ".pdf,.docx,.txt,.html,.htm,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/html,application/vnd.openxmlformats-officedocument.presentationml.presentation";
 
 export default function ExaminationDocumentPanel({ value, onChange, onGenerateMarkingGuide, generating }: Props) {
+  const detectedQuestionCount = parseOnlineExamination(value.uploadedExamExtractedText).length;
+
   return (
     <Card>
       <div className="flex items-start gap-3">
@@ -70,7 +73,17 @@ export default function ExaminationDocumentPanel({ value, onChange, onGenerateMa
           </div>
           {value.uploadedExamUrl && (
             <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
-              Uploaded: {value.uploadedExamFileName || "Examination file"}{value.uploadedExamExtractedText ? " • Readable by AI" : " • No readable text detected"}
+              Uploaded: {value.uploadedExamFileName || "Examination file"}
+              {detectedQuestionCount > 0
+                ? ` • ${detectedQuestionCount} question${detectedQuestionCount === 1 ? "" : "s"} detected`
+                : value.uploadedExamExtractedText
+                  ? " • Text extracted, but no numbered questions detected"
+                  : " • No readable text detected"}
+            </p>
+          )}
+          {value.uploadedExamUrl && detectedQuestionCount === 0 && (
+            <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              Use a text-based document with numbered questions such as 1., 1), Q1 or Question 1. Scanned image-only papers require OCR before online sitting.
             </p>
           )}
         </section>
