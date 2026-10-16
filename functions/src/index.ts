@@ -4691,7 +4691,15 @@ async function deliverAcademicPublication(input: {
   if (!after) return;
   const wasPublished = before ? isPublishedAcademicRecord(before) : false;
   const isPublished = isPublishedAcademicRecord(after);
-  if (wasPublished || !isPublished) return;
+  if (!isPublished) return;
+
+  // A deployed trigger cannot process historical publications. Permit a later
+  // save of an already-published record to retry only when no delivery ledger
+  // exists. Deterministic notification IDs keep the retry idempotent.
+  if (wasPublished) {
+    const priorDelivery = await db.collection("notificationDeliveries").doc(`${kind}_${recordId}`).get();
+    if (priorDelivery.exists) return;
+  }
 
   const courseId = financeText(after.courseUnitId ?? after.courseId, 180);
   const programmeId = financeText(after.programmeId, 180);
