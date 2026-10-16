@@ -10,52 +10,54 @@ function clean(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+const SECTION_PATTERN = /(?:^|\n)\s*(?:SECTION|PART)\s+([A-Z0-9]+)\s*[:.\-–—]?\s*([^\n]*)/gi;
+const QUESTION_START = /(?:^|\n)\s*(?:Q(?:UESTION)?\s*)?(\d{1,3})\s*[.):\-]\s+/gi;
+
 export function parseOnlineExamination(source: string): OnlineExamQuestion[] {
+  if (!source.trim()) return [];
+
   const normalized = source
     .replace(/\r/g, "")
-    .replace(/\s*(SECTION\s+[A-Z]\s*:\s*.*?(?:\(\d+\s*MARKS\)|—\s*\d+\s*MARKS))\s*/gi, "\n$1\n")
-    .replace(/([a-z0-9?)])([A-D])\.\s/g, "$1\n$2. ")
-    .replace(/\s+(?=(?:[1-9]|[1-9]\d|1\d\d)\.\s)/g, "\n");
-  const sectionMatches = [...normalized.matchAll(/SECTION\s+([A-Z])\s*:\s*([^\n]*)/gi)];
+    .replace(/\u00a0/g, " ")
+    .replace(/\s*((?:SECTION|PART)\s+[A-Z0-9]+\s*[:.\-–—]?)/gi, "\n$1")
+    .replace(/([a-z0-9?)\]])\s+(?=(?:Q(?:UESTION)?\s*)?\d{1,3}\s*[.):\-]\s+)/gi, "$1\n")
+    .replace(/([a-z0-9?)\]])\s+(?=\(?[A-H]\)?\s*[.):\-]\s+)/g, "$1\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  const sectionMatches = [...normalized.matchAll(SECTION_PATTERN)];
   const sectionFor = (offset: number) => {
-    const match = sectionMatches.filter(item => (item.index ?? 0) <= offset).at(-1);
-    return match ? `Section ${match[1]}: ${clean(match[2])}` : "Examination";
+    const match = sectionMatches.filter((item) => (item.index ?? 0) <= offset).at(-1);
+    return match
+      ? `Section ${match[1]}: ${clean(match[2]).replace(/\s*\(?(?:\d+\s*)?marks?\)?\s*$/i, "")}`.replace(/:\s*$/, "")
+      : "Examination";
   };
-  const numbered = [...normalized.matchAll(/(?:^|\n)(\d{1,3})\.\s+([\s\S]*?)(?=\n\d{1,3}\.\s+|\nSECTION\s+[A-Z]|$)/gi)];
-  const questions: OnlineExamQuestion[] = numbered.map((match) => {
+
+  const starts = [...normalized.matchAll(QUESTION_START)];
+  return starts.map((match, index) => {
     const number = Number(match[1]);
-    const body = clean(match[2]);
-    const optionMarkers = [...body.matchAll(/(?:^|\s)([A-D])\.\s*/g)];
+    const start = (match.index ?? 0) + match[0].length;
+    const end = starts[index + 1]?.index ?? normalized.length;
+    const rawBody = normalized.slice(start, end)
+      .replace(/\n\s*(?:SECTION|PART)\s+[A-Z0-9]+[\s\S]*$/i, "")
+      .trim();
+    const optionPattern = /(?:^|\s)\(?([A-H])\)?\s*[.):\-]\s+/g;
+    const optionMarkers = [...rawBody.matchAll(optionPattern)];
     const firstOption = optionMarkers[0]?.index ?? -1;
-    const prompt = firstOption >= 0 ? clean(body.slice(0, firstOption)) : body;
-    const marksMatch = body.match(/\((\d+)\s*marks?\)/i);
+    const promptSource = firstOption >= 0 ? rawBody.slice(0, firstOption) : rawBody;
+    const marksMatch = promptSource.match(/(?:\(|\[)?(\d+(?:\.\d+)?)\s*marks?(?:\)|\])?/i);
+    const prompt = clean(promptSource.replace(/(?:\(|\[)?\d+(?:\.\d+)?\s*marks?(?:\)|\])?/gi, ""));
+
     return {
       number,
       section: sectionFor(match.index ?? 0),
       prompt,
       options: optionMarkers.map((item, optionIndex) => {
-        const start = (item.index ?? 0) + item[0].length;
-        const end = optionMarkers[optionIndex + 1]?.index ?? body.length;
-        return { label: item[1], text: clean(body.slice(start, end)) };
+        const optionStart = (item.index ?? 0) + item[0].length;
+        const optionEnd = optionMarkers[optionIndex + 1]?.index ?? rawBody.length;
+        return { label: item[1].toUpperCase(), text: clean(rawBody.slice(optionStart, optionEnd)) };
       }),
       marks: marksMatch ? Number(marksMatch[1]) : undefined,
     };
-  });
-
-  // Some imported papers omit the number immediately after a new section.
-  // Recover that block when the numbering jumps by exactly one (for example 32 → 34).
-  for (let index = 1; index < numbered.length; index += 1) {
-    const previous = Number(numbered[index - 1][1]);
-    const current = Number(numbered[index][1]);
-    if (current !== previous + 2) continue;
-    const gapStart = (numbered[index - 1].index ?? 0) + numbered[index - 1][0].length;
-    const gapEnd = numbered[index].index ?? gapStart;
-    const gapSource = normalized.slice(gapStart, gapEnd);
-    const instructionEnd = Math.max(gapSource.search(/Each question carries \d+ marks?\./i), gapSource.search(/Instructions?:/i));
-    const afterInstructions = instructionEnd >= 0 ? gapSource.slice(gapSource.indexOf(".", instructionEnd) + 1) : gapSource;
-    const gap = clean(afterInstructions.replace(/SECTION\s+[A-Z][^\n]*/gi, ""));
-    if (gap.length > 40) questions.push({ number: previous + 1, section: sectionFor(gapEnd), prompt: gap, options: [] });
-  }
-  return questions.sort((a, b) => a.number - b.number);
+  }).filter((question) => question.prompt.length > 0);
 }
-
