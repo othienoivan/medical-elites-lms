@@ -4597,32 +4597,61 @@ export const getPublicCourseCatalogueSnapshotV2 = onCall(
  */
 type AcademicPublicationKind = "lesson" | "assessment" | "examination" | "assignment";
 
-async function collectSubscribedLearnerUids(courseId: string): Promise<Set<string>> {
+async function collectSubscribedLearnerUids(courseId: string, programmeId = ""): Promise<Set<string>> {
   const recipients = new Set<string>();
   const linkedStudentIds = new Set<string>();
-  const queries = await Promise.allSettled([
-    db.collection("enrollments").where("courseUnitId", "==", courseId).get(),
-    db.collection("enrollments").where("courseId", "==", courseId).get(),
-    db.collection("enrollments").where("courseUnitIds", "array-contains", courseId).get(),
-    db.collection("marketplaceCourseAccess").where("courseUnitId", "==", courseId).get(),
-    db.collection("users").where("assignedCourseUnitIds", "array-contains", courseId).get(),
-  ]);
+  const sources: Array<{ kind: string; promise: Promise<FirebaseFirestore.QuerySnapshot> }> = [];
 
-  queries.forEach((result, index) => {
-    if (result.status !== "fulfilled") return;
+  if (courseId) {
+    sources.push(
+      { kind: "enrollment", promise: db.collection("enrollments").where("courseUnitId", "==", courseId).get() },
+      { kind: "enrollment", promise: db.collection("enrollments").where("courseId", "==", courseId).get() },
+      { kind: "enrollment", promise: db.collection("enrollments").where("courseUnitIds", "array-contains", courseId).get() },
+      { kind: "link-enrollment", promise: db.collection("registrationLinkEnrollments").where("courseUnitIds", "array-contains", courseId).get() },
+      { kind: "marketplace", promise: db.collection("marketplaceCourseAccess").where("courseUnitId", "==", courseId).get() },
+      { kind: "user", promise: db.collection("users").where("assignedCourseUnitIds", "array-contains", courseId).get() },
+      { kind: "student", promise: db.collection("students").where("assignedCourseUnitIds", "array-contains", courseId).get() },
+    );
+  }
+
+  if (programmeId) {
+    sources.push(
+      { kind: "enrollment", promise: db.collection("enrollments").where("programmeId", "==", programmeId).get() },
+      { kind: "link-enrollment", promise: db.collection("registrationLinkEnrollments").where("programmeId", "==", programmeId).get() },
+      { kind: "user", promise: db.collection("users").where("programmeIds", "array-contains", programmeId).get() },
+      { kind: "student", promise: db.collection("students").where("programmeId", "==", programmeId).get() },
+    );
+  }
+
+  const results = await Promise.allSettled(sources.map((source) => source.promise));
+  results.forEach((result, index) => {
+    if (result.status !== "fulfilled") {
+      console.warn("Academic publication recipient source failed:", sources[index]?.kind, result.reason);
+      return;
+    }
+    const kind = sources[index].kind;
     result.value.docs.forEach((item) => {
       const row = item.data();
-      if (index < 3) {
+      if (kind === "enrollment" || kind === "link-enrollment") {
         const status = String(row.status ?? row.approvalStatus ?? "active").toLowerCase();
         if (!["active", "approved", "enrolled", "accepted", "completed"].includes(status)) return;
       }
-      if (index === 3 && String(row.status ?? "active").toLowerCase() !== "active") return;
+      if (kind === "marketplace" && String(row.status ?? "active").toLowerCase() !== "active") return;
+
+      if (kind === "user") {
+        recipients.add(item.id);
+        return;
+      }
+      if (kind === "student") {
+        const uid = financeText(row.authUid ?? row.studentAuthUid ?? row.userId ?? item.id, 180);
+        if (uid) recipients.add(uid);
+        return;
+      }
 
       const uid = financeText(row.studentAuthUid ?? row.userId ?? row.customerUid ?? row.authUid, 180);
       if (uid) recipients.add(uid);
       const studentId = financeText(row.studentId, 180);
       if (!uid && studentId) linkedStudentIds.add(studentId);
-      if (index === 4) recipients.add(item.id);
     });
   });
 
@@ -4630,7 +4659,7 @@ async function collectSubscribedLearnerUids(courseId: string): Promise<Set<strin
     const studentDocs = await Promise.all([...linkedStudentIds].map((studentId) => db.collection("students").doc(studentId).get()));
     studentDocs.forEach((student) => {
       if (!student.exists) return;
-      const uid = financeText(student.get("authUid") ?? student.get("studentAuthUid") ?? student.get("userId"), 180);
+      const uid = financeText(student.get("authUid") ?? student.get("studentAuthUid") ?? student.get("userId") ?? student.id, 180);
       if (uid) recipients.add(uid);
     });
   }
@@ -4665,15 +4694,20 @@ async function deliverAcademicPublication(input: {
   if (wasPublished || !isPublished) return;
 
   const courseId = financeText(after.courseUnitId ?? after.courseId, 180);
-  if (!courseId) return;
-  const recipients = await collectSubscribedLearnerUids(courseId);
+  const programmeId = financeText(after.programmeId, 180);
+  if (!courseId && !programmeId) return;
+  const recipients = await collectSubscribedLearnerUids(courseId, programmeId);
   if (recipients.size === 0) return;
 
   const title = financeText(after.title ?? after.name ?? after.examinationName, 180) || `New ${kind}`;
-  const courseTitle = financeText(after.courseUnitTitle ?? after.courseTitle, 180) || "your course unit";
+  const courseTitle = financeText(after.courseUnitTitle ?? after.courseTitle ?? after.programmeTitle, 180) || "your programme";
   const notificationType = kind === "lesson" ? "academic" : "assessment";
   const kindLabel = kind === "assessment" ? "assessment" : kind;
-  const link = kind === "lesson" ? `/courses/${encodeURIComponent(courseId)}` : "/assessments";
+  const link = kind === "lesson"
+    ? `/courses/${encodeURIComponent(courseId)}`
+    : kind === "examination"
+      ? "/examinations"
+      : "/assessments";
   const subject = `New ${kindLabel}: ${title}`.slice(0, 160);
   const body = `${title} has been published in ${courseTitle}. Sign in to Medical Elites to view it.`.slice(0, 2000);
 
@@ -4714,7 +4748,8 @@ async function deliverAcademicPublication(input: {
     eventKey: `${kind}-published:${recordId}`,
     kind,
     recordId,
-    courseUnitId: courseId,
+    courseUnitId: courseId || null,
+    programmeId: programmeId || null,
     recipientCount: recipientList.length,
     inAppEligible: eligible.length,
     inAppCreated: eligible.length,
