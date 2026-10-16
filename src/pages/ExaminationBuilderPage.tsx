@@ -187,6 +187,8 @@ export default function ExaminationBuilderPage() {
     yearOfStudy,
     examinationType,
     template,
+    programmeId: courseUnits.find((unit) => unit.id === courseUnitId)?.programmeId,
+    programmeTitle: courseUnits.find((unit) => unit.id === courseUnitId)?.programmeTitle,
     courseUnitId,
     courseUnitTitle,
     targetMarks,

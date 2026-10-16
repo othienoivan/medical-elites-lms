@@ -124,14 +124,16 @@ export async function getExaminationById(
 }
 
 export async function getPublishedStudentExaminations(
-  courseUnitIds: Iterable<string>
+  courseUnitIds: Iterable<string>,
+  programmeIds: Iterable<string> = []
 ): Promise<Examination[]> {
   const ids = [...new Set(courseUnitIds)].filter(Boolean);
-  if (!auth.currentUser || ids.length === 0) return [];
+  const programmes = [...new Set(programmeIds)].filter(Boolean);
+  if (!auth.currentUser || (ids.length === 0 && programmes.length === 0)) return [];
 
   // `courseUnitId` is canonical. `courseId` is retained as a read-only
   // compatibility path for examinations published by older releases.
-  const results = await Promise.allSettled(ids.flatMap((courseUnitId) => [
+  const lookups = ids.flatMap((courseUnitId) => [
     getDocs(query(
       collection(db, COLLECTION),
       where("courseUnitId", "==", courseUnitId),
@@ -142,7 +144,13 @@ export async function getPublishedStudentExaminations(
       where("courseId", "==", courseUnitId),
       where("status", "==", "published")
     )),
-  ]));
+  ]);
+  programmes.forEach((programmeId) => lookups.push(getDocs(query(
+    collection(db, COLLECTION),
+    where("programmeId", "==", programmeId),
+    where("status", "==", "published")
+  ))));
+  const results = await Promise.allSettled(lookups);
   const byId = new Map<string, Examination>();
   results.forEach((result) => {
     if (result.status === "rejected") {

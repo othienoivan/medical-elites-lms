@@ -12,12 +12,13 @@ import type { ExaminationSubmission } from "../models/ExaminationSubmission";
 
 export default function StudentExaminationsPage() {
   const navigate = useNavigate();
-  const { courseUnitIds, loading: accessLoading, error: accessError } = useStudentLearningAccess();
+  const { courseUnitIds, programmeIds, loading: accessLoading, error: accessError } = useStudentLearningAccess();
   const [examinations, setExaminations] = useState<Examination[]>([]);
   const [submissions, setSubmissions] = useState<Record<string,ExaminationSubmission>>({});
   const [loading, setLoading] = useState(true);
 
   const courseKey = useMemo(() => [...courseUnitIds].sort().join("|"), [courseUnitIds]);
+  const programmeKey = useMemo(() => [...programmeIds].sort().join("|"), [programmeIds]);
 
   useEffect(() => {
     let active = true;
@@ -25,7 +26,7 @@ export default function StudentExaminationsPage() {
     async function load() {
       try {
         setLoading(true);
-        const [records,ownSubmissions] = await Promise.all([getPublishedStudentExaminations(courseUnitIds),getOwnExaminationSubmissions()]);
+        const [records,ownSubmissions] = await Promise.all([getPublishedStudentExaminations(courseUnitIds, programmeIds),getOwnExaminationSubmissions()]);
         if (active) {setExaminations(records);setSubmissions(Object.fromEntries(ownSubmissions.map(item=>[item.examinationId,item])));}
       } catch (error) {
         console.error("Failed to load published examinations:", error);
@@ -36,7 +37,7 @@ export default function StudentExaminationsPage() {
     }
     void load();
     return () => { active = false; };
-  }, [accessLoading, courseKey]);
+  }, [accessLoading, courseKey, programmeKey]);
 
   const now = Date.now();
   const available = examinations.filter((exam) => !exam.opensAt || new Date(exam.opensAt).getTime() <= now);
@@ -49,7 +50,7 @@ export default function StudentExaminationsPage() {
 
     <div className="mt-6 grid gap-4 sm:grid-cols-2"><Card><p className="text-sm font-semibold text-slate-500">Available examinations</p><p className="mt-2 text-3xl font-black text-slate-950">{available.length}</p></Card><Card><p className="text-sm font-semibold text-slate-500">Upcoming examinations</p><p className="mt-2 text-3xl font-black text-slate-950">{upcoming.length}</p></Card></div>
 
-    {accessError ? <Card className="mt-6 border-red-200 bg-red-50 text-red-800">{accessError}</Card> : loading || accessLoading ? <Card className="mt-6">Loading examinations...</Card> : examinations.length === 0 ? <Card className="mt-6 text-center"><FileText size={52} className="mx-auto text-slate-400"/><h2 className="mt-4 text-xl font-bold">No published examinations yet</h2><p className="mt-2 text-slate-600">Published examinations for your assigned course units will appear here.</p></Card> : <div className="mt-6 grid gap-5 md:grid-cols-2">{examinations.map((exam) => {
+    {accessError ? <Card className="mt-6 border-red-200 bg-red-50 text-red-800">{accessError}</Card> : loading || accessLoading ? <Card className="mt-6">Loading examinations...</Card> : examinations.length === 0 ? <Card className="mt-6 text-center"><FileText size={52} className="mx-auto text-slate-400"/><h2 className="mt-4 text-xl font-bold">No published examinations yet</h2><p className="mt-2 text-slate-600">{courseUnitIds.size === 0 && programmeIds.size === 0 ? "Your account has no programme or course-unit assignment. Ask your tutor to assign the examination course unit." : "No published examination matches your assigned programme or course units."}</p></Card> : <div className="mt-6 grid gap-5 md:grid-cols-2">{examinations.map((exam) => {
       const opensLater = Boolean(exam.opensAt && new Date(exam.opensAt).getTime() > now);
       const closed = Boolean(exam.closesAt && new Date(exam.closesAt).getTime() < now);
       const submission = submissions[exam.id];
