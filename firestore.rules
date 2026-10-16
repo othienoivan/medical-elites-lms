@@ -1043,13 +1043,23 @@ service cloud.firestore {
         || resource.data.ownerUserId == request.auth.uid
         || (isAdmin() && sameInstitution(resource.data))
       );
-      allow create: if hasRole('student')
+      allow create: if signedIn()
+        && (hasRole('student') || hasCanonicalStudent())
         && request.resource.data.studentId == request.auth.uid
         && request.resource.data.status == 'submitted'
         && request.resource.data.keys().hasAll(['examinationId', 'courseUnitId', 'ownerUserId', 'answerText'])
         && get(/databases/$(database)/documents/examinations/$(request.resource.data.examinationId)).data.status == 'published'
         && get(/databases/$(database)/documents/examinations/$(request.resource.data.examinationId)).data.courseUnitId == request.resource.data.courseUnitId
-        && (hasCourseUnitAssignment(request.resource.data.courseUnitId) || hasMarketplaceCourseAccess(request.resource.data.courseUnitId));
+        && (
+          hasCourseUnitAssignment(request.resource.data.courseUnitId)
+          || hasMarketplaceCourseAccess(request.resource.data.courseUnitId)
+          || (
+            get(/databases/$(database)/documents/examinations/$(request.resource.data.examinationId)).data.keys().hasAny(['programmeId'])
+            && hasProgrammeAssignment(
+              get(/databases/$(database)/documents/examinations/$(request.resource.data.examinationId)).data.programmeId
+            )
+          )
+        );
       allow update: if isTutorOrAdmin()
         && resource.data.ownerUserId == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['score', 'totalMarks', 'percentage', 'tutorFeedback', 'status', 'markedAt', 'markedByUid', 'aiSuggestedScore', 'aiSuggestedFeedback', 'aiMarkedAt', 'released', 'releasedAt']);
