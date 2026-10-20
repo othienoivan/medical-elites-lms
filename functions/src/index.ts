@@ -7423,6 +7423,39 @@ export const listLiveClasses = onCall({ region: "us-central1", timeoutSeconds: 3
   return { sessions };
 });
 
+export const getLiveClassSession = onCall({ region: "us-central1", timeoutSeconds: 30, memory: "256MiB", cors: LIVE_CLASS_CORS, enforceAppCheck: false }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Please sign in.");
+  const sessionId = liveText((request.data as LiveClassInput | undefined)?.sessionId, 180);
+  if (!sessionId) throw new HttpsError("invalid-argument", "A live-class session ID is required.");
+  const profile = await liveProfile(request.auth.uid);
+  const snap = await db.collection("liveClasses").doc(sessionId).get();
+  if (!snap.exists) throw new HttpsError("not-found", "Live class not found.");
+  const data = { ...(snap.data() ?? {}) };
+  const role = String(profile.get("role") ?? "");
+  const owner = data.tutorUid === request.auth.uid || role === "admin";
+  if (!owner && !(await userHasCourseAccess(request.auth.uid, liveText(data.courseUnitId, 180)))) {
+    throw new HttpsError("permission-denied", "You are not enrolled in this live class.");
+  }
+  const tutorProfile = data.tutorUid ? await db.collection("users").doc(String(data.tutorUid)).get() : null;
+  data.tutorName = tutorProfile?.exists ? liveName(tutorProfile, "Tutor") : (liveText(data.tutorName, 160).includes("@") ? "Tutor" : liveText(data.tutorName, 160) || "Tutor");
+  if (!owner) {
+    delete data.openShareToken;
+    delete data.dailyRoomName;
+    delete data.dailyRoomUrl;
+  }
+  const iso = (value: unknown) => (value as { toDate?: () => Date } | null)?.toDate?.()?.toISOString?.() ?? null;
+  return {
+    session: {
+      id: snap.id,
+      ...data,
+      startsAt: iso(snap.get("startsAt")),
+      endsAt: iso(snap.get("endsAt")),
+      testStartedAt: iso(snap.get("testStartedAt")),
+      testEndsAt: iso(snap.get("testEndsAt")),
+    },
+  };
+});
+
 export const manageLiveClass = onCall({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", cors: LIVE_CLASS_CORS, secrets: [DAILY_API_KEY], enforceAppCheck: false }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Please sign in.");
   const profile = await liveProfile(request.auth.uid);
@@ -7457,11 +7490,25 @@ export const manageLiveClass = onCall({ region: "us-central1", timeoutSeconds: 6
   if (action === "launch_test") {
     const quizId = liveText(input.quizId, 180) || liveText(data.quizId, 180);
     if (!quizId) throw new HttpsError("failed-precondition", "Attach an assessment before launching a live test.");
+    const quiz = await db.collection("quizzes").doc(quizId).get();
+    if (!quiz.exists) throw new HttpsError("not-found", "The attached live test no longer exists.");
+    const quizData = quiz.data() ?? {};
+    if (quizData.status !== "published") throw new HttpsError("failed-precondition", "Publish the attached assessment before launching it.");
+    const moduleId = liveText(quizData.moduleId, 180);
+    if (!moduleId) throw new HttpsError("failed-precondition", "The live test must be linked to a course module.");
+    const moduleSnap = await db.collection("modules").doc(moduleId).get();
+    if (!moduleSnap.exists) throw new HttpsError("failed-precondition", "The live test module could not be found.");
+    const moduleData = moduleSnap.data() ?? {};
+    const quizCourseUnitId = liveText(moduleData.courseUnitId ?? moduleData.courseId ?? quizData.courseUnitId ?? quizData.courseId, 180);
+    if (!quizCourseUnitId || quizCourseUnitId !== liveText(data.courseUnitId, 180)) {
+      throw new HttpsError("failed-precondition", "The live test must belong to the same course unit as the live class.");
+    }
     const minutes = Math.min(240, Math.max(1, Number(input.testDurationMinutes) || 20));
     const testEndsAt = new Date(Date.now() + minutes * 60_000);
-    await ref.set({ activeQuizId: quizId, activeQuizTitle: liveText(input.quizTitle, 220) || data.quizTitle || "Live test", testStartedAt: FieldValue.serverTimestamp(), testEndsAt, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    const activeQuizTitle = liveText(quizData.title, 220) || liveText(input.quizTitle, 220) || data.quizTitle || "Live test";
+    await ref.set({ activeQuizId: quizId, activeQuizTitle, testStartedAt: FieldValue.serverTimestamp(), testEndsAt, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     await notifyLiveClassStudents(String(data.courseUnitId ?? ""), "Live test started", `${data.title}: your test is now available.`, `/live-classes/${sessionId}`);
-    return { activeQuizId: quizId, testEndsAt: testEndsAt.toISOString() };
+    return { activeQuizId: quizId, activeQuizTitle, testEndsAt: testEndsAt.toISOString() };
   }
   if (action !== "start") throw new HttpsError("invalid-argument", "Unknown live-class action.");
   let roomName = liveText(data.dailyRoomName, 180);
