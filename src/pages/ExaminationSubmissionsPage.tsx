@@ -8,7 +8,7 @@ import { generateAiResponse } from "../firebase/aiAssistant";
 import { getExaminationById } from "../firebase/examinations";
 import { getTutorExaminationSubmissions, markExaminationSubmission, releaseExaminationResults, saveAiExaminationMarkingSuggestion } from "../firebase/examinationSubmissions";
 import type { ExaminationSubmission } from "../models/ExaminationSubmission";
-import { parseOnlineExamination } from "../utils/onlineExaminationParser";
+import { onlineExamAnswerKey, parseOnlineExamination } from "../utils/onlineExaminationParser";
 
 export default function ExaminationSubmissionsPage() {
   const [items, setItems] = useState<ExaminationSubmission[]>([]);
@@ -139,10 +139,11 @@ export default function ExaminationSubmissionsPage() {
       y += 3;
 
       if (questions.length > 0) {
-        questions.forEach((question) => {
+        questions.forEach((question, index) => {
           write(`Question ${question.number} — ${question.section}`, 11, true, 1);
           write(question.prompt, 10, false, 1);
-          const rawAnswer = item.answersJson?.[String(question.number)]?.trim() || "No response";
+          const answerKey = "answerKey" in question && question.answerKey ? question.answerKey : onlineExamAnswerKey(question, index);
+          const rawAnswer = item.answersJson?.[answerKey]?.trim() || item.answersJson?.[String(question.number)]?.trim() || "No response";
           const selectedOption = question.options?.find((option) => option.label === rawAnswer);
           const answer = selectedOption ? `${selectedOption.label}. ${selectedOption.text}` : rawAnswer;
           write(`Student answer: ${answer}`, 10, true, 5);

@@ -6,6 +6,10 @@ export type OnlineExamQuestion = {
   marks?: number;
 };
 
+export function onlineExamAnswerKey(_question: OnlineExamQuestion, index: number): string {
+  return `q_${index + 1}`;
+}
+
 function clean(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
