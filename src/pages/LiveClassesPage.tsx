@@ -28,7 +28,7 @@ export default function LiveClassesPage() {
   async function refresh() { try { setError(""); setSessions(await listLiveClasses()); } catch (e) { setError(e instanceof Error ? e.message : "Live classes could not be loaded."); } }
   useEffect(() => { void refresh(); }, []);
   const sorted = useMemo(() => [...sessions].sort((a,b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime()), [sessions]);
-  const availableQuizzes = quizzes.filter((quiz) => !form.courseUnitId || quiz.courseUnitId === form.courseUnitId);
+  const availableQuizzes = quizzes.filter((quiz) => quiz.status === "published" && (!form.courseUnitId || quiz.courseUnitId === form.courseUnitId));
 
   async function create() {
     const unit = courseUnits.find((item) => item.id === form.courseUnitId);
@@ -112,7 +112,7 @@ export default function LiveClassesPage() {
         <label><span className="mb-1 block text-sm font-bold">Open room before start (minutes)</span><input type="number" min={0} max={240} disabled={!form.allowJoinBeforeTutor} className="w-full rounded-xl border px-4 py-3 disabled:bg-slate-100" value={form.earlyJoinMinutes} onChange={e=>setForm({...form,earlyJoinMinutes:Number(e.target.value)})}/></label>
         <label className="flex items-start gap-3 rounded-xl border p-4 md:col-span-2"><input type="checkbox" checked={form.generateOpenLink} onChange={e=>setForm({...form,generateOpenLink:e.target.checked})} className="mt-1 h-4 w-4"/><span><strong className="block">Generate an open guest link</strong><span className="text-sm text-slate-600">Anyone with the link can enter after providing their name, email, phone and institution. They are recorded in attendance but receive no tutor controls.</span></span></label>
         <label className="md:col-span-2"><span className="mb-1 block text-sm font-bold">Description / agenda</span><textarea className="w-full rounded-xl border px-4 py-3" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label>
-        <label><span className="mb-1 block text-sm font-bold">Optional live test</span><select className="w-full rounded-xl border px-4 py-3" value={form.quizId} onChange={e=>setForm({...form,quizId:e.target.value})}><option value="">No test attached</option>{availableQuizzes.map(q=><option key={q.id} value={q.id}>{q.title}</option>)}</select></label>
+        <label><span className="mb-1 block text-sm font-bold">Optional live test</span><p className="mb-2 text-xs text-slate-500">Only published tests from the selected course unit can be launched.</p><select className="w-full rounded-xl border px-4 py-3" value={form.quizId} onChange={e=>setForm({...form,quizId:e.target.value})}><option value="">No test attached</option>{availableQuizzes.map(q=><option key={q.id} value={q.id}>{q.title}</option>)}</select></label>
         <div><span className="mb-1 block text-sm font-bold">Optional presentation</span><FileUpload folder="documents" accept=".pdf,.ppt,.pptx,.doc,.docx" label="Upload presentation" onUploaded={file=>setForm({...form,presentationName:file.fileName,presentationUrl:file.downloadUrl,presentationPath:file.filePath})}/></div>
       </div>
       <button disabled={busy} onClick={()=>void create()} className="mt-5 rounded-xl bg-blue-700 px-6 py-3 font-bold text-white disabled:opacity-50">{busy?"Saving…":"Schedule and notify students"}</button>
