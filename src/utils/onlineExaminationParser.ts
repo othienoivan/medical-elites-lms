@@ -10,8 +10,20 @@ export function onlineExamAnswerKey(_question: OnlineExamQuestion, index: number
   return `q_${index + 1}`;
 }
 
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&#x([0-9a-f]+);/gi, (_match, hex: string) => String.fromCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_match, decimal: string) => String.fromCodePoint(Number.parseInt(decimal, 10)))
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'");
+}
+
 function clean(value: string) {
-  return value.replace(/\s+/g, " ").trim();
+  return decodeHtmlEntities(value).replace(/\s+/g, " ").trim();
 }
 
 const SECTION_PATTERN = /(?:^|\n)\s*(?:SECTION|PART)\s+([A-Z0-9]+)\s*[:.\-–—]?\s*([^\n]*)/gi;
@@ -20,11 +32,11 @@ const QUESTION_START = /(?:^|\n)\s*(?:Q(?:UESTION)?\s*)?(\d{1,3})\s*[.):\-]\s+/g
 export function parseOnlineExamination(source: string): OnlineExamQuestion[] {
   if (!source.trim()) return [];
 
-  const normalized = source
+  const normalized = decodeHtmlEntities(source)
     .replace(/\r/g, "")
     .replace(/\u00a0/g, " ")
     .replace(/\s*((?:SECTION|PART)\s+[A-Z0-9]+\s*[:.\-–—]?)/gi, "\n$1")
-    .replace(/([a-z0-9?)\]])\s+(?=(?:Q(?:UESTION)?\s*)?\d{1,3}\s*[.):\-]\s+)/gi, "$1\n")
+    .replace(/([a-z0-9?).\]])\s+(?=(?:Q(?:UESTION)?\s*)?\d{1,3}\s*[.):\-]\s+)/gi, "$1\n")
     .replace(/([a-z0-9?)\]])\s+(?=\(?[A-H]\)?\s*[.):\-]\s+)/g, "$1\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
@@ -32,9 +44,12 @@ export function parseOnlineExamination(source: string): OnlineExamQuestion[] {
   const sectionMatches = [...normalized.matchAll(SECTION_PATTERN)];
   const sectionFor = (offset: number) => {
     const match = sectionMatches.filter((item) => (item.index ?? 0) <= offset).at(-1);
-    return match
-      ? `Section ${match[1]}: ${clean(match[2]).replace(/\s*\(?(?:\d+\s*)?marks?\)?\s*$/i, "")}`.replace(/:\s*$/, "")
-      : "Examination";
+    if (!match) return "Examination";
+    const title = clean(match[2])
+      .replace(/\s*\(?\d+(?:\.\d+)?\s*marks?\)?[\s\S]*$/i, "")
+      .replace(/\s*(?:choose|select)\s+the\s+(?:single\s+)?best[\s\S]*$/i, "")
+      .trim();
+    return `Section ${match[1]}${title ? `: ${title}` : ""}`;
   };
 
   const starts = [...normalized.matchAll(QUESTION_START)];
