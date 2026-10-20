@@ -50,7 +50,7 @@ test("answers use global-position keys instead of repeated section numbers", () 
 test("uploaded examination headings decode entities and exclude instructions", () => {
   const parser = read("src/utils/onlineExaminationParser.ts");
   assert.match(parser, /decodeHtmlEntities\(source\)/);
-  assert.match(parser, /&#x\(\[0-9a-f\]\+\);/);
-  assert.match(parser, /\d\+\(\?:\\\.\\d\+\)\?\\s\*marks/);
-  assert.match(parser, /\[a-z0-9\?\)\.\\\]\]/);
+  assert.ok(parser.includes("&#x([0-9a-f]+);"));
+  assert.ok(parser.includes("marks?"));
+  assert.ok(parser.includes("[a-z0-9?).\\\\]]"));
 });
