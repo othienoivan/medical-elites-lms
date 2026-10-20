@@ -10,6 +10,7 @@ export interface ExaminationSubmission {
   answerText: string;
   answersJson?: Record<string, string>;
   questionsSnapshot?: Array<{
+    answerKey?: string;
     number: number;
     section: string;
     prompt: string;
