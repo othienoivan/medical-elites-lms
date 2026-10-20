@@ -34,3 +34,15 @@ test("mobile browsers without the Fullscreen API can start securely", () => {
   assert.match(source, /document\.hidden/);
   assert.match(source, /if\(fullscreenSupported\)document\.addEventListener\("fullscreenchange"/);
 });
+
+test("answers use global-position keys instead of repeated section numbers", () => {
+  const parser = read("src/utils/onlineExaminationParser.ts");
+  const sitting = read("src/pages/StudentExaminationSittingPage.tsx");
+  const submissions = read("src/firebase/examinationSubmissions.ts");
+  const tutorPage = read("src/pages/ExaminationSubmissionsPage.tsx");
+  assert.match(parser, /return `q_\$\{index \+ 1\}`/);
+  assert.match(sitting, /onlineExamAnswerKey\(question,currentIndex\)/);
+  assert.doesNotMatch(sitting, /answers\[String\(question\.number\)\]/);
+  assert.match(submissions, /answerKey: onlineExamAnswerKey\(question, index\)/);
+  assert.match(tutorPage, /item\.answersJson\?\.\[answerKey\]/);
+});
