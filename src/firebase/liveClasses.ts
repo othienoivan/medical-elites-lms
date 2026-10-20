@@ -9,6 +9,11 @@ export async function listLiveClasses(): Promise<LiveClass[]> {
   return (await call({})).data.sessions ?? [];
 }
 
+export async function getLiveClassSession(sessionId: string): Promise<LiveClass> {
+  const call = httpsCallable<{ sessionId: string }, { session: LiveClass }>(functions, "getLiveClassSession");
+  return (await call({ sessionId })).data.session;
+}
+
 export async function saveLiveClass(input: LiveClassDraft) {
   const call = httpsCallable<LiveClassDraft & { generateOpenLink?: boolean }, { sessionId: string; openShareToken?: string | null }>(functions, "saveLiveClass");
   return (await call(input)).data;
