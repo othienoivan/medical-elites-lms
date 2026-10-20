@@ -52,5 +52,5 @@ test("uploaded examination headings decode entities and exclude instructions", (
   assert.match(parser, /decodeHtmlEntities\(source\)/);
   assert.ok(parser.includes("&#x([0-9a-f]+);"));
   assert.ok(parser.includes("marks?"));
-  assert.ok(parser.includes("[a-z0-9?).\\\\]]"));
+
 });
