@@ -4,7 +4,7 @@ import { Camera, CameraOff, ExternalLink, FileText, Mic, MicOff, MonitorUp, Moni
 import { useNavigate, useParams } from "react-router-dom";
 import TutorLayout from "../components/layout/TutorLayout";
 import useAuth from "../hooks/useAuth";
-import { getLiveClassRoster, joinLiveClass, listLiveClasses, manageLiveClass, updateLiveClassPresence } from "../firebase/liveClasses";
+import { getLiveClassRoster, getLiveClassSession, joinLiveClass, manageLiveClass, updateLiveClassPresence } from "../firebase/liveClasses";
 import type { LiveClass, LiveClassAttendance } from "../models/LiveClass";
 
 type JoinDetails = { roomUrl: string; token: string; isOwner: boolean };
@@ -33,8 +33,7 @@ export default function LiveClassRoomPage() {
   useEffect(() => { hideCameraWhilePresentingRef.current = hideCameraWhilePresenting; }, [hideCameraWhilePresenting]);
 
   async function refresh() {
-    const all = await listLiveClasses();
-    setSession(all.find((item) => item.id === sessionId) ?? null);
+    setSession(await getLiveClassSession(sessionId));
     if (tutor) setRoster(await getLiveClassRoster(sessionId));
   }
 
@@ -91,7 +90,7 @@ export default function LiveClassRoomPage() {
     return () => { window.clearInterval(heartbeat); window.removeEventListener("beforeunload", leave); leave(); };
   }, [join, sessionId]);
 
-  useEffect(() => { if (!tutor) return; const timer = window.setInterval(() => void refresh(), 15_000); return () => window.clearInterval(timer); }, [tutor, sessionId]);
+  useEffect(() => { const timer = window.setInterval(() => void refresh().catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "Classroom updates could not be loaded.")), 5_000); return () => window.clearInterval(timer); }, [tutor, sessionId]);
 
   async function toggleMicrophone() {
     const next = !micOn;
@@ -164,6 +163,10 @@ export default function LiveClassRoomPage() {
   };
   const roomCanJoin = session?.status === "live" || (session?.status === "scheduled" && session.allowJoinBeforeTutor !== false && Date.now() >= new Date(session.startsAt).getTime() - (session.earlyJoinMinutes ?? 30) * 60_000);
   const attendees = roster.filter((record) => record.role !== "tutor");
+  const testEndsAtMs = session?.testEndsAt ? new Date(session.testEndsAt).getTime() : 0;
+  const activeTest = Boolean(session?.activeQuizId && (!testEndsAtMs || testEndsAtMs > Date.now()));
+  const testMinutesRemaining = testEndsAtMs ? Math.max(1, Math.ceil((testEndsAtMs - Date.now()) / 60_000)) : null;
+  const openLiveTest = () => { if (session?.activeQuizId) window.open(`/assessments/quizzes/${session.activeQuizId}`, "_blank", "noopener,noreferrer"); };
 
   const content = <div className="min-h-[calc(100vh-5rem)] bg-slate-950 p-3 text-white"><div className="mx-auto max-w-[1800px]">
     <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-black">{session?.title ?? "Live classroom"}</h1><p className="text-sm text-slate-300">{session?.courseUnitTitle}</p></div><button onClick={() => navigate("/live-classes")} className="rounded-xl border border-slate-600 px-4 py-2">Leave classroom</button></div>
@@ -176,7 +179,7 @@ export default function LiveClassRoomPage() {
       </div>
       <div className="mt-6 grid gap-3 sm:grid-cols-2"><button disabled={connecting || !roomCanJoin} onClick={() => void enterClassroom()} className="rounded-xl bg-blue-700 px-5 py-4 font-black text-white disabled:opacity-50">{connecting ? "Connecting…" : "Enter classroom"}</button><button disabled={connecting || !roomCanJoin} onClick={() => void openInNewTab()} className="flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-5 py-4 font-bold disabled:opacity-50"><ExternalLink size={18}/> Open in new tab</button></div>
       {!roomCanJoin && <p className="mt-3 text-center text-sm text-slate-600">This classroom opens {session?.earlyJoinMinutes ?? 30} minutes before the scheduled start.</p>}
-      <details className="mt-5 rounded-xl bg-slate-100 p-4"><summary className="cursor-pointer font-bold">Camera or microphone blocked?</summary><p className="mt-3 text-sm text-slate-700">Open the site-controls icon beside the browser address bar, set Camera and Microphone to Allow, then reload. On Android, also check Phone Settings → Apps → Chrome → Permissions.</p></details>
+      <details className="mt-5 rounded-xl bg-slate-100 p-4"><summary className="cursor-pointer font-bold">Camera or microphone blocked?</summary><p className="mt-3 text-sm text-slate-700">Open the site-controls icon beside the browser address bar, set Camera and Microphone to Allow, then reload. On Android, also check Phone Settings → Apps → Chrome → Permissions.</p></details>\n      {activeTest && <section className="mt-5 rounded-2xl bg-emerald-950 p-4 text-white"><h2 className="font-black">Live test in progress</h2><p className="mt-1 text-sm text-emerald-100">{session?.activeQuizTitle}</p>{testMinutesRemaining && <p className="mt-1 text-xs text-emerald-200">About {testMinutesRemaining} minute(s) remaining</p>}<button onClick={openLiveTest} className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-3 font-black">Open live test</button></section>}
     </section> : <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]">
       <div><div className="relative h-[72vh] overflow-hidden rounded-2xl bg-black"><div ref={frameHostRef} className="h-full w-full"/>{connecting && <div className="absolute inset-0 grid place-items-center bg-black/80 text-slate-200">Connecting securely…</div>}</div>
         <div className="mt-3 flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-slate-900 p-3">
@@ -188,7 +191,7 @@ export default function LiveClassRoomPage() {
         </div></div>
       <aside className="space-y-3">
         {session?.presentationUrl && <section className="rounded-2xl bg-slate-900 p-4"><h2 className="flex items-center gap-2 font-black"><FileText size={18}/>Class presentation</h2><p className="mt-2 text-sm text-slate-300">{session.presentationName}</p><a href={session.presentationUrl} target="_blank" rel="noreferrer" className="mt-3 flex items-center gap-2 rounded-xl bg-blue-700 px-4 py-3 font-bold">Open presentation <ExternalLink size={16}/></a>{tutor && <><label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl bg-slate-800 p-3 text-sm"><input type="checkbox" checked={hideCameraWhilePresenting} disabled={presenting} onChange={(event) => setHideCameraWhilePresenting(event.target.checked)} className="mt-1 h-4 w-4"/><span><strong className="block">Hide my camera while presenting</strong><span className="text-slate-400">Your camera is restored automatically when sharing ends.</span></span></label><button type="button" onClick={() => void togglePresentation()} className={`mt-2 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 font-bold ${presenting ? "bg-amber-600" : "bg-emerald-700"}`}>{presenting ? <MonitorX size={18}/> : <MonitorUp size={18}/>} {presenting ? "Stop presenting" : "Share presentation / screen"}</button></>}<p className="mt-2 text-xs text-slate-400">Open the presentation first, select Share presentation, then choose its tab or window. Mobile screen sharing appears only when the device and browser support screen capture; use desktop Chrome or Edge for dependable presenting.</p></section>}
-        {session?.activeQuizId ? <section className="rounded-2xl bg-emerald-950 p-4"><h2 className="font-black">Live test in progress</h2><p className="mt-1 text-sm text-emerald-100">{session.activeQuizTitle}</p><button onClick={() => window.open(`/assessments/quizzes/${session.activeQuizId}`, "_blank")} className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-3 font-black">Open live test</button></section> : tutor && session?.quizId ? <section className="rounded-2xl bg-slate-900 p-4"><h2 className="font-black">Attached test</h2><p className="mt-1 text-sm text-slate-300">{session.quizTitle}</p><div className="mt-3 flex gap-2"><input type="number" min={1} max={240} value={minutes} onChange={(event) => setMinutes(Number(event.target.value))} className="w-20 rounded-xl bg-slate-800 px-3 py-2"/><button onClick={() => void launchTest()} className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 font-bold">Launch test</button></div></section> : null}
+        {activeTest ? <section className="rounded-2xl bg-emerald-950 p-4"><h2 className="font-black">Live test in progress</h2><p className="mt-1 text-sm text-emerald-100">{session?.activeQuizTitle}</p>{testMinutesRemaining && <p className="mt-1 text-xs text-emerald-200">About {testMinutesRemaining} minute(s) remaining</p>}<button onClick={openLiveTest} className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-3 font-black">Open live test</button></section> : tutor && session?.quizId ? <section className="rounded-2xl bg-slate-900 p-4"><h2 className="font-black">Attached test</h2><p className="mt-1 text-sm text-slate-300">{session.quizTitle}</p><div className="mt-3 flex gap-2"><input type="number" min={1} max={240} value={minutes} onChange={(event) => setMinutes(Number(event.target.value))} className="w-20 rounded-xl bg-slate-800 px-3 py-2"/><button onClick={() => void launchTest()} className="flex-1 rounded-xl bg-emerald-600 px-3 py-2 font-bold">Launch test</button></div></section> : null}
         {tutor && <section className="max-h-[40vh] overflow-auto rounded-2xl bg-slate-900 p-4"><h2 className="flex items-center gap-2 font-black"><Users size={18}/>Attendance ({attendees.length})</h2>{attendees.map((record) => <div key={record.id} className="mt-3 border-t border-slate-700 pt-3"><p className="font-bold">{record.studentName || record.studentUid} {record.role === "guest" && <span className="ml-1 rounded bg-blue-900 px-2 py-0.5 text-xs">Guest</span>}</p>{record.studentEmail && <p className="text-xs text-slate-400">{record.studentEmail}</p>}{record.institutionName && <p className="text-xs text-slate-400">{record.institutionName}</p>}<select value={record.status || "present"} onChange={(event) => void mark(record, event.target.value as LiveClassAttendance["status"])} className="mt-1 w-full rounded-lg bg-slate-800 px-2 py-2 text-sm"><option value="present">Present</option><option value="late">Late</option><option value="absent">Absent</option><option value="excused">Excused</option></select></div>)}</section>}
       </aside>
     </div>}
