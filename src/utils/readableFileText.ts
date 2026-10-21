@@ -87,9 +87,14 @@ async function extractDocxText(file: File): Promise<string> {
   const lines: string[] = [];
 
   Array.from(document.getElementsByTagName("w:p")).forEach((paragraph) => {
-    const text = Array.from(paragraph.getElementsByTagName("w:t"))
-      .map((node) => node.textContent || "")
+    const text = Array.from(paragraph.getElementsByTagName("*"))
+      .filter((node) => ["t", "tab", "br", "cr"].includes(node.localName))
+      .map((node) => node.localName === "t" ? node.textContent || "" : "\n")
       .join("")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .join("\n")
       .trim();
     if (!text) return;
 
