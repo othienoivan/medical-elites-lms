@@ -19,4 +19,6 @@ export async function getSharedContentResult(input:{code:string;attemptId:string
 export async function getContentCampaigns(){const call=httpsCallable<Record<string,never>,ContentCampaignData>(functions,"getTutorContentCampaigns");return (await call({})).data;}
 export async function markSharedContentAttempt(input:{attemptId:string;score:number;totalMarks:number;feedback:string}){const call=httpsCallable<typeof input,{attemptId:string;score:number;totalMarks:number;percentage:number}>(functions,"markTutorSharedContentAttempt");return (await call(input)).data;}
 export async function releaseSharedContentAttempt(attemptId:string){const call=httpsCallable<{attemptId:string},{attemptId:string;released:boolean}>(functions,"releaseTutorSharedContentAttempt");return (await call({attemptId})).data;}
+export type AiSharedExamMarkingDraft={attemptId:string;score:number;totalMarks:number;percentage:number;feedback:string;questionMarks:Array<{question:string;marksAwarded:number;maximumMarks:number;feedback:string}>;usedUploadedGuide:boolean};
+export async function aiMarkSharedContentAttempt(attemptId:string){const call=httpsCallable<{attemptId:string},AiSharedExamMarkingDraft>(functions,"aiMarkTutorSharedContentAttempt");return (await call({attemptId})).data;}
 

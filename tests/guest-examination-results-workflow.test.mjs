@@ -24,6 +24,18 @@ test("tutors review answers, mark, and release as separate actions", () => {
   assert.doesNotMatch(tutorPage, /prompt\("Total marks/);
   assert.match(tutorPage, /Review the complete submission above before entering the final mark/);
   assert.match(tutorPage, /onClick=\{\(\) => openAttempt\(attempt\)\}/);
+  assert.match(tutorPage, /parseOnlineExamination\(String\(attempt\.examinationText/);
+  assert.match(tutorPage, /AI-assisted marking/);
+  assert.match(tutorPage, /AI draft — tutor review required/);
+});
+
+test("AI marking uses the uploaded guide first and remains a tutor-reviewed draft", () => {
+  assert.match(functionsSource, /aiMarkTutorSharedContentAttempt/);
+  assert.match(functionsSource, /uploadedMarkingGuideExtractedText/);
+  assert.match(functionsSource, /Use the supplied tutor marking guide as the primary and authoritative standard/);
+  assert.match(functionsSource, /If no marking guide is supplied, derive medically accurate model answers/);
+  assert.match(functionsSource, /aiMarkingDraft/);
+  assert.match(functionsSource, /The tutor must still save the mark manually/);
 });
 
 test("guests can revisit the shared URL for pending or released results", () => {

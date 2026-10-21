@@ -5140,7 +5140,31 @@ export const getTutorContentCampaigns = onCall(
   async (request) => {
     if(!request.auth)throw new HttpsError("unauthenticated","Please sign in.");const tutorId=request.auth.uid;await assertTutorProfile(tutorId);
     const [links,contacts,attempts]=await Promise.all([db.collection("contentShareLinks").where("tutorId","==",tutorId).get(),db.collection("tutorLeadContacts").where("tutorId","==",tutorId).get(),db.collection("sharedContentAttempts").where("tutorId","==",tutorId).get()]);
-    return {links:links.docs.map(doc=>({id:doc.id,...doc.data()})),contacts:contacts.docs.map(doc=>({id:doc.id,...doc.data()})),attempts:attempts.docs.map(doc=>({id:doc.id,...doc.data()}))};
+    const examinationIds=[...new Set(attempts.docs.filter(doc=>doc.get("contentType")==="examination").map(doc=>financeText(doc.get("resourceId"),180)).filter(Boolean))];
+    const examinationDocs=await Promise.all(examinationIds.map(id=>db.collection("examinations").doc(id).get()));const examinationText=new Map(examinationDocs.filter(doc=>doc.exists).map(doc=>[doc.id,financeText(doc.get("uploadedExamExtractedText"),60000)]));
+    return {links:links.docs.map(doc=>({id:doc.id,...doc.data()})),contacts:contacts.docs.map(doc=>({id:doc.id,...doc.data()})),attempts:attempts.docs.map(doc=>({id:doc.id,...doc.data(),examinationText:examinationText.get(financeText(doc.get("resourceId"),180))||""}))};
+  },
+);
+
+/** Creates a reviewable AI marking draft for a guest examination. The tutor must still save the mark manually. */
+export const aiMarkTutorSharedContentAttempt = onCall(
+  {region:"us-central1",timeoutSeconds:180,memory:"512MiB",secrets:[OPENAI_API_KEY],enforceAppCheck:false},
+  async request=>{
+    if(!request.auth)throw new HttpsError("unauthenticated","Please sign in.");const tutorId=request.auth.uid;await assertTutorProfile(tutorId);
+    const attemptId=financeText((request.data as {attemptId?:unknown}|undefined)?.attemptId,180);const attempt=await db.collection("sharedContentAttempts").doc(attemptId).get();
+    if(!attempt.exists||financeText(attempt.get("tutorId"),180)!==tutorId)throw new HttpsError("permission-denied","You cannot AI-mark this submission.");
+    if(attempt.get("contentType")!=="examination")throw new HttpsError("failed-precondition","AI marking here is available for shared examinations.");
+    const examination=await db.collection("examinations").doc(financeText(attempt.get("resourceId"),180)).get();if(!examination.exists)throw new HttpsError("not-found","The original examination was not found.");
+    const paper=financeText(examination.get("uploadedExamExtractedText"),50000);const guide=financeText(examination.get("uploadedMarkingGuideExtractedText")??examination.get("generatedMarkingGuideText"),50000);const answerText=financeText(attempt.get("answerText"),50000);const answers=attempt.get("answers")??{};
+    if(!paper)throw new HttpsError("failed-precondition","The examination has no readable question text for AI marking.");
+    if(!answerText&&(!answers||typeof answers!=="object"||Object.keys(answers as Record<string,unknown>).length===0))throw new HttpsError("failed-precondition","This submission has no readable answers.");
+    const totalMarks=Math.max(1,Number(examination.get("totalMarks")??examination.get("targetMarks")??attempt.get("totalMarks")??100)||100);const apiKey=OPENAI_API_KEY.value();if(!apiKey)throw new HttpsError("failed-precondition","The OPENAI_API_KEY Firebase secret is not configured.");
+    await consumeRateLimit(tutorId,{scope:"ai_shared_exam_marking",limit:10,windowSeconds:60});const{default:OpenAI}=await import("openai");const client=new OpenAI({apiKey});
+    const schema={type:"object",additionalProperties:false,required:["score","feedback","questionMarks"],properties:{score:{type:"number",minimum:0},feedback:{type:"string"},questionMarks:{type:"array",items:{type:"object",additionalProperties:false,required:["question","marksAwarded","maximumMarks","feedback"],properties:{question:{type:"string"},marksAwarded:{type:"number",minimum:0},maximumMarks:{type:"number",minimum:0},feedback:{type:"string"}}}}}} as const;
+    const completion=await client.chat.completions.create({model:"gpt-5-mini",messages:[{role:"system",content:["You are marking a health-sciences examination.","Use the supplied tutor marking guide as the primary and authoritative standard whenever it is present.","If no marking guide is supplied, derive medically accurate model answers from the examination, but clearly say that an AI-derived standard was used.","Match every response to its question identifier before awarding marks.","Award partial credit where justified and never exceed the stated examination total.","Return a concise overall feedback summary plus question-level marks for tutor review."].join(" ")},{role:"user",content:JSON.stringify({examinationTotalMarks:totalMarks,examinationPaper:paper,markingGuide:guide||null,studentAnswers:answers,studentAnswerText:answerText})}],response_format:{type:"json_schema",json_schema:{name:"shared_examination_marking_draft",strict:true,schema}},max_completion_tokens:12000});
+    const raw=completion.choices[0]?.message?.content;if(!raw)throw new Error("AI returned an empty marking response.");const parsed=JSON.parse(raw) as {score?:number;feedback?:string;questionMarks?:Array<Record<string,unknown>>};const score=Math.max(0,Math.min(totalMarks,Number(parsed.score)||0));const feedback=financeText(parsed.feedback,12000);const questionMarks=Array.isArray(parsed.questionMarks)?parsed.questionMarks.slice(0,250):[];
+    await attempt.ref.set({aiMarkingDraft:{score,totalMarks,feedback,questionMarks,usedUploadedGuide:Boolean(guide),model:completion.model,requestId:completion.id},aiMarkedAt:FieldValue.serverTimestamp()},{merge:true});
+    return {attemptId,score,totalMarks,percentage:Math.round(score/totalMarks*100),feedback,questionMarks,usedUploadedGuide:Boolean(guide)};
   },
 );
 
