@@ -5148,7 +5148,7 @@ export const getTutorContentCampaigns = onCall(
 
 /** Creates a reviewable AI marking draft for a guest examination. The tutor must still save the mark manually. */
 export const aiMarkTutorSharedContentAttempt = onCall(
-  {region:"us-central1",timeoutSeconds:180,memory:"512MiB",secrets:[OPENAI_API_KEY],enforceAppCheck:false},
+  {region:"us-central1",timeoutSeconds:540,memory:"1GiB",secrets:[OPENAI_API_KEY],enforceAppCheck:false},
   async request=>{
     if(!request.auth)throw new HttpsError("unauthenticated","Please sign in.");const tutorId=request.auth.uid;await assertTutorProfile(tutorId);
     const attemptId=financeText((request.data as {attemptId?:unknown}|undefined)?.attemptId,180);const attempt=await db.collection("sharedContentAttempts").doc(attemptId).get();

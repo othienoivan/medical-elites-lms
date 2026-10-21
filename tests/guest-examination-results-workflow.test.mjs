@@ -31,11 +31,13 @@ test("tutors review answers, mark, and release as separate actions", () => {
 
 test("AI marking uses the uploaded guide first and remains a tutor-reviewed draft", () => {
   assert.match(functionsSource, /aiMarkTutorSharedContentAttempt/);
+  assert.match(functionsSource, /timeoutSeconds:540/);
   assert.match(functionsSource, /uploadedMarkingGuideExtractedText/);
   assert.match(functionsSource, /Use the supplied tutor marking guide as the primary and authoritative standard/);
   assert.match(functionsSource, /If no marking guide is supplied, derive medically accurate model answers/);
   assert.match(functionsSource, /aiMarkingDraft/);
   assert.match(functionsSource, /The tutor must still save the mark manually/);
+  assert.match(serviceSource, /timeout:540000/);
 });
 
 test("guests can revisit the shared URL for pending or released results", () => {

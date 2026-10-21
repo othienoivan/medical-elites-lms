@@ -5040,7 +5040,7 @@ exports.getTutorContentCampaigns = (0, https_1.onCall)({ region: "us-central1", 
     return { links: links.docs.map(doc => ({ id: doc.id, ...doc.data() })), contacts: contacts.docs.map(doc => ({ id: doc.id, ...doc.data() })), attempts: attempts.docs.map(doc => ({ id: doc.id, ...doc.data(), examinationText: examinationText.get(financeText(doc.get("resourceId"), 180)) || "" })) };
 });
 /** Creates a reviewable AI marking draft for a guest examination. The tutor must still save the mark manually. */
-exports.aiMarkTutorSharedContentAttempt = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 180, memory: "512MiB", secrets: [OPENAI_API_KEY], enforceAppCheck: false }, async (request) => {
+exports.aiMarkTutorSharedContentAttempt = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 540, memory: "1GiB", secrets: [OPENAI_API_KEY], enforceAppCheck: false }, async (request) => {
     if (!request.auth)
         throw new https_1.HttpsError("unauthenticated", "Please sign in.");
     const tutorId = request.auth.uid;
