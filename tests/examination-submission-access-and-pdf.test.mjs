@@ -54,3 +54,14 @@ test("uploaded examination headings decode entities and exclude instructions", (
   assert.ok(parser.includes("marks?"));
 
 });
+
+test("tutor examination submissions use course-unit and student drill-down", () => {
+  const source = read("src/pages/ExaminationSubmissionsPage.tsx");
+  assert.match(source, /selectedCourseUnit/);
+  assert.match(source, /selectedStudentId/);
+  assert.match(source, /Back to Course Units/);
+  assert.match(source, /Back to Students/);
+  assert.match(source, /Select a course unit to see the students/);
+  assert.match(source, /selectedStudent\.submissions\.map\(renderSubmission\)/);
+  assert.match(source, /item\.courseUnitId/);
+});
