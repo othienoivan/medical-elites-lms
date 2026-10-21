@@ -31,17 +31,24 @@ function clean(value: string) {
   return decodeHtmlEntities(value).replace(/\s+/g, " ").trim();
 }
 
-function findSequentialOptionMarkers(value: string) {
-  const candidates = [...value.matchAll(/(?<!\S)\(?([A-H])\)?(?:\s*[.):\-])?(?=\s)\s*/gi)];
-  let best: RegExpMatchArray[] = [];
+type OptionMarker = { index: number; fullText: string; label: string };
+
+function findSequentialOptionMarkers(value: string): OptionMarker[] {
+  const candidates = [
+    ...value.matchAll(/\(?([A-H])\)?\s*[.):\-]\s+/gi),
+    ...value.matchAll(/(?<!\S)\(?([A-H])\)?(?=\s)\s*/gi),
+  ]
+    .map((match) => ({ index: match.index ?? 0, fullText: match[0], label: match[1].toUpperCase() }))
+    .filter((candidate, index, rows) => rows.findIndex((row) => row.index === candidate.index && row.label === candidate.label) === index)
+    .sort((a, b) => a.index - b.index);
+  let best: OptionMarker[] = [];
 
   candidates.forEach((candidate, startIndex) => {
-    if (candidate[1].toUpperCase() !== "A") return;
-    const sequence: RegExpMatchArray[] = [candidate];
+    if (candidate.label !== "A") return;
+    const sequence: OptionMarker[] = [candidate];
     for (let index = startIndex + 1; index < candidates.length; index += 1) {
       const expected = String.fromCharCode(65 + sequence.length);
-      const label = candidates[index][1].toUpperCase();
-      if (label === expected) sequence.push(candidates[index]);
+      if (candidates[index].label === expected) sequence.push(candidates[index]);
     }
     if (sequence.length > best.length) best = sequence;
   });
@@ -122,9 +129,9 @@ export function parseOnlineExamination(source: string): OnlineExamQuestion[] {
       section,
       prompt,
       options: optionMarkers.map((item, optionIndex) => {
-        const optionStart = (item.index ?? 0) + item[0].length;
+        const optionStart = item.index + item.fullText.length;
         const optionEnd = optionMarkers[optionIndex + 1]?.index ?? rawBody.length;
-        return { label: item[1].toUpperCase(), text: clean(rawBody.slice(optionStart, optionEnd)) };
+        return { label: item.label, text: clean(rawBody.slice(optionStart, optionEnd)) };
       }),
       marks: marksMatch ? Number(marksMatch[1]) : undefined,
     };
