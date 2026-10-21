@@ -1351,6 +1351,23 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    match /seminars/{seminarId} {
+      allow create: if isTutorOrAdmin()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.institutionId == currentInstitutionId();
+      allow read: if isAdmin() || (isTutorOrAdmin() && (
+        resource.data.ownerUid == request.auth.uid
+        || (resource.data.committeeUids is list && request.auth.uid in resource.data.committeeUids)
+        || resource.data.institutionId == currentInstitutionId()
+      ));
+      allow update: if isAdmin() || (isTutorOrAdmin() && (
+        resource.data.ownerUid == request.auth.uid
+        || (resource.data.committeeUids is list && request.auth.uid in resource.data.committeeUids)
+      ) && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.institutionId == resource.data.institutionId);
+      allow delete: if isAdmin() || (isTutorOrAdmin() && resource.data.ownerUid == request.auth.uid);
+    }
+
 
     // RC4 Batch 3 commerce records. Trusted Functions own all writes.
     match /commerceOrders/{documentId} {
