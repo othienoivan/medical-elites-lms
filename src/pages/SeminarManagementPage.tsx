@@ -5,6 +5,7 @@ import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import useAuth from "../hooks/useAuth";
 import { saveSeminar, watchSeminar } from "../firebase/seminars";
+import { Link } from "react-router-dom";
 
 type Tab = "overview" | "schedule" | "tasks" | "attendance" | "scores" | "budget";
 type TaskStatus = "not-started" | "in-progress" | "done" | "blocked";
@@ -100,7 +101,7 @@ export default function SeminarManagementPage() {
       <div className="flex flex-wrap items-start justify-between gap-5"><div><p className="text-sm font-bold uppercase tracking-[.18em] text-blue-200">2-8 November 2026 · Theory phase</p><h1 className="mt-2 max-w-4xl text-3xl font-black sm:text-4xl">Strengthening Clinical Competence, Professionalism and Teamwork for Safe Patient Care</h1><p className="mt-3 max-w-3xl text-blue-100">Five departments · 11 programmes · theory, practicals and structured competition</p><p className="mt-3 text-sm font-semibold text-cyan-200">{cloudMessage}</p></div><div className="flex flex-wrap gap-2"><Button variant="success" disabled={!cloudReady} onClick={()=>void saveShared()}><CheckCloud/>Save shared data</Button><Button variant="outline" onClick={downloadReport}><Download size={17}/>Export data</Button><Button variant="danger" onClick={() => { if (confirm("Reset the working copy? Changes are not shared until you press Save shared data.")) setData(initialState); }}><RotateCcw size={17}/>Reset</Button></div></div>
     </section>
 
-    <div className="mt-6 flex gap-2 overflow-x-auto pb-2">{(["overview","schedule","tasks","attendance","scores","budget"] as Tab[]).map(item => <button key={item} onClick={() => setTab(item)} className={`min-h-11 whitespace-nowrap rounded-xl px-4 text-sm font-bold capitalize ${tab === item ? "bg-blue-700 text-white" : "border bg-white text-slate-700"}`}>{item}</button>)}</div>
+    <div className="mt-6 flex gap-2 overflow-x-auto pb-2">{(["overview","schedule","tasks","attendance","scores","budget"] as Tab[]).map(item => <button key={item} onClick={() => setTab(item)} className={`min-h-11 whitespace-nowrap rounded-xl px-4 text-sm font-bold capitalize ${tab === item ? "bg-blue-700 text-white" : "border bg-white text-slate-700"}`}>{item}</button>)}<Link to="/seminar/competition" className="min-h-11 whitespace-nowrap rounded-xl bg-emerald-700 px-4 py-3 text-sm font-bold text-white">Competition control & leaderboard</Link></div>
 
     {tab === "overview" && <div className="mt-4 space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric icon={ClipboardCheck} label="Readiness tasks" value={`${completed}/${data.tasks.length}`} detail={`${data.tasks.filter(t=>t.status==="blocked").length} blocked`}/><Metric icon={Users} label="Attendance records" value={data.attendance.length} detail={`${present} present`}/><Metric icon={Award} label="Competition teams" value={data.scores.length} detail="100 marks per team"/><Metric icon={WalletCards} label="Proposed budget" value={money(totalBudget)} detail="Approval required"/></div>
