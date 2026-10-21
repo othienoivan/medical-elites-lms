@@ -31,6 +31,24 @@ function clean(value: string) {
   return decodeHtmlEntities(value).replace(/\s+/g, " ").trim();
 }
 
+function findSequentialOptionMarkers(value: string) {
+  const candidates = [...value.matchAll(/(?<!\S)\(?([A-H])\)?(?:\s*[.):\-])?(?=\s)\s*/gi)];
+  let best: RegExpMatchArray[] = [];
+
+  candidates.forEach((candidate, startIndex) => {
+    if (candidate[1].toUpperCase() !== "A") return;
+    const sequence: RegExpMatchArray[] = [candidate];
+    for (let index = startIndex + 1; index < candidates.length; index += 1) {
+      const expected = String.fromCharCode(65 + sequence.length);
+      const label = candidates[index][1].toUpperCase();
+      if (label === expected) sequence.push(candidates[index]);
+    }
+    if (sequence.length > best.length) best = sequence;
+  });
+
+  return best.length >= 2 ? best : [];
+}
+
 const SECTION_PATTERN = /(?:^|\n)\s*(?:SECTION|PART)\s+([A-Z0-9]+)\s*[:.\-–—]?\s*([^\n]*)/gi;
 const QUESTION_START = /(?:^|\n)\s*(?:Q(?:UESTION)?\s*)?(\d{1,3})\s*[.):\-]\s+/gi;
 
@@ -93,8 +111,7 @@ export function parseOnlineExamination(source: string): OnlineExamQuestion[] {
       });
     }
 
-    const optionPattern = /(?:^|\s)\(?([A-H])\)?\s*[.):\-]\s+/gi;
-    const optionMarkers = [...rawBody.matchAll(optionPattern)];
+    const optionMarkers = findSequentialOptionMarkers(rawBody);
     const firstOption = optionMarkers[0]?.index ?? -1;
     const promptSource = firstOption >= 0 ? rawBody.slice(0, firstOption) : rawBody;
     const marksMatch = promptSource.match(/(?:\(|\[)?(\d+(?:\.\d+)?)\s*marks?(?:\)|\])?/i);
