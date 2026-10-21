@@ -25,4 +25,7 @@ test("published examinations can open a preselected guest-sharing campaign", asy
   assert.match(campaigns, /useSearchParams/);
   assert.match(campaigns, /searchParams\.get\("resourceId"\)/);
   assert.match(campaigns, /requestedType==="examination"/);
+  assert.match(campaigns, /<Button type="submit"/);
+  assert.match(campaigns, /setMessage\("Creating your guest link\.\.\."\)/);
+  assert.match(campaigns, /Campaign link created\. Copy it here:/);
 });
