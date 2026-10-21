@@ -1355,11 +1355,15 @@ service cloud.firestore {
       allow create: if isTutorOrAdmin()
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.institutionId == currentInstitutionId();
-      allow read: if isAdmin() || (isTutorOrAdmin() && (
-        resource.data.ownerUid == request.auth.uid
+      // Permit an authorised tutor to observe a missing fixed event document so
+      // the first owner can create it. Existing records remain institution scoped.
+      allow get: if isAdmin() || (isTutorOrAdmin() && (
+        !exists(/databases/$(database)/documents/seminars/$(seminarId))
+        || resource.data.ownerUid == request.auth.uid
         || (resource.data.committeeUids is list && request.auth.uid in resource.data.committeeUids)
         || resource.data.institutionId == currentInstitutionId()
       ));
+      allow list: if false;
       allow update: if isAdmin() || (isTutorOrAdmin() && (
         resource.data.ownerUid == request.auth.uid
         || (resource.data.committeeUids is list && request.auth.uid in resource.data.committeeUids)
