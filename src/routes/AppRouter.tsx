@@ -140,6 +140,8 @@ const OsceManagerPage = lazy(() => import("../pages/OsceManagerPage"));
 const QualityAssurancePage = lazy(() => import("../pages/QualityAssurancePage"));
 const InstitutionalAnalyticsPage = lazy(() => import("../pages/InstitutionalAnalyticsPage"));
 const SeminarManagementPage = lazy(() => import("../pages/SeminarManagementPage"));
+const SeminarCompetitionManagerPage = lazy(() => import("../pages/SeminarCompetitionManagerPage"));
+const SeminarLivePage = lazy(() => import("../pages/SeminarLivePage"));
 
 
 const MarketplaceHomePage = lazy(() => import("../pages/marketplace/MarketplaceHomePage"));
@@ -572,6 +574,8 @@ export default function AppRouter() {
         <Route path="/tutor/quality-assurance" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><QualityAssurancePage /></ProtectedRoute>} />
         <Route path="/tutor/institutional-analytics" element={<ProtectedRoute allowedRoles={TUTOR_ROLES}><InstitutionalAnalyticsPage /></ProtectedRoute>} />
         <Route path="/seminar" element={<ProtectedRoute allowedRoles={ADMIN_OPERATION_ROLES}><SeminarManagementPage /></ProtectedRoute>} />
+        <Route path="/seminar/competition" element={<ProtectedRoute allowedRoles={ADMIN_OPERATION_ROLES}><SeminarCompetitionManagerPage /></ProtectedRoute>} />
+        <Route path="/seminar/live" element={<SeminarLivePage />} />
 
         <Route
           path="/tutor/finance"
