@@ -29,3 +29,24 @@ test("seminar manager supports shared Firestore persistence with restricted rule
   assert.match(rules, /match \/seminars\/\{seminarId\}/);
   assert.match(rules, /request\.resource\.data\.ownerUid == request\.auth\.uid/);
 });
+
+test("seminar competition publishes two-judge averages, checklists and separate audience results", async () => {
+  const [manager, live, service, routes, rules] = await Promise.all([
+    readFile("src/pages/SeminarCompetitionManagerPage.tsx", "utf8"),
+    readFile("src/pages/SeminarLivePage.tsx", "utf8"),
+    readFile("src/firebase/seminarCompetition.ts", "utf8"),
+    readFile("src/routes/AppRouter.tsx", "utf8"),
+    readFile("firestore.rules", "utf8"),
+  ]);
+  assert.match(routes, /\/seminar\/competition/);
+  assert.match(routes, /\/seminar\/live/);
+  assert.match(manager, /Questions/);
+  assert.match(manager, /Marking guide/);
+  assert.match(manager, /Checklist \/ rubric/);
+  assert.match(live, /View published judge checklists/);
+  assert.match(live, /j\.length===2/);
+  assert.match(live, /Audience challenge/);
+  assert.match(service, /seminarAudienceScores/);
+  assert.match(rules, /match \/seminarJudgeScores/);
+  assert.match(rules, /request\.resource\.data\.userId == request\.auth\.uid/);
+});
