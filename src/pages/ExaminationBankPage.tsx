@@ -5,6 +5,7 @@ import {
   Layers,
   Plus,
   Search,
+  Share2,
   Timer,
   Trash2,
 } from "lucide-react";
@@ -224,6 +225,20 @@ export default function ExaminationBankPage() {
                   >
                     Open Builder
                   </Button>
+
+                  {exam.status === "published" && (
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        navigate(
+                          `/tutor/content-campaigns?contentType=examination&resourceId=${encodeURIComponent(exam.id)}`,
+                        )
+                      }
+                    >
+                      <Share2 size={17} />
+                      Share with guests
+                    </Button>
+                  )}
 
                   <Button
                     variant="outline"
