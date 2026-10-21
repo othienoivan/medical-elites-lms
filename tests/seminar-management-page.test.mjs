@@ -50,3 +50,14 @@ test("seminar competition publishes two-judge averages, checklists and separate 
   assert.match(rules, /match \/seminarJudgeScores/);
   assert.match(rules, /request\.resource\.data\.userId == request\.auth\.uid/);
 });
+
+test("seminar bootstrap permits reading a missing fixed event without exposing seminar lists", async () => {
+  const [page, rules] = await Promise.all([
+    readFile("src/pages/SeminarManagementPage.tsx", "utf8"),
+    readFile("firestore.rules", "utf8"),
+  ]);
+  assert.match(rules, /!exists\(\/databases\/\$\(database\)\/documents\/seminars\/\$\(seminarId\)\)/);
+  assert.match(rules, /allow list: if false/);
+  assert.match(page, /Shared data could not be loaded \(\$\{code\}\)/);
+  assert.match(page, /Shared save failed: \$\{detail\}/);
+});
