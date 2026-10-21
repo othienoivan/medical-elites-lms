@@ -54,7 +54,7 @@ export default function CreateProgrammePage() {
         description,
         duration,
         image,
-        imagePath: imagePath || undefined,
+        ...(imagePath ? { imagePath } : {}),
         createdBy: currentUser.uid,
         ownerUserId: currentUser.uid,
         createdByUid: currentUser.uid,

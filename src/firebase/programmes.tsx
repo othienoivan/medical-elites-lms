@@ -29,12 +29,15 @@ function dedupe(rows: Programme[]): Programme[] {
 export async function createProgramme(programme: Programme): Promise<string> {
   const { id: _id, ...payload } = programme;
   void _id;
+  const definedPayload = Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined),
+  );
   const ownerUid = payload.ownerUserId ?? payload.createdByUid ?? payload.createdBy;
   if (!ownerUid) throw new Error("Programme owner is missing. Please sign out and sign in again.");
 
   const docRef = doc(collection(db, COLLECTION));
   await setDoc(docRef, {
-    ...payload,
+    ...definedPayload,
     id: docRef.id,
     createdBy: payload.createdBy ?? ownerUid,
     ownerUserId: ownerUid,
@@ -87,7 +90,10 @@ export async function getProgrammes(scope: AccessScope): Promise<Programme[]> {
 export async function updateProgramme(id: string, data: Partial<Programme>): Promise<void> {
   const { id: _id, ...payload } = data;
   void _id;
-  await updateDoc(doc(db, COLLECTION, id), { ...payload, updatedAt: serverTimestamp() });
+  const definedPayload = Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined),
+  );
+  await updateDoc(doc(db, COLLECTION, id), { ...definedPayload, updatedAt: serverTimestamp() });
 }
 
 export async function countProgrammeCourseUnits(programmeId: string): Promise<number> {

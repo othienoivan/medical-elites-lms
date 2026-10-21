@@ -4933,6 +4933,30 @@ function sharedAccessHash(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function normalizedSharedPhone(value: unknown): string {
+  return financeText(value, 80).replace(/\D/g, "");
+}
+
+function publicSharedAttemptResult(attempt: FirebaseFirestore.DocumentSnapshot): Record<string,unknown> {
+  const released = attempt.get("released") === true;
+  return {
+    attemptId: attempt.id,
+    status: financeText(attempt.get("status"), 40) || "submitted",
+    released,
+    resourceTitle: financeText(attempt.get("resourceTitle"), 300),
+    submittedAt: attempt.get("submittedAt") ?? null,
+    ...(released ? {
+      score: attempt.get("score") ?? null,
+      totalMarks: attempt.get("totalMarks") ?? null,
+      percentage: attempt.get("percentage") ?? null,
+      feedback: financeText(attempt.get("feedback"), 12000),
+      answers: attempt.get("answers") ?? {},
+      answerText: financeText(attempt.get("answerText"), 60000),
+      releasedAt: attempt.get("releasedAt") ?? null,
+    } : {}),
+  };
+}
+
 function publicRequestKey(request: {rawRequest?: {ip?: string}}): string {
   return `public_${createHash("sha256").update(String(request.rawRequest?.ip ?? "unknown")).digest("hex").slice(0,24)}`;
 }
@@ -5050,12 +5074,29 @@ export const captureTutorLeadAndOpenContent = onCall(
     const accessToken = randomUUID()+randomUUID(); const accessTokenHash = sharedAccessHash(accessToken);
     await db.runTransaction(async transaction => {
       const [contact,engagement] = await Promise.all([transaction.get(contactRef),transaction.get(engagementRef)]);
+      if(contact.exists){
+        const savedPhone=normalizedSharedPhone(contact.get("phone"));const suppliedPhone=normalizedSharedPhone(phone);
+        if(savedPhone&&savedPhone!==suppliedPhone)throw new HttpsError("permission-denied","The email and phone number do not match the details used for the earlier submission.");
+      }
       transaction.set(contactRef,{id:contactId,tutorId,registeredUserUid,fullName,email,emailNormalized:email,phone,institutionName,nicheNames:FieldValue.arrayUnion(financeText(link.get("nicheName"),240)||"Open audience"),shareLinkCodes:FieldValue.arrayUnion(code),marketingConsent,firstCapturedAt:contact.exists?(contact.get("firstCapturedAt")??FieldValue.serverTimestamp()):FieldValue.serverTimestamp(),lastCapturedAt:FieldValue.serverTimestamp(),captureCount:FieldValue.increment(1)},{merge:true});
       transaction.set(engagementRef,{id:engagementRef.id,code,contactId,tutorId,assessmentGroupId:financeText(link.get("assessmentGroupId"),180)||code,nicheName:link.get("nicheName"),resourceId:link.get("resourceId"),contentType:link.get("contentType"),fullName,email,phone,institutionName,accessTokenHash,firstAccessAt:engagement.exists?(engagement.get("firstAccessAt")??FieldValue.serverTimestamp()):FieldValue.serverTimestamp(),lastAccessAt:FieldValue.serverTimestamp(),accessCount:FieldValue.increment(1)},{merge:true});
       transaction.update(linkRef,{accessCount:FieldValue.increment(1),...(contact.exists?{}:{uniqueLeadCount:FieldValue.increment(1)}),updatedAt:FieldValue.serverTimestamp()});
     });
     const contentType=financeText(link.get("contentType"),40) as SharedContentType;
-    return { contactId,accessToken,contentType,nicheName:link.get("nicheName"),content:await sharedResourcePayload(contentType,financeText(link.get("resourceId"),180)) };
+    const content=await sharedResourcePayload(contentType,financeText(link.get("resourceId"),180));
+    const engagement=await engagementRef.get();let previousAttempt:FirebaseFirestore.DocumentSnapshot|null=null;
+    const latestAttemptId=financeText(engagement.get("latestAttemptId"),180);
+    if(latestAttemptId){const snap=await db.collection("sharedContentAttempts").doc(latestAttemptId).get();if(snap.exists&&snap.get("contactId")===contactId&&snap.get("code")===code)previousAttempt=snap;}
+    if(!previousAttempt){
+      const attempts=await db.collection("sharedContentAttempts").where("contactId","==",contactId).get();
+      previousAttempt=attempts.docs.filter(item=>item.get("code")===code).sort((a,b)=>Number(b.get("submittedAt")?.toMillis?.()??0)-Number(a.get("submittedAt")?.toMillis?.()??0))[0]??null;
+    }
+    if(previousAttempt){
+      const resultToken=randomUUID()+randomUUID();await previousAttempt.ref.update({resultAccessTokenHash:sharedAccessHash(resultToken),updatedAt:FieldValue.serverTimestamp()});
+      await engagementRef.set({latestAttemptId:previousAttempt.id},{merge:true});
+      return {contactId,accessToken,contentType,nicheName:link.get("nicheName"),content,attempt:publicSharedAttemptResult(previousAttempt),resultToken};
+    }
+    return { contactId,accessToken,contentType,nicheName:link.get("nicheName"),content };
   },
 );
 
@@ -5067,14 +5108,30 @@ export const submitTutorSharedContentAttempt = onCall(
     const engagement=await db.collection("contentShareEngagements").doc(`${code}_${contactId}`).get();
     if(!engagement.exists||engagement.get("accessTokenHash")!==sharedAccessHash(accessToken))throw new HttpsError("permission-denied","Shared-content access has expired. Complete the form again.");
     const link=await db.collection("contentShareLinks").doc(code).get();if(!link.exists||link.get("status")!=="active")throw new HttpsError("failed-precondition","This link is no longer active.");
-    const answers=(input.answers&&typeof input.answers==="object"?input.answers:{}) as Record<string,unknown>; const type=financeText(link.get("contentType"),40) as SharedContentType; let score:number|null=null;let totalMarks:number|null=null;
+    const answers=(input.answers&&typeof input.answers==="object"?input.answers:{}) as Record<string,unknown>;const questionSnapshot=Array.isArray(input.questionSnapshot)?(input.questionSnapshot as Array<Record<string,unknown>>).slice(0,250).map((item,index)=>({id:financeText(item.id,180)||String(index+1),label:financeText(item.label,80)||String(index+1),prompt:financeText(item.prompt,12000),options:Array.isArray(item.options)?(item.options as unknown[]).slice(0,20).map(option=>financeText(option,3000)):[]})):[]; const type=financeText(link.get("contentType"),40) as SharedContentType; let score:number|null=null;let totalMarks:number|null=null;
     if(type==="quiz"||type==="assessment"){
       const quiz=await db.collection("quizzes").doc(financeText(link.get("resourceId"),180)).get();const refs=Array.isArray(quiz.get("questions"))?quiz.get("questions") as Array<Record<string,unknown>>:[];score=0;totalMarks=0;
       for(const ref of refs){const id=financeText(ref.questionId??ref.id,180);const q=financeText(ref.questionId,180)?await db.collection("questions").doc(financeText(ref.questionId,180)).get():null;const data=q?.exists?q.data()??{}:ref;const marks=Number(ref.marks??data.marks??1);totalMarks+=marks;const expected=financeText(data.correctAnswer,500).toLowerCase();const actual=financeText(answers[id],500).toLowerCase();if(expected&&actual===expected)score+=marks;}
     }
-    const attemptRef=db.collection("sharedContentAttempts").doc();await attemptRef.set({id:attemptRef.id,code,contactId,tutorId:link.get("tutorId"),assessmentGroupId:link.get("assessmentGroupId")??code,nicheName:link.get("nicheName"),contentType:type,resourceId:link.get("resourceId"),resourceTitle:link.get("resourceTitle"),answers,answerText:financeText(input.answerText,60000),score,totalMarks,percentage:score!=null&&totalMarks?Math.round(score/totalMarks*100):null,status:(type==="quiz"||type==="assessment")?"marked":"submitted",submittedAt:FieldValue.serverTimestamp()});
-    await link.ref.update({submissionCount:FieldValue.increment(1),updatedAt:FieldValue.serverTimestamp()});
-    return {attemptId:attemptRef.id,score,totalMarks,percentage:score!=null&&totalMarks?Math.round(score/totalMarks*100):null};
+    const resultToken=randomUUID()+randomUUID();const attemptRef=db.collection("sharedContentAttempts").doc();const batch=db.batch();
+    batch.set(attemptRef,{id:attemptRef.id,code,contactId,tutorId:link.get("tutorId"),assessmentGroupId:link.get("assessmentGroupId")??code,nicheName:link.get("nicheName"),contentType:type,resourceId:link.get("resourceId"),resourceTitle:link.get("resourceTitle"),answers,questionSnapshot,answerText:financeText(input.answerText,60000),score,totalMarks,percentage:score!=null&&totalMarks?Math.round(score/totalMarks*100):null,status:(type==="quiz"||type==="assessment")?"marked":"submitted",released:false,resultAccessTokenHash:sharedAccessHash(resultToken),submittedAt:FieldValue.serverTimestamp()});
+    batch.set(engagement.ref,{latestAttemptId:attemptRef.id,lastSubmissionAt:FieldValue.serverTimestamp()},{merge:true});
+    batch.update(link.ref,{submissionCount:FieldValue.increment(1),updatedAt:FieldValue.serverTimestamp()});await batch.commit();
+    return {attemptId:attemptRef.id,resultToken,released:false,status:(type==="quiz"||type==="assessment")?"marked":"submitted"};
+  },
+);
+
+/** Returns only the public result state. Marks, feedback and answers remain hidden until the tutor releases them. */
+export const getTutorSharedContentResult = onCall(
+  { region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false },
+  async (request) => {
+    await consumeRateLimit(publicRequestKey(request),{scope:"shared_content_result",limit:80,windowSeconds:3600});
+    const input=(request.data??{}) as Record<string,unknown>;const code=financeText(input.code,180);const attemptId=financeText(input.attemptId,180);const resultToken=financeText(input.resultToken,200);
+    if(!code||!attemptId||!resultToken)throw new HttpsError("invalid-argument","Result access details are required.");
+    const attempt=await db.collection("sharedContentAttempts").doc(attemptId).get();
+    if(!attempt.exists||attempt.get("code")!==code||attempt.get("resultAccessTokenHash")!==sharedAccessHash(resultToken))throw new HttpsError("permission-denied","This result link is invalid or has expired.");
+    const type=financeText(attempt.get("contentType"),40) as SharedContentType;const resourceId=financeText(attempt.get("resourceId"),180);
+    return {attempt:publicSharedAttemptResult(attempt),content:attempt.get("released")===true?await sharedResourcePayload(type,resourceId):null,contentType:type,nicheName:attempt.get("nicheName")};
   },
 );
 
@@ -5094,7 +5151,19 @@ export const markTutorSharedContentAttempt = onCall(
     const input=(request.data??{}) as Record<string,unknown>;const attemptId=financeText(input.attemptId,180);const score=Number(input.score);const totalMarks=Math.max(1,Number(input.totalMarks));const feedback=financeText(input.feedback,12000);
     if(!attemptId||!Number.isFinite(score)||score<0||score>totalMarks)throw new HttpsError("invalid-argument","Enter a valid score and total marks.");
     const ref=db.collection("sharedContentAttempts").doc(attemptId);const attempt=await ref.get();if(!attempt.exists||financeText(attempt.get("tutorId"),180)!==tutorId)throw new HttpsError("permission-denied","You cannot mark this submission.");
-    await ref.update({score,totalMarks,percentage:Math.round(score/totalMarks*100),feedback,status:"marked",markedByUid:tutorId,markedAt:FieldValue.serverTimestamp()});return {attemptId,score,totalMarks,percentage:Math.round(score/totalMarks*100)};
+    await ref.update({score,totalMarks,percentage:Math.round(score/totalMarks*100),feedback,status:"marked",released:false,releasedAt:FieldValue.delete(),markedByUid:tutorId,markedAt:FieldValue.serverTimestamp()});return {attemptId,score,totalMarks,percentage:Math.round(score/totalMarks*100)};
+  },
+);
+
+export const releaseTutorSharedContentAttempt = onCall(
+  { region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false },
+  async (request) => {
+    if(!request.auth)throw new HttpsError("unauthenticated","Please sign in.");const tutorId=request.auth.uid;await assertTutorProfile(tutorId);
+    const attemptId=financeText((request.data as {attemptId?:unknown}|undefined)?.attemptId,180);const ref=db.collection("sharedContentAttempts").doc(attemptId);const attempt=await ref.get();
+    if(!attempt.exists||financeText(attempt.get("tutorId"),180)!==tutorId)throw new HttpsError("permission-denied","You cannot release this submission.");
+    if(attempt.get("status")!=="marked"||!Number.isFinite(Number(attempt.get("score"))))throw new HttpsError("failed-precondition","Mark this submission before releasing its result.");
+    await ref.update({released:true,status:"released",releasedByUid:tutorId,releasedAt:FieldValue.serverTimestamp()});
+    return {attemptId,released:true};
   },
 );
 

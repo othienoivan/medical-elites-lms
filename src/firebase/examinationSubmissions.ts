@@ -3,7 +3,7 @@ import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updat
 import { auth, db } from "../config/firebase";
 import type { Examination } from "../models/Examination";
 import type { ExaminationSubmission } from "../models/ExaminationSubmission";
-import { onlineExamAnswerKey, parseOnlineExamination } from "../utils/onlineExaminationParser";
+import { onlineExamAnswerKey, onlineExamQuestionLabel, parseOnlineExamination } from "../utils/onlineExaminationParser";
 
 const COLLECTION = "examinationSubmissions";
 const REVIEW_COLLECTION = "examinationMarkingReviews";
@@ -40,6 +40,7 @@ export async function submitExaminationAnswers(examination: Examination, answerT
     questionsSnapshot: parseOnlineExamination(examination.uploadedExamExtractedText || "").map((question, index) => ({
       answerKey: onlineExamAnswerKey(question, index),
       number: question.number,
+      displayNumber: onlineExamQuestionLabel(question),
       section: question.section,
       prompt: question.prompt,
       options: question.options,

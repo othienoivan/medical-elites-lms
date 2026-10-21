@@ -1,7 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateTenantProfile = exports.createTenant = exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.aiMarkEssayAttempt = exports.completeLessonLearning = exports.getLessonModuleProgress = exports.submitQuizAttempt = exports.getStudentPostQuizDestination = exports.requestStudentQuizReattempt = exports.grantStudentLearningProgressionOverride = exports.permanentlyDeleteQuizTrusted = exports.permanentlyDeleteQuestionTrusted = exports.createAiExaminationQuestionsTrusted = exports.grantStudentQuizReattempt = exports.getStudentQuizAttemptUsage = exports.getTutorMarketplaceAnalytics = exports.reconcileTutorMarketplaceRevenue = exports.getStudentAssessmentAttemptReview = exports.getTutorAssessmentAttempt = exports.saveTutorAssessmentMarking = exports.getTutorAssessmentAttempts = exports.getTutorQuizAnalytics = exports.getLessonResourceAccessUrl = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.validateMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.cancelTutorSubscriptionAtPeriodEnd = exports.refreshTutorSubscriptionLifecycle = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.completeFinanceWithdrawal = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = exports.removeTutorFromInstitution = exports.setInstitutionTutorAccess = exports.getInstitutionTutorMemberships = void 0;
-exports.getLiveClassRoster = exports.updateLiveClassPresence = exports.updateOpenLiveClassPresence = exports.joinOpenLiveClass = exports.getOpenLiveClass = exports.joinLiveClass = exports.manageLiveClass = exports.listLiveClasses = exports.saveLiveClass = exports.decideMarketplaceProductApproval = exports.reviewMarketplaceCourseUnitForApproval = exports.cancelStorageUploadReservation = exports.reserveStorageUpload = exports.onStorageObjectDeleted = exports.onStorageObjectFinalized = exports.getStudentAssessmentPackage = exports.getPublishedModuleLessonsV2 = exports.getTutorRegistrationLinkStudents = exports.claimRegistrationLinkTrusted = exports.markTutorSharedContentAttempt = exports.getTutorContentCampaigns = exports.submitTutorSharedContentAttempt = exports.captureTutorLeadAndOpenContent = exports.getTutorContentShareLink = exports.createTutorContentShareLink = exports.getPublicRegistrationLinkTrusted = exports.listSubscriptionPlansTrusted = exports.getPlatformOverviewSnapshot = exports.notifyStudentsWhenAssignmentPublished = exports.notifyExaminationSubmissionWorkflow = exports.notifyStudentsWhenExaminationPublished = exports.notifyStudentsWhenAssessmentPublished = exports.notifyStudentsWhenLessonPublished = exports.getPublicCourseCatalogueSnapshotV2 = exports.getPublishedCourseModulesV2 = exports.getTutorEnrollmentCourseUnits = exports.resolveTenantWorkspaceTrusted = exports.updateOwnStudentProfile = exports.updateOwnTutorProfile = exports.synchronizeStudentIdentity = exports.getStudentLearningOverview = exports.getPublicCourseCatalogueSnapshot = exports.refreshMarketplaceLearningAccess = exports.updateTenantSubscriptionStatus = exports.assignTenantSubscription = exports.saveSubscriptionPlan = exports.assignTenantOwner = exports.updateTenantStatus = void 0;
+exports.updateLiveClassPresence = exports.updateOpenLiveClassPresence = exports.joinOpenLiveClass = exports.getOpenLiveClass = exports.joinLiveClass = exports.manageLiveClass = exports.getLiveClassSession = exports.listLiveClasses = exports.saveLiveClass = exports.decideMarketplaceProductApproval = exports.reviewMarketplaceCourseUnitForApproval = exports.cancelStorageUploadReservation = exports.reserveStorageUpload = exports.onStorageObjectDeleted = exports.onStorageObjectFinalized = exports.getStudentAssessmentPackage = exports.getPublishedModuleLessonsV2 = exports.getTutorRegistrationLinkStudents = exports.claimRegistrationLinkTrusted = exports.releaseTutorSharedContentAttempt = exports.markTutorSharedContentAttempt = exports.getTutorContentCampaigns = exports.getTutorSharedContentResult = exports.submitTutorSharedContentAttempt = exports.captureTutorLeadAndOpenContent = exports.getTutorContentShareLink = exports.createTutorContentShareLink = exports.getPublicRegistrationLinkTrusted = exports.listSubscriptionPlansTrusted = exports.getPlatformOverviewSnapshot = exports.notifyStudentsWhenAssignmentPublished = exports.notifyExaminationSubmissionWorkflow = exports.notifyStudentsWhenExaminationPublished = exports.notifyStudentsWhenAssessmentPublished = exports.notifyStudentsWhenLessonPublished = exports.getPublicCourseCatalogueSnapshotV2 = exports.getPublishedCourseModulesV2 = exports.getTutorEnrollmentCourseUnits = exports.resolveTenantWorkspaceTrusted = exports.updateOwnStudentProfile = exports.updateOwnTutorProfile = exports.synchronizeStudentIdentity = exports.getStudentLearningOverview = exports.getPublicCourseCatalogueSnapshot = exports.refreshMarketplaceLearningAccess = exports.updateTenantSubscriptionStatus = exports.assignTenantSubscription = exports.saveSubscriptionPlan = exports.assignTenantOwner = exports.updateTenantStatus = void 0;
+exports.getLiveClassRoster = void 0;
 const app_1 = require("firebase-admin/app");
 const auth_1 = require("firebase-admin/auth");
 const storage_1 = require("firebase-admin/storage");
@@ -4503,36 +4504,48 @@ exports.getPublicCourseCatalogueSnapshotV2 = (0, https_1.onCall)({ region: "us-c
     }));
     return { courseUnits: rows.filter((row) => row !== null), version: "v2" };
 });
-async function collectSubscribedLearnerUids(courseId) {
+async function collectSubscribedLearnerUids(courseId, programmeId = "") {
     const recipients = new Set();
     const linkedStudentIds = new Set();
-    const queries = await Promise.allSettled([
-        db.collection("enrollments").where("courseUnitId", "==", courseId).get(),
-        db.collection("enrollments").where("courseId", "==", courseId).get(),
-        db.collection("enrollments").where("courseUnitIds", "array-contains", courseId).get(),
-        db.collection("marketplaceCourseAccess").where("courseUnitId", "==", courseId).get(),
-        db.collection("users").where("assignedCourseUnitIds", "array-contains", courseId).get(),
-    ]);
-    queries.forEach((result, index) => {
-        if (result.status !== "fulfilled")
+    const sources = [];
+    if (courseId) {
+        sources.push({ kind: "enrollment", promise: db.collection("enrollments").where("courseUnitId", "==", courseId).get() }, { kind: "enrollment", promise: db.collection("enrollments").where("courseId", "==", courseId).get() }, { kind: "enrollment", promise: db.collection("enrollments").where("courseUnitIds", "array-contains", courseId).get() }, { kind: "link-enrollment", promise: db.collection("registrationLinkEnrollments").where("courseUnitIds", "array-contains", courseId).get() }, { kind: "marketplace", promise: db.collection("marketplaceCourseAccess").where("courseUnitId", "==", courseId).get() }, { kind: "user", promise: db.collection("users").where("assignedCourseUnitIds", "array-contains", courseId).get() }, { kind: "student", promise: db.collection("students").where("assignedCourseUnitIds", "array-contains", courseId).get() });
+    }
+    if (programmeId) {
+        sources.push({ kind: "enrollment", promise: db.collection("enrollments").where("programmeId", "==", programmeId).get() }, { kind: "link-enrollment", promise: db.collection("registrationLinkEnrollments").where("programmeId", "==", programmeId).get() }, { kind: "user", promise: db.collection("users").where("programmeIds", "array-contains", programmeId).get() }, { kind: "student", promise: db.collection("students").where("programmeId", "==", programmeId).get() });
+    }
+    const results = await Promise.allSettled(sources.map((source) => source.promise));
+    results.forEach((result, index) => {
+        if (result.status !== "fulfilled") {
+            console.warn("Academic publication recipient source failed:", sources[index]?.kind, result.reason);
             return;
+        }
+        const kind = sources[index].kind;
         result.value.docs.forEach((item) => {
             const row = item.data();
-            if (index < 3) {
+            if (kind === "enrollment" || kind === "link-enrollment") {
                 const status = String(row.status ?? row.approvalStatus ?? "active").toLowerCase();
                 if (!["active", "approved", "enrolled", "accepted", "completed"].includes(status))
                     return;
             }
-            if (index === 3 && String(row.status ?? "active").toLowerCase() !== "active")
+            if (kind === "marketplace" && String(row.status ?? "active").toLowerCase() !== "active")
                 return;
+            if (kind === "user") {
+                recipients.add(item.id);
+                return;
+            }
+            if (kind === "student") {
+                const uid = financeText(row.authUid ?? row.studentAuthUid ?? row.userId ?? item.id, 180);
+                if (uid)
+                    recipients.add(uid);
+                return;
+            }
             const uid = financeText(row.studentAuthUid ?? row.userId ?? row.customerUid ?? row.authUid, 180);
             if (uid)
                 recipients.add(uid);
             const studentId = financeText(row.studentId, 180);
             if (!uid && studentId)
                 linkedStudentIds.add(studentId);
-            if (index === 4)
-                recipients.add(item.id);
         });
     });
     if (linkedStudentIds.size > 0) {
@@ -4540,7 +4553,7 @@ async function collectSubscribedLearnerUids(courseId) {
         studentDocs.forEach((student) => {
             if (!student.exists)
                 return;
-            const uid = financeText(student.get("authUid") ?? student.get("studentAuthUid") ?? student.get("userId"), 180);
+            const uid = financeText(student.get("authUid") ?? student.get("studentAuthUid") ?? student.get("userId") ?? student.id, 180);
             if (uid)
                 recipients.add(uid);
         });
@@ -4566,19 +4579,32 @@ async function deliverAcademicPublication(input) {
         return;
     const wasPublished = before ? isPublishedAcademicRecord(before) : false;
     const isPublished = isPublishedAcademicRecord(after);
-    if (wasPublished || !isPublished)
+    if (!isPublished)
         return;
+    // A deployed trigger cannot process historical publications. Permit a later
+    // save of an already-published record to retry only when no delivery ledger
+    // exists. Deterministic notification IDs keep the retry idempotent.
+    if (wasPublished) {
+        const priorDelivery = await db.collection("notificationDeliveries").doc(`${kind}_${recordId}`).get();
+        if (priorDelivery.exists)
+            return;
+    }
     const courseId = financeText(after.courseUnitId ?? after.courseId, 180);
-    if (!courseId)
+    const programmeId = financeText(after.programmeId, 180);
+    if (!courseId && !programmeId)
         return;
-    const recipients = await collectSubscribedLearnerUids(courseId);
+    const recipients = await collectSubscribedLearnerUids(courseId, programmeId);
     if (recipients.size === 0)
         return;
     const title = financeText(after.title ?? after.name ?? after.examinationName, 180) || `New ${kind}`;
-    const courseTitle = financeText(after.courseUnitTitle ?? after.courseTitle, 180) || "your course unit";
+    const courseTitle = financeText(after.courseUnitTitle ?? after.courseTitle ?? after.programmeTitle, 180) || "your programme";
     const notificationType = kind === "lesson" ? "academic" : "assessment";
     const kindLabel = kind === "assessment" ? "assessment" : kind;
-    const link = kind === "lesson" ? `/courses/${encodeURIComponent(courseId)}` : "/assessments";
+    const link = kind === "lesson"
+        ? `/courses/${encodeURIComponent(courseId)}`
+        : kind === "examination"
+            ? "/examinations"
+            : "/assessments";
     const subject = `New ${kindLabel}: ${title}`.slice(0, 160);
     const body = `${title} has been published in ${courseTitle}. Sign in to Medical Elites to view it.`.slice(0, 2000);
     const recipientList = [...recipients];
@@ -4614,7 +4640,8 @@ async function deliverAcademicPublication(input) {
         eventKey: `${kind}-published:${recordId}`,
         kind,
         recordId,
-        courseUnitId: courseId,
+        courseUnitId: courseId || null,
+        programmeId: programmeId || null,
         recipientCount: recipientList.length,
         inAppEligible: eligible.length,
         inAppCreated: eligible.length,
@@ -4763,6 +4790,28 @@ function sharedContactId(tutorId, email) {
 function sharedAccessHash(value) {
     return (0, node_crypto_1.createHash)("sha256").update(value).digest("hex");
 }
+function normalizedSharedPhone(value) {
+    return financeText(value, 80).replace(/\D/g, "");
+}
+function publicSharedAttemptResult(attempt) {
+    const released = attempt.get("released") === true;
+    return {
+        attemptId: attempt.id,
+        status: financeText(attempt.get("status"), 40) || "submitted",
+        released,
+        resourceTitle: financeText(attempt.get("resourceTitle"), 300),
+        submittedAt: attempt.get("submittedAt") ?? null,
+        ...(released ? {
+            score: attempt.get("score") ?? null,
+            totalMarks: attempt.get("totalMarks") ?? null,
+            percentage: attempt.get("percentage") ?? null,
+            feedback: financeText(attempt.get("feedback"), 12000),
+            answers: attempt.get("answers") ?? {},
+            answerText: financeText(attempt.get("answerText"), 60000),
+            releasedAt: attempt.get("releasedAt") ?? null,
+        } : {}),
+    };
+}
 function publicRequestKey(request) {
     return `public_${(0, node_crypto_1.createHash)("sha256").update(String(request.rawRequest?.ip ?? "unknown")).digest("hex").slice(0, 24)}`;
 }
@@ -4888,12 +4937,37 @@ exports.captureTutorLeadAndOpenContent = (0, https_1.onCall)({ region: "us-centr
     const accessTokenHash = sharedAccessHash(accessToken);
     await db.runTransaction(async (transaction) => {
         const [contact, engagement] = await Promise.all([transaction.get(contactRef), transaction.get(engagementRef)]);
+        if (contact.exists) {
+            const savedPhone = normalizedSharedPhone(contact.get("phone"));
+            const suppliedPhone = normalizedSharedPhone(phone);
+            if (savedPhone && savedPhone !== suppliedPhone)
+                throw new https_1.HttpsError("permission-denied", "The email and phone number do not match the details used for the earlier submission.");
+        }
         transaction.set(contactRef, { id: contactId, tutorId, registeredUserUid, fullName, email, emailNormalized: email, phone, institutionName, nicheNames: firestore_1.FieldValue.arrayUnion(financeText(link.get("nicheName"), 240) || "Open audience"), shareLinkCodes: firestore_1.FieldValue.arrayUnion(code), marketingConsent, firstCapturedAt: contact.exists ? (contact.get("firstCapturedAt") ?? firestore_1.FieldValue.serverTimestamp()) : firestore_1.FieldValue.serverTimestamp(), lastCapturedAt: firestore_1.FieldValue.serverTimestamp(), captureCount: firestore_1.FieldValue.increment(1) }, { merge: true });
         transaction.set(engagementRef, { id: engagementRef.id, code, contactId, tutorId, assessmentGroupId: financeText(link.get("assessmentGroupId"), 180) || code, nicheName: link.get("nicheName"), resourceId: link.get("resourceId"), contentType: link.get("contentType"), fullName, email, phone, institutionName, accessTokenHash, firstAccessAt: engagement.exists ? (engagement.get("firstAccessAt") ?? firestore_1.FieldValue.serverTimestamp()) : firestore_1.FieldValue.serverTimestamp(), lastAccessAt: firestore_1.FieldValue.serverTimestamp(), accessCount: firestore_1.FieldValue.increment(1) }, { merge: true });
         transaction.update(linkRef, { accessCount: firestore_1.FieldValue.increment(1), ...(contact.exists ? {} : { uniqueLeadCount: firestore_1.FieldValue.increment(1) }), updatedAt: firestore_1.FieldValue.serverTimestamp() });
     });
     const contentType = financeText(link.get("contentType"), 40);
-    return { contactId, accessToken, contentType, nicheName: link.get("nicheName"), content: await sharedResourcePayload(contentType, financeText(link.get("resourceId"), 180)) };
+    const content = await sharedResourcePayload(contentType, financeText(link.get("resourceId"), 180));
+    const engagement = await engagementRef.get();
+    let previousAttempt = null;
+    const latestAttemptId = financeText(engagement.get("latestAttemptId"), 180);
+    if (latestAttemptId) {
+        const snap = await db.collection("sharedContentAttempts").doc(latestAttemptId).get();
+        if (snap.exists && snap.get("contactId") === contactId && snap.get("code") === code)
+            previousAttempt = snap;
+    }
+    if (!previousAttempt) {
+        const attempts = await db.collection("sharedContentAttempts").where("contactId", "==", contactId).get();
+        previousAttempt = attempts.docs.filter(item => item.get("code") === code).sort((a, b) => Number(b.get("submittedAt")?.toMillis?.() ?? 0) - Number(a.get("submittedAt")?.toMillis?.() ?? 0))[0] ?? null;
+    }
+    if (previousAttempt) {
+        const resultToken = (0, node_crypto_1.randomUUID)() + (0, node_crypto_1.randomUUID)();
+        await previousAttempt.ref.update({ resultAccessTokenHash: sharedAccessHash(resultToken), updatedAt: firestore_1.FieldValue.serverTimestamp() });
+        await engagementRef.set({ latestAttemptId: previousAttempt.id }, { merge: true });
+        return { contactId, accessToken, contentType, nicheName: link.get("nicheName"), content, attempt: publicSharedAttemptResult(previousAttempt), resultToken };
+    }
+    return { contactId, accessToken, contentType, nicheName: link.get("nicheName"), content };
 });
 exports.submitTutorSharedContentAttempt = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "512MiB", enforceAppCheck: false }, async (request) => {
     await consumeRateLimit(publicRequestKey(request), { scope: "shared_content_submit", limit: 40, windowSeconds: 3600 });
@@ -4908,6 +4982,7 @@ exports.submitTutorSharedContentAttempt = (0, https_1.onCall)({ region: "us-cent
     if (!link.exists || link.get("status") !== "active")
         throw new https_1.HttpsError("failed-precondition", "This link is no longer active.");
     const answers = (input.answers && typeof input.answers === "object" ? input.answers : {});
+    const questionSnapshot = Array.isArray(input.questionSnapshot) ? input.questionSnapshot.slice(0, 250).map((item, index) => ({ id: financeText(item.id, 180) || String(index + 1), label: financeText(item.label, 80) || String(index + 1), prompt: financeText(item.prompt, 12000), options: Array.isArray(item.options) ? item.options.slice(0, 20).map(option => financeText(option, 3000)) : [] })) : [];
     const type = financeText(link.get("contentType"), 40);
     let score = null;
     let totalMarks = null;
@@ -4928,10 +5003,30 @@ exports.submitTutorSharedContentAttempt = (0, https_1.onCall)({ region: "us-cent
                 score += marks;
         }
     }
+    const resultToken = (0, node_crypto_1.randomUUID)() + (0, node_crypto_1.randomUUID)();
     const attemptRef = db.collection("sharedContentAttempts").doc();
-    await attemptRef.set({ id: attemptRef.id, code, contactId, tutorId: link.get("tutorId"), assessmentGroupId: link.get("assessmentGroupId") ?? code, nicheName: link.get("nicheName"), contentType: type, resourceId: link.get("resourceId"), resourceTitle: link.get("resourceTitle"), answers, answerText: financeText(input.answerText, 60000), score, totalMarks, percentage: score != null && totalMarks ? Math.round(score / totalMarks * 100) : null, status: (type === "quiz" || type === "assessment") ? "marked" : "submitted", submittedAt: firestore_1.FieldValue.serverTimestamp() });
-    await link.ref.update({ submissionCount: firestore_1.FieldValue.increment(1), updatedAt: firestore_1.FieldValue.serverTimestamp() });
-    return { attemptId: attemptRef.id, score, totalMarks, percentage: score != null && totalMarks ? Math.round(score / totalMarks * 100) : null };
+    const batch = db.batch();
+    batch.set(attemptRef, { id: attemptRef.id, code, contactId, tutorId: link.get("tutorId"), assessmentGroupId: link.get("assessmentGroupId") ?? code, nicheName: link.get("nicheName"), contentType: type, resourceId: link.get("resourceId"), resourceTitle: link.get("resourceTitle"), answers, questionSnapshot, answerText: financeText(input.answerText, 60000), score, totalMarks, percentage: score != null && totalMarks ? Math.round(score / totalMarks * 100) : null, status: (type === "quiz" || type === "assessment") ? "marked" : "submitted", released: false, resultAccessTokenHash: sharedAccessHash(resultToken), submittedAt: firestore_1.FieldValue.serverTimestamp() });
+    batch.set(engagement.ref, { latestAttemptId: attemptRef.id, lastSubmissionAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+    batch.update(link.ref, { submissionCount: firestore_1.FieldValue.increment(1), updatedAt: firestore_1.FieldValue.serverTimestamp() });
+    await batch.commit();
+    return { attemptId: attemptRef.id, resultToken, released: false, status: (type === "quiz" || type === "assessment") ? "marked" : "submitted" };
+});
+/** Returns only the public result state. Marks, feedback and answers remain hidden until the tutor releases them. */
+exports.getTutorSharedContentResult = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+    await consumeRateLimit(publicRequestKey(request), { scope: "shared_content_result", limit: 80, windowSeconds: 3600 });
+    const input = (request.data ?? {});
+    const code = financeText(input.code, 180);
+    const attemptId = financeText(input.attemptId, 180);
+    const resultToken = financeText(input.resultToken, 200);
+    if (!code || !attemptId || !resultToken)
+        throw new https_1.HttpsError("invalid-argument", "Result access details are required.");
+    const attempt = await db.collection("sharedContentAttempts").doc(attemptId).get();
+    if (!attempt.exists || attempt.get("code") !== code || attempt.get("resultAccessTokenHash") !== sharedAccessHash(resultToken))
+        throw new https_1.HttpsError("permission-denied", "This result link is invalid or has expired.");
+    const type = financeText(attempt.get("contentType"), 40);
+    const resourceId = financeText(attempt.get("resourceId"), 180);
+    return { attempt: publicSharedAttemptResult(attempt), content: attempt.get("released") === true ? await sharedResourcePayload(type, resourceId) : null, contentType: type, nicheName: attempt.get("nicheName") };
 });
 exports.getTutorContentCampaigns = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 120, memory: "512MiB", enforceAppCheck: false }, async (request) => {
     if (!request.auth)
@@ -4957,8 +5052,23 @@ exports.markTutorSharedContentAttempt = (0, https_1.onCall)({ region: "us-centra
     const attempt = await ref.get();
     if (!attempt.exists || financeText(attempt.get("tutorId"), 180) !== tutorId)
         throw new https_1.HttpsError("permission-denied", "You cannot mark this submission.");
-    await ref.update({ score, totalMarks, percentage: Math.round(score / totalMarks * 100), feedback, status: "marked", markedByUid: tutorId, markedAt: firestore_1.FieldValue.serverTimestamp() });
+    await ref.update({ score, totalMarks, percentage: Math.round(score / totalMarks * 100), feedback, status: "marked", released: false, releasedAt: firestore_1.FieldValue.delete(), markedByUid: tutorId, markedAt: firestore_1.FieldValue.serverTimestamp() });
     return { attemptId, score, totalMarks, percentage: Math.round(score / totalMarks * 100) };
+});
+exports.releaseTutorSharedContentAttempt = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const tutorId = request.auth.uid;
+    await assertTutorProfile(tutorId);
+    const attemptId = financeText(request.data?.attemptId, 180);
+    const ref = db.collection("sharedContentAttempts").doc(attemptId);
+    const attempt = await ref.get();
+    if (!attempt.exists || financeText(attempt.get("tutorId"), 180) !== tutorId)
+        throw new https_1.HttpsError("permission-denied", "You cannot release this submission.");
+    if (attempt.get("status") !== "marked" || !Number.isFinite(Number(attempt.get("score"))))
+        throw new https_1.HttpsError("failed-precondition", "Mark this submission before releasing its result.");
+    await ref.update({ released: true, status: "released", releasedByUid: tutorId, releasedAt: firestore_1.FieldValue.serverTimestamp() });
+    return { attemptId, released: true };
 });
 /**
  * Registration-link ownership is independent from class/institution context.
@@ -6694,6 +6804,41 @@ exports.listLiveClasses = (0, https_1.onCall)({ region: "us-central1", timeoutSe
     }).sort((a, b) => String(b.startsAt).localeCompare(String(a.startsAt)));
     return { sessions };
 });
+exports.getLiveClassSession = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 30, memory: "256MiB", cors: LIVE_CLASS_CORS, enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Please sign in.");
+    const sessionId = liveText(request.data?.sessionId, 180);
+    if (!sessionId)
+        throw new https_1.HttpsError("invalid-argument", "A live-class session ID is required.");
+    const profile = await liveProfile(request.auth.uid);
+    const snap = await db.collection("liveClasses").doc(sessionId).get();
+    if (!snap.exists)
+        throw new https_1.HttpsError("not-found", "Live class not found.");
+    const data = { ...(snap.data() ?? {}) };
+    const role = String(profile.get("role") ?? "");
+    const owner = data.tutorUid === request.auth.uid || role === "admin";
+    if (!owner && !(await userHasCourseAccess(request.auth.uid, liveText(data.courseUnitId, 180)))) {
+        throw new https_1.HttpsError("permission-denied", "You are not enrolled in this live class.");
+    }
+    const tutorProfile = data.tutorUid ? await db.collection("users").doc(String(data.tutorUid)).get() : null;
+    data.tutorName = tutorProfile?.exists ? liveName(tutorProfile, "Tutor") : (liveText(data.tutorName, 160).includes("@") ? "Tutor" : liveText(data.tutorName, 160) || "Tutor");
+    if (!owner) {
+        delete data.openShareToken;
+        delete data.dailyRoomName;
+        delete data.dailyRoomUrl;
+    }
+    const iso = (value) => value?.toDate?.()?.toISOString?.() ?? null;
+    return {
+        session: {
+            id: snap.id,
+            ...data,
+            startsAt: iso(snap.get("startsAt")),
+            endsAt: iso(snap.get("endsAt")),
+            testStartedAt: iso(snap.get("testStartedAt")),
+            testEndsAt: iso(snap.get("testEndsAt")),
+        },
+    };
+});
 exports.manageLiveClass = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", cors: LIVE_CLASS_CORS, secrets: [DAILY_API_KEY], enforceAppCheck: false }, async (request) => {
     if (!request.auth)
         throw new https_1.HttpsError("unauthenticated", "Please sign in.");
@@ -6737,11 +6882,29 @@ exports.manageLiveClass = (0, https_1.onCall)({ region: "us-central1", timeoutSe
         const quizId = liveText(input.quizId, 180) || liveText(data.quizId, 180);
         if (!quizId)
             throw new https_1.HttpsError("failed-precondition", "Attach an assessment before launching a live test.");
+        const quiz = await db.collection("quizzes").doc(quizId).get();
+        if (!quiz.exists)
+            throw new https_1.HttpsError("not-found", "The attached live test no longer exists.");
+        const quizData = quiz.data() ?? {};
+        if (quizData.status !== "published")
+            throw new https_1.HttpsError("failed-precondition", "Publish the attached assessment before launching it.");
+        const moduleId = liveText(quizData.moduleId, 180);
+        if (!moduleId)
+            throw new https_1.HttpsError("failed-precondition", "The live test must be linked to a course module.");
+        const moduleSnap = await db.collection("modules").doc(moduleId).get();
+        if (!moduleSnap.exists)
+            throw new https_1.HttpsError("failed-precondition", "The live test module could not be found.");
+        const moduleData = moduleSnap.data() ?? {};
+        const quizCourseUnitId = liveText(moduleData.courseUnitId ?? moduleData.courseId ?? quizData.courseUnitId ?? quizData.courseId, 180);
+        if (!quizCourseUnitId || quizCourseUnitId !== liveText(data.courseUnitId, 180)) {
+            throw new https_1.HttpsError("failed-precondition", "The live test must belong to the same course unit as the live class.");
+        }
         const minutes = Math.min(240, Math.max(1, Number(input.testDurationMinutes) || 20));
         const testEndsAt = new Date(Date.now() + minutes * 60_000);
-        await ref.set({ activeQuizId: quizId, activeQuizTitle: liveText(input.quizTitle, 220) || data.quizTitle || "Live test", testStartedAt: firestore_1.FieldValue.serverTimestamp(), testEndsAt, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
+        const activeQuizTitle = liveText(quizData.title, 220) || liveText(input.quizTitle, 220) || data.quizTitle || "Live test";
+        await ref.set({ activeQuizId: quizId, activeQuizTitle, testStartedAt: firestore_1.FieldValue.serverTimestamp(), testEndsAt, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
         await notifyLiveClassStudents(String(data.courseUnitId ?? ""), "Live test started", `${data.title}: your test is now available.`, `/live-classes/${sessionId}`);
-        return { activeQuizId: quizId, testEndsAt: testEndsAt.toISOString() };
+        return { activeQuizId: quizId, activeQuizTitle, testEndsAt: testEndsAt.toISOString() };
     }
     if (action !== "start")
         throw new https_1.HttpsError("invalid-argument", "Unknown live-class action.");
