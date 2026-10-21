@@ -1,4 +1,4 @@
-import { Bot, CheckCircle, Download, FileEdit, Save, Send, ShieldAlert } from "lucide-react";
+import { ArrowLeft, BookOpen, Bot, CheckCircle, ChevronRight, Download, FileEdit, Save, Send, ShieldAlert, UserRound } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { useEffect, useMemo, useState } from "react";
 import TutorLayout from "../components/layout/TutorLayout";
@@ -16,6 +16,8 @@ export default function ExaminationSubmissionsPage() {
   const [saving, setSaving] = useState<string | null>(null);
   const [aiWorking, setAiWorking] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [selectedCourseUnit, setSelectedCourseUnit] = useState<string | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -29,20 +31,38 @@ export default function ExaminationSubmissionsPage() {
   useEffect(() => { void load(); }, []);
 
   const grouped = useMemo(() => {
-    const groups = new Map<string, ExaminationSubmission[]>();
+    const groups = new Map<string, { title: string; submissions: ExaminationSubmission[] }>();
     items.forEach((item) => {
-      const key = item.courseUnitTitle?.trim() || "Unassigned Course Unit";
-      groups.set(key, [...(groups.get(key) || []), item]);
+      const key = item.courseUnitId || item.courseUnitTitle?.trim() || "unassigned";
+      const title = item.courseUnitTitle?.trim() || "Unassigned Course Unit";
+      const current = groups.get(key) || { title, submissions: [] };
+      current.submissions.push(item);
+      groups.set(key, current);
     });
     return [...groups.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([courseUnit, submissions]) => ({
-        courseUnit,
-        submissions: submissions.sort((a, b) =>
+      .map(([courseUnitId, value]) => ({
+        courseUnitId,
+        courseUnit: value.title,
+        submissions: value.submissions.sort((a, b) =>
           a.examinationTitle.localeCompare(b.examinationTitle) || a.studentName.localeCompare(b.studentName)
         ),
-      }));
+      }))
+      .sort((a, b) => a.courseUnit.localeCompare(b.courseUnit));
   }, [items]);
+
+  const selectedGroup = grouped.find((group) => group.courseUnitId === selectedCourseUnit) ?? null;
+  const studentRows = useMemo(() => {
+    if (!selectedGroup) return [];
+    const students = new Map<string, { studentId: string; studentName: string; submissions: ExaminationSubmission[] }>();
+    selectedGroup.submissions.forEach((submission) => {
+      const key = submission.studentId || submission.studentName;
+      const current = students.get(key) || { studentId: key, studentName: submission.studentName || "Student", submissions: [] };
+      current.submissions.push(submission);
+      students.set(key, current);
+    });
+    return [...students.values()].sort((a, b) => a.studentName.localeCompare(b.studentName));
+  }, [selectedGroup]);
+  const selectedStudent = studentRows.find((student) => student.studentId === selectedStudentId) ?? null;
 
   async function assist(item: ExaminationSubmission) {
     try {
@@ -203,18 +223,45 @@ export default function ExaminationSubmissionsPage() {
       </section>
       {loading ? <Card>Loading submissions...</Card> : items.length === 0 ? (
         <Card className="text-center"><FileEdit size={50} className="mx-auto text-slate-400"/><h2 className="mt-4 text-xl font-bold">No examination submissions yet</h2></Card>
+      ) : !selectedGroup ? (
+        <section>
+          <div className="mb-5"><h2 className="text-2xl font-black text-slate-950">Course Units</h2><p className="mt-1 text-slate-600">Select a course unit to see the students who submitted examinations.</p></div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {grouped.map((group) => {
+              const uniqueStudents = new Set(group.submissions.map((item) => item.studentId || item.studentName)).size;
+              const awaitingReview = group.submissions.filter((item) => item.status !== "marked").length;
+              return <button key={group.courseUnitId} type="button" onClick={() => { setSelectedCourseUnit(group.courseUnitId); setSelectedStudentId(null); }} className="rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-md">
+                <div className="flex items-start justify-between gap-3"><span className="rounded-xl bg-blue-100 p-3 text-blue-700"><BookOpen size={24}/></span><ChevronRight className="text-slate-400"/></div>
+                <h3 className="mt-4 text-xl font-black text-slate-950">{group.courseUnit}</h3>
+                <div className="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
+                  <div className="rounded-xl bg-slate-100 p-2"><strong className="block text-lg">{uniqueStudents}</strong>Students</div>
+                  <div className="rounded-xl bg-slate-100 p-2"><strong className="block text-lg">{group.submissions.length}</strong>Submissions</div>
+                  <div className="rounded-xl bg-amber-50 p-2 text-amber-900"><strong className="block text-lg">{awaitingReview}</strong>Pending</div>
+                </div>
+              </button>;
+            })}
+          </div>
+        </section>
+      ) : !selectedStudent ? (
+        <section>
+          <button type="button" onClick={() => { setSelectedCourseUnit(null); setSelectedStudentId(null); }} className="mb-5 flex items-center gap-2 font-bold text-blue-700"><ArrowLeft size={18}/>Back to Course Units</button>
+          <div className="mb-5 rounded-2xl bg-slate-900 px-5 py-4 text-white"><p className="text-xs font-bold uppercase tracking-wider text-blue-300">Course Unit</p><h2 className="text-2xl font-black">{selectedGroup.courseUnit}</h2><p className="mt-1 text-sm text-slate-300">{studentRows.length} student{studentRows.length === 1 ? "" : "s"} submitted</p></div>
+          <div className="space-y-3">
+            {studentRows.map((student) => {
+              const marked = student.submissions.filter((item) => item.status === "marked").length;
+              const released = student.submissions.filter((item) => item.released).length;
+              return <button key={student.studentId} type="button" onClick={() => setSelectedStudentId(student.studentId)} className="flex w-full items-center justify-between gap-4 rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:border-blue-400 hover:shadow-md">
+                <div className="flex min-w-0 items-center gap-4"><span className="rounded-full bg-blue-100 p-3 text-blue-700"><UserRound size={22}/></span><div className="min-w-0"><h3 className="truncate text-lg font-black text-slate-950">{student.studentName}</h3><p className="text-sm text-slate-600">{student.submissions.length} submission{student.submissions.length === 1 ? "" : "s"} · {marked} marked · {released} released</p></div></div><ChevronRight className="shrink-0 text-slate-400"/>
+              </button>;
+            })}
+          </div>
+        </section>
       ) : (
-        <div className="space-y-8">
-          {grouped.map((group) => (
-            <section key={group.courseUnit}>
-              <div className="mb-4 flex items-center justify-between rounded-2xl bg-slate-900 px-5 py-4 text-white">
-                <div><p className="text-xs font-bold uppercase tracking-wider text-blue-300">Course Unit</p><h2 className="text-xl font-bold">{group.courseUnit}</h2></div>
-                <span className="rounded-full bg-white/10 px-3 py-1 text-sm font-bold">{group.submissions.length} submission{group.submissions.length === 1 ? "" : "s"}</span>
-              </div>
-              <div className="space-y-5">{group.submissions.map(renderSubmission)}</div>
-            </section>
-          ))}
-        </div>
+        <section>
+          <button type="button" onClick={() => setSelectedStudentId(null)} className="mb-5 flex items-center gap-2 font-bold text-blue-700"><ArrowLeft size={18}/>Back to Students</button>
+          <div className="mb-5 rounded-2xl bg-slate-900 px-5 py-4 text-white"><p className="text-xs font-bold uppercase tracking-wider text-blue-300">{selectedGroup.courseUnit}</p><h2 className="text-2xl font-black">{selectedStudent.studentName}</h2><p className="mt-1 text-sm text-slate-300">{selectedStudent.submissions.length} submitted examination{selectedStudent.submissions.length === 1 ? "" : "s"}</p></div>
+          <div className="space-y-5">{selectedStudent.submissions.map(renderSubmission)}</div>
+        </section>
       )}
     </TutorLayout>
   );
