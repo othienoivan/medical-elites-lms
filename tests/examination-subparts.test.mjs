@@ -63,3 +63,20 @@ SECTION A: OBJECTIVE QUESTIONS
   ]);
   assert.deepEqual(questions[1].options.map((option) => option.text), ["Vitamin A", "Vitamin B", "Vitamin C", "Vitamin D"]);
 });
+
+test("recovers options concatenated when Word line breaks were discarded", async () => {
+  const { parseOnlineExamination } = await loadParser();
+  const questions = parseOnlineExamination(`
+SECTION A: MULTIPLE CHOICE QUESTIONS (30 MARKS)
+1. Mental health is best described as:
+A. Absence of all physical illnessesB. A state of emotional, psychological and social well-being that enables a person to function effectivelyC. The absence of psychiatric symptoms onlyD. Ability to avoid stressful situations
+`);
+
+  assert.equal(questions.length, 1);
+  assert.deepEqual(questions[0].options, [
+    { label: "A", text: "Absence of all physical illnesses" },
+    { label: "B", text: "A state of emotional, psychological and social well-being that enables a person to function effectively" },
+    { label: "C", text: "The absence of psychiatric symptoms only" },
+    { label: "D", text: "Ability to avoid stressful situations" },
+  ]);
+});
