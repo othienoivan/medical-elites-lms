@@ -24,6 +24,7 @@ import {
   Settings,
   Sparkles,
   Stethoscope,
+  Trophy,
   Users,
   Video,
   User,
@@ -105,6 +106,7 @@ const navigationGroups: NavigationGroup[] = [
       { name: "Clinical Logbook", icon: Stethoscope, path: "/tutor/clinical-logbook" },
       { name: "Attendance", icon: CalendarCheck, path: "/tutor/attendance" },
       { name: "Timetable", icon: CalendarDays, path: "/tutor/timetable" },
+      { name: "Seminar Management", icon: Trophy, path: "/seminar" },
     ],
   },
   {
@@ -176,6 +178,7 @@ const breadcrumbLabels: Record<string, string> = {
   register: "Register Student",
   "registration-links": "Registration Links",
   "registered-learners": "Registered Learners",
+  seminar: "Seminar Management",
 };
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
