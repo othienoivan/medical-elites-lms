@@ -61,3 +61,20 @@ test("seminar bootstrap permits reading a missing fixed event without exposing s
   assert.match(page, /Shared data could not be loaded \(\$\{code\}\)/);
   assert.match(page, /Shared save failed: \$\{detail\}/);
 });
+
+test("seminar owner can authorise committee members and assign tracked responsibilities", async () => {
+  const [page, service, rules] = await Promise.all([
+    readFile("src/pages/SeminarManagementPage.tsx", "utf8"),
+    readFile("src/firebase/seminars.ts", "utf8"),
+    readFile("firestore.rules", "utf8"),
+  ]);
+  assert.match(page, /Authorise committee members/);
+  assert.match(page, /Assign committee tasks/);
+  assert.match(page, /Revoke access/);
+  assert.match(service, /findCommitteeCandidate/);
+  assert.match(service, /arrayUnion\(member\.uid\)/);
+  assert.match(service, /arrayRemove\(uid\)/);
+  assert.match(rules, /match \/seminarCommittee\/\{memberUid\}/);
+  assert.match(rules, /match \/seminarCommitteeTasks\/\{taskId\}/);
+  assert.match(rules, /affectedKeys\(\)\.hasOnly\(\['status','updatedAt'\]\)/);
+});
