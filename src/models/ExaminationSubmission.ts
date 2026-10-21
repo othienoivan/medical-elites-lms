@@ -12,6 +12,7 @@ export interface ExaminationSubmission {
   questionsSnapshot?: Array<{
     answerKey?: string;
     number: number;
+    displayNumber?: string;
     section: string;
     prompt: string;
     options: Array<{ label: string; text: string }>;
