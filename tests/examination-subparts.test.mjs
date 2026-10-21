@@ -45,3 +45,21 @@ d) Lung
   assert.equal(questions.length, 1);
   assert.deepEqual(questions[0].options.map((option) => option.label), ["A", "B", "C", "D"]);
 });
+
+test("Word and PDF option labels without punctuation remain separate", async () => {
+  const { parseOnlineExamination } = await loadParser();
+  const questions = parseOnlineExamination(`
+SECTION A: OBJECTIVE QUESTIONS
+1. Which organ pumps blood? A Heart B Skin C Liver D Kidney
+2. Which vitamin prevents scurvy? A Vitamin A B Vitamin B C Vitamin C D Vitamin D
+`);
+
+  assert.equal(questions.length, 2);
+  assert.deepEqual(questions[0].options, [
+    { label: "A", text: "Heart" },
+    { label: "B", text: "Skin" },
+    { label: "C", text: "Liver" },
+    { label: "D", text: "Kidney" },
+  ]);
+  assert.deepEqual(questions[1].options.map((option) => option.text), ["Vitamin A", "Vitamin B", "Vitamin C", "Vitamin D"]);
+});
