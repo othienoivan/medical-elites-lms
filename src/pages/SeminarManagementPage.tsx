@@ -3,6 +3,8 @@ import { Award, CalendarDays, ClipboardCheck, Download, Plus, RotateCcw, Users, 
 import TutorLayout from "../components/layout/TutorLayout";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
+import useAuth from "../hooks/useAuth";
+import { saveSeminar, watchSeminar } from "../firebase/seminars";
 
 type Tab = "overview" | "schedule" | "tasks" | "attendance" | "scores" | "budget";
 type TaskStatus = "not-started" | "in-progress" | "done" | "blocked";
@@ -46,11 +48,27 @@ const money = (value: number) => `UGX ${value.toLocaleString()}`;
 const nextId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 export default function SeminarManagementPage() {
+  const { currentUser, userProfile } = useAuth();
   const [tab, setTab] = useState<Tab>("overview");
+  const [cloudReady, setCloudReady] = useState(false);
+  const [cloudMessage, setCloudMessage] = useState("Connecting to shared seminar data...");
   const [data, setData] = useState<SeminarState>(() => {
     try { return JSON.parse(localStorage.getItem(STORE_KEY) || "null") || initialState; } catch { return initialState; }
   });
   useEffect(() => localStorage.setItem(STORE_KEY, JSON.stringify(data)), [data]);
+  useEffect(() => watchSeminar(remote => {
+    if (remote) {
+      setData(remote as SeminarState);
+      setCloudMessage("Shared data is up to date");
+    } else {
+      setCloudMessage("No shared record yet. Save to create it.");
+    }
+    setCloudReady(true);
+  }, error => {
+    console.error("Failed to load seminar", error);
+    setCloudMessage("Working from this browser. Shared data could not be loaded.");
+    setCloudReady(true);
+  }), []);
   const totalBudget = useMemo(() => data.budget.reduce((sum, row) => sum + row.quantity * row.unitCost, 0), [data.budget]);
   const completed = data.tasks.filter((task) => task.status === "done").length;
   const present = data.attendance.filter((row) => row.present).length;
@@ -62,9 +80,24 @@ export default function SeminarManagementPage() {
     const link = document.createElement("a"); link.href = url; link.download = "kawempe-seminar-management-data.json"; link.click(); URL.revokeObjectURL(url);
   }
 
+  async function saveShared() {
+    if (!currentUser) return;
+    setCloudMessage("Saving shared data...");
+    try {
+      const profile = userProfile as Record<string, unknown> | null;
+      const institutionId = String(profile?.institutionId || "");
+      if (!institutionId) throw new Error("Your account is not assigned to an institution.");
+      await saveSeminar({ data, userId: currentUser.uid, institutionId, userName: String(profile?.fullName || currentUser.email || "Seminar coordinator") });
+      setCloudMessage("Shared data saved");
+    } catch (error) {
+      console.error("Failed to save seminar", error);
+      setCloudMessage("Shared save failed. Your browser copy is still available.");
+    }
+  }
+
   return <TutorLayout title="Seminar Management" subtitle="Plan, deliver and report the Kawempe seminar and departmental competition.">
     <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-blue-950 to-blue-700 p-6 text-white sm:p-8">
-      <div className="flex flex-wrap items-start justify-between gap-5"><div><p className="text-sm font-bold uppercase tracking-[.18em] text-blue-200">2-8 November 2026 · Theory phase</p><h1 className="mt-2 max-w-4xl text-3xl font-black sm:text-4xl">Strengthening Clinical Competence, Professionalism and Teamwork for Safe Patient Care</h1><p className="mt-3 max-w-3xl text-blue-100">Five departments · 11 programmes · theory, practicals and structured competition</p></div><div className="flex gap-2"><Button variant="outline" onClick={downloadReport}><Download size={17}/>Export data</Button><Button variant="danger" onClick={() => { if (confirm("Reset all locally entered seminar data?")) setData(initialState); }}><RotateCcw size={17}/>Reset</Button></div></div>
+      <div className="flex flex-wrap items-start justify-between gap-5"><div><p className="text-sm font-bold uppercase tracking-[.18em] text-blue-200">2-8 November 2026 · Theory phase</p><h1 className="mt-2 max-w-4xl text-3xl font-black sm:text-4xl">Strengthening Clinical Competence, Professionalism and Teamwork for Safe Patient Care</h1><p className="mt-3 max-w-3xl text-blue-100">Five departments · 11 programmes · theory, practicals and structured competition</p><p className="mt-3 text-sm font-semibold text-cyan-200">{cloudMessage}</p></div><div className="flex flex-wrap gap-2"><Button variant="success" disabled={!cloudReady} onClick={()=>void saveShared()}><CheckCloud/>Save shared data</Button><Button variant="outline" onClick={downloadReport}><Download size={17}/>Export data</Button><Button variant="danger" onClick={() => { if (confirm("Reset the working copy? Changes are not shared until you press Save shared data.")) setData(initialState); }}><RotateCcw size={17}/>Reset</Button></div></div>
     </section>
 
     <div className="mt-6 flex gap-2 overflow-x-auto pb-2">{(["overview","schedule","tasks","attendance","scores","budget"] as Tab[]).map(item => <button key={item} onClick={() => setTab(item)} className={`min-h-11 whitespace-nowrap rounded-xl px-4 text-sm font-bold capitalize ${tab === item ? "bg-blue-700 text-white" : "border bg-white text-slate-700"}`}>{item}</button>)}</div>
@@ -80,9 +113,11 @@ export default function SeminarManagementPage() {
     {tab === "attendance" && <Attendance data={data} setData={setData}/>} 
     {tab === "scores" && <Scores setData={setData} ranked={ranked}/>} 
     {tab === "budget" && <Budget data={data} setData={setData} total={totalBudget}/>} 
-    <p className="mt-6 text-xs text-slate-500">Entries are saved in this browser. Use Export data after every working session; cloud collaboration requires a separately approved shared-data rollout.</p>
+    <p className="mt-6 text-xs text-slate-500">Changes are retained in this browser while you work. Press Save shared data to publish them to authorised committee members, and use Export data for an independent backup.</p>
   </TutorLayout>;
 }
+
+function CheckCloud(){return <span aria-hidden="true">✓</span>}
 
 function Metric({icon:Icon,label,value,detail}:{icon:typeof CalendarDays;label:string;value:string|number;detail:string}) { return <Card><Icon className="text-blue-700"/><p className="mt-4 text-sm font-semibold text-slate-500">{label}</p><p className="mt-1 text-2xl font-black">{value}</p><p className="mt-1 text-xs text-slate-500">{detail}</p></Card>; }
 function Tasks({data,setData}:{data:SeminarState;setData:React.Dispatch<React.SetStateAction<SeminarState>>}) { const [title,setTitle]=useState(""); return <Card className="mt-4"><h2 className="text-xl font-black">Preparation tracker</h2><form className="mt-4 flex flex-col gap-3 sm:flex-row" onSubmit={e=>{e.preventDefault();if(!title.trim())return;setData(d=>({...d,tasks:[...d.tasks,{id:nextId(),title:title.trim(),owner:"Unassigned",deadline:"",status:"not-started"}]}));setTitle("")}}><input className={inputClass} value={title} onChange={e=>setTitle(e.target.value)} placeholder="Add a preparation task"/><Button type="submit"><Plus size={17}/>Add task</Button></form><div className="mt-5 space-y-3">{data.tasks.map(task=><div key={task.id} className="grid gap-3 rounded-xl border p-4 md:grid-cols-[1fr_220px_150px_42px] md:items-center"><div><p className="font-bold">{task.title}</p><input aria-label="Task owner" className="mt-2 w-full border-b text-sm text-slate-600" value={task.owner} onChange={e=>setData(d=>({...d,tasks:d.tasks.map(x=>x.id===task.id?{...x,owner:e.target.value}:x)}))}/></div><input aria-label="Task deadline" type="date" className={inputClass} value={task.deadline} onChange={e=>setData(d=>({...d,tasks:d.tasks.map(x=>x.id===task.id?{...x,deadline:e.target.value}:x)}))}/><select aria-label="Task status" className={`${inputClass} ${statusClass[task.status]}`} value={task.status} onChange={e=>setData(d=>({...d,tasks:d.tasks.map(x=>x.id===task.id?{...x,status:e.target.value as TaskStatus}:x)}))}><option value="not-started">Not started</option><option value="in-progress">In progress</option><option value="done">Done</option><option value="blocked">Blocked</option></select><button aria-label="Delete task" className="text-red-600" onClick={()=>setData(d=>({...d,tasks:d.tasks.filter(x=>x.id!==task.id)}))}>×</button></div>)}</div></Card> }
