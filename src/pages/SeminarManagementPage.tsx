@@ -67,7 +67,8 @@ export default function SeminarManagementPage() {
     setCloudReady(true);
   }, error => {
     console.error("Failed to load seminar", error);
-    setCloudMessage("Working from this browser. Shared data could not be loaded.");
+    const code = String((error as Error & { code?: string }).code || "connection-error").replace("firestore/", "");
+    setCloudMessage(`Working from this browser. Shared data could not be loaded (${code}).`);
     setCloudReady(true);
   }), []);
   const totalBudget = useMemo(() => data.budget.reduce((sum, row) => sum + row.quantity * row.unitCost, 0), [data.budget]);
@@ -92,7 +93,8 @@ export default function SeminarManagementPage() {
       setCloudMessage("Shared data saved");
     } catch (error) {
       console.error("Failed to save seminar", error);
-      setCloudMessage("Shared save failed. Your browser copy is still available.");
+      const detail = error instanceof Error ? error.message : "Unknown Firebase error";
+      setCloudMessage(`Shared save failed: ${detail}. Your browser copy is still available.`);
     }
   }
 
