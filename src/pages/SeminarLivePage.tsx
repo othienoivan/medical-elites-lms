@@ -6,18 +6,26 @@ import useAuth from "../hooks/useAuth";
 import {
   saveAudienceAttempt,
   saveAudienceScore,
+  getPublicSeminarQuestions,
+  registerSeminarAttendance,
+  submitSeminarAnswers,
   watchAudienceAttempts,
   watchAudienceScores,
   watchCompetitionEvents,
   watchJudgeScores,
   watchParticipants,
   watchSeminarResources,
+  watchSeminarQuestionAttempts,
+  watchSeminarSessions,
   type AudienceAttempt,
   type AudienceScore,
   type CompetitionEvent,
   type JudgeScore,
   type Participant,
   type SeminarResource,
+  type SeminarQuestion,
+  type SeminarQuestionAttempt,
+  type SeminarSession,
 } from "../firebase/seminarCompetition";
 export default function SeminarLivePage() {
   const { seminarId = "" } = useParams();
@@ -28,6 +36,15 @@ export default function SeminarLivePage() {
     [audience, setAudience] = useState<AudienceScore[]>([]),
     [attempts, setAttempts] = useState<AudienceAttempt[]>([]),
     [resources, setResources] = useState<SeminarResource[]>([]),
+    [sessions, setSessions] = useState<SeminarSession[]>([]),
+    [questionAttempts, setQuestionAttempts] = useState<
+      SeminarQuestionAttempt[]
+    >([]),
+    [questions, setQuestions] = useState<SeminarQuestion[]>([]),
+    [answers, setAnswers] = useState<Record<string, string>>({}),
+    [selectedEvent, setSelectedEvent] = useState(""),
+    [selectedSession, setSelectedSession] = useState(""),
+    [participationMessage, setParticipationMessage] = useState(""),
     [vote, setVote] = useState({ participantId: "", total: 0 }),
     [challenge, setChallenge] = useState({
       eventId: "",
@@ -36,15 +53,22 @@ export default function SeminarLivePage() {
     });
   useEffect(() => {
     const u = [
-      watchCompetitionEvents(seminarId,setEvents),
-      watchParticipants(seminarId,setPeople),
-      watchJudgeScores(seminarId,setJudges),
-      watchAudienceScores(seminarId,setAudience),
-      watchAudienceAttempts(seminarId,setAttempts),
-      watchSeminarResources(seminarId,setResources),
+      watchCompetitionEvents(seminarId, setEvents),
+      watchParticipants(seminarId, setPeople),
+      watchJudgeScores(seminarId, setJudges),
+      watchAudienceScores(seminarId, setAudience),
+      watchAudienceAttempts(seminarId, setAttempts),
+      watchSeminarResources(seminarId, setResources),
+      watchSeminarSessions(seminarId, setSessions),
+      watchSeminarQuestionAttempts(seminarId, setQuestionAttempts),
     ];
     return () => u.forEach((x) => x());
   }, [seminarId]);
+  useEffect(() => {
+    void getPublicSeminarQuestions(seminarId, selectedEvent)
+      .then(setQuestions)
+      .catch(() => setQuestions([]));
+  }, [seminarId, selectedEvent]);
   const board = useMemo(
     () =>
       people
@@ -80,9 +104,7 @@ export default function SeminarLivePage() {
           <p className="font-bold uppercase tracking-widest text-blue-200">
             Live seminar results
           </p>
-          <h1 className="mt-3 text-4xl font-black">
-            Seminar Leaderboard
-          </h1>
+          <h1 className="mt-3 text-4xl font-black">Seminar Leaderboard</h1>
           <p className="mt-3 max-w-2xl text-blue-100">
             Official marks are the average of two judges. Audience scoring is
             published separately and never changes the official rank.
@@ -90,6 +112,212 @@ export default function SeminarLivePage() {
         </div>
       </section>
       <div className="mx-auto max-w-6xl space-y-8 px-5 py-8">
+        <section className="grid gap-6 lg:grid-cols-2">
+          <div className="rounded-2xl border bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-black">
+              Register and record attendance
+            </h2>
+            {!currentUser ? (
+              <p className="mt-3 text-slate-600">
+                <Link className="font-bold text-blue-700" to="/login">
+                  Sign in or create an account
+                </Link>{" "}
+                before registering. This prevents duplicate attendance records.
+              </p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <select
+                  className="w-full rounded-xl border p-3"
+                  value={selectedSession}
+                  onChange={(event) => setSelectedSession(event.target.value)}
+                >
+                  <option value="">Select today&apos;s session</option>
+                  {sessions
+                    .filter((item) => item.status === "open")
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.title} · {item.date} {item.startTime}
+                      </option>
+                    ))}
+                </select>
+                <Button
+                  disabled={!selectedSession}
+                  onClick={async () => {
+                    const session = sessions.find(
+                      (item) => item.id === selectedSession,
+                    );
+                    if (!session || !currentUser) return;
+                    await registerSeminarAttendance(seminarId, {
+                      sessionId: session.id,
+                      sessionTitle: session.title,
+                      userId: currentUser.uid,
+                      attendeeName: name,
+                      attendeeEmail: currentUser.email || "",
+                    });
+                    setParticipationMessage(
+                      "Attendance captured and sent to the attendance officer for confirmation.",
+                    );
+                  }}
+                >
+                  Register attendance
+                </Button>
+              </div>
+            )}
+            {participationMessage && (
+              <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
+                {participationMessage}
+              </p>
+            )}
+          </div>
+          <div className="rounded-2xl border bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-black">Audience question challenge</h2>
+            <select
+              className="mt-4 w-full rounded-xl border p-3"
+              value={selectedEvent}
+              onChange={(event) => setSelectedEvent(event.target.value)}
+            >
+              <option value="">Select event questions</option>
+              {events.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title}
+                </option>
+              ))}
+            </select>
+            {questions.length > 0 && (
+              <form
+                className="mt-4 space-y-4"
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  if (!currentUser) {
+                    setParticipationMessage(
+                      "Sign in before submitting answers.",
+                    );
+                    return;
+                  }
+                  const attempt = await submitSeminarAnswers(
+                    seminarId,
+                    selectedEvent,
+                    answers,
+                  );
+                  setParticipationMessage(
+                    attempt.pendingSubjective
+                      ? `MCQ score: ${attempt.score}/${attempt.maximum}. Written answers are awaiting committee review.`
+                      : `Result submitted: ${attempt.score}/${attempt.maximum}.`,
+                  );
+                }}
+              >
+                {questions.map((question, index) => (
+                  <div
+                    key={question.id}
+                    className="rounded-xl border bg-slate-50 p-4"
+                  >
+                    <p className="font-black">
+                      {index + 1}. {question.prompt}{" "}
+                      <span className="text-sm text-slate-500">
+                        ({question.marks} marks)
+                      </span>
+                    </p>
+                    {question.type === "mcq" ? (
+                      <div className="mt-3 space-y-2">
+                        {question.options.map((option) => (
+                          <label key={option} className="flex gap-2">
+                            <input
+                              required
+                              name={question.id}
+                              type="radio"
+                              value={option}
+                              checked={answers[question.id] === option}
+                              onChange={(event) =>
+                                setAnswers({
+                                  ...answers,
+                                  [question.id]: event.target.value,
+                                })
+                              }
+                            />
+                            <span>{option}</span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <textarea
+                        required
+                        className="mt-3 min-h-28 w-full rounded-xl border bg-white p-3"
+                        value={answers[question.id] || ""}
+                        onChange={(event) =>
+                          setAnswers({
+                            ...answers,
+                            [question.id]: event.target.value,
+                          })
+                        }
+                        placeholder={
+                          question.type === "short-answer"
+                            ? "Enter your short answer"
+                            : "Enter your detailed answer"
+                        }
+                      />
+                    )}
+                  </div>
+                ))}
+                <Button type="submit">Submit answers</Button>
+              </form>
+            )}
+            {selectedEvent && questions.length === 0 && (
+              <p className="mt-3 text-sm text-slate-500">
+                No published questions for this event.
+              </p>
+            )}
+          </div>
+        </section>
+        <section>
+          <h2 className="text-2xl font-black">Audience question leaderboard</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Objective scores appear immediately. Attempts containing short or
+            long answers remain marked as awaiting review.
+          </p>
+          <div className="mt-4 overflow-x-auto rounded-2xl border bg-white">
+            <table className="w-full min-w-[600px] text-left">
+              <thead>
+                <tr className="border-b bg-slate-50">
+                  <th className="p-3">Rank</th>
+                  <th className="p-3">Participant</th>
+                  <th className="p-3">Event</th>
+                  <th className="p-3">Score</th>
+                  <th className="p-3">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...questionAttempts]
+                  .sort(
+                    (a, b) =>
+                      (b.maximum ? b.score / b.maximum : 0) -
+                      (a.maximum ? a.score / a.maximum : 0),
+                  )
+                  .map((attempt, index) => (
+                    <tr key={attempt.id} className="border-b">
+                      <td className="p-3 font-black">{index + 1}</td>
+                      <td className="p-3 font-semibold">
+                        {attempt.participantName}
+                      </td>
+                      <td className="p-3">
+                        {events.find((item) => item.id === attempt.eventId)
+                          ?.title || "Event"}
+                      </td>
+                      <td className="p-3 font-black">
+                        {attempt.maximum > 0
+                          ? `${attempt.score}/${attempt.maximum}`
+                          : "Pending"}
+                      </td>
+                      <td className="p-3">
+                        {attempt.pendingSubjective
+                          ? "Written answers awaiting review"
+                          : "Marked"}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
         <section>
           <h2 className="text-2xl font-black">Official leaderboard</h2>
           <div className="mt-4 space-y-4">

@@ -6,18 +6,32 @@ import Button from "../components/ui/Button";
 import useAuth from "../hooks/useAuth";
 import { uploadFileToStorage } from "../firebase/storage";
 import {
+  watchCommittee,
+  watchSeminar,
+  type CommitteeMember,
+} from "../firebase/seminars";
+import {
   addCompetitionEvent,
   addParticipant,
+  addSeminarQuestion,
   addSeminarResource,
+  addSeminarSession,
   saveJudgeScore,
+  verifySeminarAttendance,
+  watchSeminarAttendance,
   watchCompetitionEvents,
   watchJudgeScores,
   watchParticipants,
+  watchSeminarQuestions,
   watchSeminarResources,
+  watchSeminarSessions,
   type CompetitionEvent,
   type JudgeScore,
   type Participant,
+  type SeminarAttendance,
+  type SeminarQuestion,
   type SeminarResource,
+  type SeminarSession,
 } from "../firebase/seminarCompetition";
 const field = "w-full rounded-xl border px-3 py-3";
 export default function SeminarCompetitionManagerPage() {
@@ -26,7 +40,12 @@ export default function SeminarCompetitionManagerPage() {
   const [events, setEvents] = useState<CompetitionEvent[]>([]),
     [people, setPeople] = useState<Participant[]>([]),
     [scores, setScores] = useState<JudgeScore[]>([]),
-    [resources, setResources] = useState<SeminarResource[]>([]);
+    [resources, setResources] = useState<SeminarResource[]>([]),
+    [sessions, setSessions] = useState<SeminarSession[]>([]),
+    [attendance, setAttendance] = useState<SeminarAttendance[]>([]),
+    [questions, setQuestions] = useState<SeminarQuestion[]>([]);
+  const [committee, setCommittee] = useState<CommitteeMember[]>([]),
+    [ownerUid, setOwnerUid] = useState("");
   const [eventTitle, setEventTitle] = useState(""),
     [person, setPerson] = useState({
       eventId: "",
@@ -58,16 +77,55 @@ export default function SeminarCompetitionManagerPage() {
       title: "",
     }),
     [file, setFile] = useState<File | null>(null),
+    [session, setSession] = useState({
+      title: "",
+      date: "",
+      startTime: "",
+      status: "open" as SeminarSession["status"],
+    }),
+    [question, setQuestion] = useState({
+      eventId: "",
+      type: "mcq" as SeminarQuestion["type"],
+      prompt: "",
+      optionsText: "",
+      correctOption: "",
+      markingGuide: "",
+      marks: 1,
+      published: true,
+    }),
     [message, setMessage] = useState("");
   useEffect(() => {
     const un = [
-      watchCompetitionEvents(seminarId,setEvents),
-      watchParticipants(seminarId,setPeople),
-      watchJudgeScores(seminarId,setScores),
-      watchSeminarResources(seminarId,setResources),
+      watchCompetitionEvents(seminarId, setEvents),
+      watchParticipants(seminarId, setPeople),
+      watchJudgeScores(seminarId, setScores),
+      watchSeminarResources(seminarId, setResources),
+      watchSeminarSessions(seminarId, setSessions),
+      watchSeminarAttendance(seminarId, setAttendance),
+      watchSeminarQuestions(seminarId, setQuestions),
     ];
     return () => un.forEach((x) => x());
   }, [seminarId]);
+  useEffect(() => {
+    const memberWatch = watchCommittee(seminarId, setCommittee);
+    const seminarWatch = watchSeminar(
+      seminarId,
+      (value) => setOwnerUid(value?.ownerUid || ""),
+      () => setOwnerUid(""),
+    );
+    return () => {
+      memberWatch();
+      seminarWatch();
+    };
+  }, [seminarId]);
+  const canVerifyAttendance =
+    ownerUid === currentUser?.uid ||
+    committee.some(
+      (member) =>
+        member.uid === currentUser?.uid &&
+        member.active &&
+        member.role === "Attendance Officer",
+    );
   const current = people.find((x) => x.id === selected);
   const total = criteria.reduce((s, x) => s + x.score, 0),
     maximum = criteria.reduce((s, x) => s + x.maximum, 0);
@@ -131,7 +189,20 @@ export default function SeminarCompetitionManagerPage() {
         >
           Open public leaderboard
         </Link>
-        <Link className="rounded-xl border px-5 py-3 font-bold" to={`/seminar/${seminarId}`}>
+        <Button
+          variant="outline"
+          onClick={async () => {
+            const url = `${window.location.origin}/seminar/${seminarId}/live`;
+            await navigator.clipboard.writeText(url);
+            setMessage("Audience participation link copied.");
+          }}
+        >
+          Copy audience link
+        </Button>
+        <Link
+          className="rounded-xl border px-5 py-3 font-bold"
+          to={`/seminar/${seminarId}`}
+        >
           Back to seminar management
         </Link>
       </div>
@@ -364,6 +435,258 @@ export default function SeminarCompetitionManagerPage() {
                 {x.title} · {x.kind}
               </a>
             ))}
+          </div>
+        </Card>
+        <Card>
+          <h2 className="text-xl font-black">Set questions in the browser</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            MCQs are marked automatically. Short and long answers retain the
+            browser-authored marking guide for committee review.
+          </p>
+          <form
+            className="mt-4 space-y-3"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              const options =
+                question.type === "mcq"
+                  ? question.optionsText
+                      .split("\n")
+                      .map((value) => value.trim())
+                      .filter(Boolean)
+                  : [];
+              if (question.type === "mcq" && options.length < 2) {
+                setMessage("Enter at least two MCQ options, one per line.");
+                return;
+              }
+              await addSeminarQuestion(seminarId, {
+                eventId: question.eventId,
+                type: question.type,
+                prompt: question.prompt,
+                options,
+                correctOption:
+                  question.type === "mcq" ? question.correctOption : "",
+                markingGuide: question.markingGuide,
+                marks: question.marks,
+                published: question.published,
+              });
+              setQuestion({
+                ...question,
+                prompt: "",
+                optionsText: "",
+                correctOption: "",
+                markingGuide: "",
+              });
+              setMessage("Question and marking guide saved.");
+            }}
+          >
+            <select
+              required
+              className={field}
+              value={question.eventId}
+              onChange={(event) =>
+                setQuestion({ ...question, eventId: event.target.value })
+              }
+            >
+              <option value="">Select competition event</option>
+              {events.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title}
+                </option>
+              ))}
+            </select>
+            <select
+              className={field}
+              value={question.type}
+              onChange={(event) =>
+                setQuestion({
+                  ...question,
+                  type: event.target.value as SeminarQuestion["type"],
+                })
+              }
+            >
+              <option value="mcq">Multiple-choice question</option>
+              <option value="short-answer">Short-answer question</option>
+              <option value="long-answer">Long-answer question</option>
+            </select>
+            <textarea
+              required
+              className={`${field} min-h-28`}
+              value={question.prompt}
+              onChange={(event) =>
+                setQuestion({ ...question, prompt: event.target.value })
+              }
+              placeholder="Question text"
+            />
+            {question.type === "mcq" && (
+              <>
+                <textarea
+                  required
+                  className={`${field} min-h-28`}
+                  value={question.optionsText}
+                  onChange={(event) =>
+                    setQuestion({
+                      ...question,
+                      optionsText: event.target.value,
+                    })
+                  }
+                  placeholder={"Enter one option per line\nOption A\nOption B"}
+                />
+                <input
+                  required
+                  className={field}
+                  value={question.correctOption}
+                  onChange={(event) =>
+                    setQuestion({
+                      ...question,
+                      correctOption: event.target.value,
+                    })
+                  }
+                  placeholder="Correct option — copy it exactly"
+                />
+              </>
+            )}
+            <textarea
+              required
+              className={`${field} min-h-28`}
+              value={question.markingGuide}
+              onChange={(event) =>
+                setQuestion({ ...question, markingGuide: event.target.value })
+              }
+              placeholder="Marking guide / expected answer"
+            />
+            <input
+              required
+              className={field}
+              type="number"
+              min="0.5"
+              step="0.5"
+              value={question.marks}
+              onChange={(event) =>
+                setQuestion({ ...question, marks: Number(event.target.value) })
+              }
+              placeholder="Marks"
+            />
+            <label className="flex items-center gap-2 text-sm font-bold">
+              <input
+                type="checkbox"
+                checked={question.published}
+                onChange={(event) =>
+                  setQuestion({ ...question, published: event.target.checked })
+                }
+              />
+              Publish to audience immediately
+            </label>
+            <Button type="submit">Save question</Button>
+          </form>
+          <p className="mt-4 text-sm font-semibold text-slate-600">
+            {questions.length} browser-authored question
+            {questions.length === 1 ? "" : "s"}
+          </p>
+        </Card>
+        <Card>
+          <h2 className="text-xl font-black">
+            Sessions and verified attendance
+          </h2>
+          <form
+            className="mt-4 grid gap-3 sm:grid-cols-2"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              await addSeminarSession(seminarId, session);
+              setSession({ ...session, title: "" });
+              setMessage("Attendance session published.");
+            }}
+          >
+            <input
+              required
+              className={field}
+              value={session.title}
+              onChange={(event) =>
+                setSession({ ...session, title: event.target.value })
+              }
+              placeholder="Session title"
+            />
+            <input
+              required
+              className={field}
+              type="date"
+              value={session.date}
+              onChange={(event) =>
+                setSession({ ...session, date: event.target.value })
+              }
+            />
+            <input
+              className={field}
+              type="time"
+              value={session.startTime}
+              onChange={(event) =>
+                setSession({ ...session, startTime: event.target.value })
+              }
+            />
+            <select
+              className={field}
+              value={session.status}
+              onChange={(event) =>
+                setSession({
+                  ...session,
+                  status: event.target.value as SeminarSession["status"],
+                })
+              }
+            >
+              <option value="scheduled">Scheduled</option>
+              <option value="open">Open for registration</option>
+              <option value="closed">Closed</option>
+            </select>
+            <Button type="submit">Create session</Button>
+          </form>
+          <div className="mt-5 space-y-3">
+            {sessions.map((item) => (
+              <div key={item.id} className="rounded-xl border p-3">
+                <b>{item.title}</b>
+                <p className="text-sm text-slate-500">
+                  {item.date} {item.startTime} · {item.status}
+                </p>
+              </div>
+            ))}
+          </div>
+          <h3 className="mt-6 font-black">Attendance awaiting verification</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Only the seminar owner or a committee member assigned as Attendance
+            Officer can confirm these records.
+          </p>
+          <div className="mt-3 space-y-3">
+            {attendance.map((record) => (
+              <div key={record.id} className="rounded-xl border p-3">
+                <b>{record.attendeeName}</b>
+                <p className="text-sm text-slate-500">
+                  {record.attendeeEmail} · {record.sessionTitle} ·{" "}
+                  {record.status}
+                </p>
+                {record.status === "pending" && canVerifyAttendance && (
+                  <div className="mt-2 flex gap-2">
+                    <Button
+                      onClick={() =>
+                        void verifySeminarAttendance(record.id, "confirmed")
+                      }
+                    >
+                      Confirm
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        void verifySeminarAttendance(record.id, "rejected")
+                      }
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {attendance.length === 0 && (
+              <p className="text-sm text-slate-500">
+                No registrations recorded yet.
+              </p>
+            )}
           </div>
         </Card>
       </div>

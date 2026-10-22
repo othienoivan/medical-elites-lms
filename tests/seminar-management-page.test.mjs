@@ -105,3 +105,30 @@ test("seminar ownership and committee access do not require institution membersh
   assert.doesNotMatch(rules, /request\.resource\.data\.ownerUid == request\.auth\.uid\s*&& request\.resource\.data\.institutionId == currentInstitutionId\(\)/);
   assert.match(page, /do not need to belong to an institution/);
 });
+
+test("audience links support registration, verified attendance, browser questions and a safe leaderboard", async () => {
+  const [manager, management, live, service, functions, rules] = await Promise.all([
+    readFile("src/pages/SeminarCompetitionManagerPage.tsx", "utf8"),
+    readFile("src/pages/SeminarManagementPage.tsx", "utf8"),
+    readFile("src/pages/SeminarLivePage.tsx", "utf8"),
+    readFile("src/firebase/seminarCompetition.ts", "utf8"),
+    readFile("functions/src/index.ts", "utf8"),
+    readFile("firestore.rules", "utf8"),
+  ]);
+  assert.match(manager, /Copy audience link/);
+  assert.match(manager, /Multiple-choice question/);
+  assert.match(manager, /Short-answer question/);
+  assert.match(manager, /Long-answer question/);
+  assert.match(management, /Attendance Officer/);
+  assert.match(live, /Register attendance/);
+  assert.match(live, /Audience question leaderboard/);
+  assert.match(service, /seminarAudienceLeaderboard/);
+  assert.match(functions, /getPublicSeminarQuestions/);
+  assert.match(functions, /submitSeminarAudienceAnswers/);
+  assert.match(functions, /correctOption/);
+  assert.match(rules, /match \/seminarAttendance\/\{attendanceId\}/);
+  assert.match(rules, /hasSeminarRole\(resource\.data\.seminarId, 'Attendance Officer'\)/);
+  assert.match(rules, /match \/seminarQuestions\/\{questionId\}/);
+  assert.match(rules, /match \/seminarAudienceLeaderboard\/\{entryId\}/);
+  assert.doesNotMatch(live, /markingGuide/);
+});

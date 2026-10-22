@@ -1,8 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateTenantProfile = exports.createTenant = exports.bootstrapTenantWorkspace = exports.completeModuleLearning = exports.aiMarkEssayAttempt = exports.completeLessonLearning = exports.getLessonModuleProgress = exports.submitQuizAttempt = exports.getStudentPostQuizDestination = exports.requestStudentQuizReattempt = exports.grantStudentLearningProgressionOverride = exports.permanentlyDeleteQuizTrusted = exports.permanentlyDeleteQuestionTrusted = exports.createAiExaminationQuestionsTrusted = exports.grantStudentQuizReattempt = exports.getStudentQuizAttemptUsage = exports.getTutorMarketplaceAnalytics = exports.reconcileTutorMarketplaceRevenue = exports.getStudentAssessmentAttemptReview = exports.getTutorAssessmentAttempt = exports.saveTutorAssessmentMarking = exports.getTutorAssessmentAttempts = exports.getTutorQuizAnalytics = exports.getLessonResourceAccessUrl = exports.reviewMarketplaceSellerVerification = exports.upsertMarketplaceCoupon = exports.validateMarketplaceCoupon = exports.upsertMarketplacePromotion = exports.moderateMarketplaceReview = exports.voteMarketplaceReview = exports.submitMarketplaceReview = exports.cancelTutorSubscriptionAtPeriodEnd = exports.refreshTutorSubscriptionLifecycle = exports.requestCommerceRefund = exports.reconcileCommercePayment = exports.flutterwaveCommerceWebhook = exports.createMarketplaceCartCheckout = exports.createCommerceCheckout = exports.upsertFinanceCommissionRule = exports.completeFinanceWithdrawal = exports.reviewFinanceWithdrawal = exports.requestFinanceWithdrawal = exports.distributeFinanceRevenue = exports.createFinanceWallet = exports.flutterwaveWebhook = exports.createDonationCheckout = exports.medicalElitesAi = exports.removeTutorFromInstitution = exports.setInstitutionTutorAccess = exports.getInstitutionTutorMemberships = void 0;
-exports.joinOpenLiveClass = exports.getOpenLiveClass = exports.joinLiveClass = exports.manageLiveClass = exports.getLiveClassSession = exports.listLiveClasses = exports.saveLiveClass = exports.decideMarketplaceProductApproval = exports.reviewMarketplaceCourseUnitForApproval = exports.cancelStorageUploadReservation = exports.reserveStorageUpload = exports.onStorageObjectDeleted = exports.onStorageObjectFinalized = exports.getStudentAssessmentPackage = exports.getPublishedModuleLessonsV2 = exports.getTutorRegistrationLinkStudents = exports.claimRegistrationLinkTrusted = exports.releaseTutorSharedContentAttempt = exports.markTutorSharedContentAttempt = exports.aiMarkTutorSharedContentAttempt = exports.getTutorContentCampaigns = exports.getTutorSharedContentResult = exports.submitTutorSharedContentAttempt = exports.captureTutorLeadAndOpenContent = exports.getTutorContentShareLink = exports.createTutorContentShareLink = exports.findSeminarCommitteeCandidate = exports.getPublicRegistrationLinkTrusted = exports.listSubscriptionPlansTrusted = exports.getPlatformOverviewSnapshot = exports.notifyStudentsWhenAssignmentPublished = exports.notifyExaminationSubmissionWorkflow = exports.notifyStudentsWhenExaminationPublished = exports.notifyStudentsWhenAssessmentPublished = exports.notifyStudentsWhenLessonPublished = exports.getPublicCourseCatalogueSnapshotV2 = exports.getPublishedCourseModulesV2 = exports.getTutorEnrollmentCourseUnits = exports.resolveTenantWorkspaceTrusted = exports.updateOwnStudentProfile = exports.updateOwnTutorProfile = exports.synchronizeStudentIdentity = exports.getStudentLearningOverview = exports.getPublicCourseCatalogueSnapshot = exports.refreshMarketplaceLearningAccess = exports.updateTenantSubscriptionStatus = exports.assignTenantSubscription = exports.saveSubscriptionPlan = exports.assignTenantOwner = exports.updateTenantStatus = void 0;
-exports.getLiveClassRoster = exports.updateLiveClassPresence = exports.updateOpenLiveClassPresence = void 0;
+exports.joinLiveClass = exports.manageLiveClass = exports.getLiveClassSession = exports.listLiveClasses = exports.saveLiveClass = exports.decideMarketplaceProductApproval = exports.reviewMarketplaceCourseUnitForApproval = exports.cancelStorageUploadReservation = exports.reserveStorageUpload = exports.onStorageObjectDeleted = exports.onStorageObjectFinalized = exports.getStudentAssessmentPackage = exports.getPublishedModuleLessonsV2 = exports.getTutorRegistrationLinkStudents = exports.claimRegistrationLinkTrusted = exports.releaseTutorSharedContentAttempt = exports.markTutorSharedContentAttempt = exports.aiMarkTutorSharedContentAttempt = exports.getTutorContentCampaigns = exports.getTutorSharedContentResult = exports.submitTutorSharedContentAttempt = exports.captureTutorLeadAndOpenContent = exports.getTutorContentShareLink = exports.createTutorContentShareLink = exports.submitSeminarAudienceAnswers = exports.getPublicSeminarQuestions = exports.findSeminarCommitteeCandidate = exports.getPublicRegistrationLinkTrusted = exports.listSubscriptionPlansTrusted = exports.getPlatformOverviewSnapshot = exports.notifyStudentsWhenAssignmentPublished = exports.notifyExaminationSubmissionWorkflow = exports.notifyStudentsWhenExaminationPublished = exports.notifyStudentsWhenAssessmentPublished = exports.notifyStudentsWhenLessonPublished = exports.getPublicCourseCatalogueSnapshotV2 = exports.getPublishedCourseModulesV2 = exports.getTutorEnrollmentCourseUnits = exports.resolveTenantWorkspaceTrusted = exports.updateOwnStudentProfile = exports.updateOwnTutorProfile = exports.synchronizeStudentIdentity = exports.getStudentLearningOverview = exports.getPublicCourseCatalogueSnapshot = exports.refreshMarketplaceLearningAccess = exports.updateTenantSubscriptionStatus = exports.assignTenantSubscription = exports.saveSubscriptionPlan = exports.assignTenantOwner = exports.updateTenantStatus = void 0;
+exports.getLiveClassRoster = exports.updateLiveClassPresence = exports.updateOpenLiveClassPresence = exports.joinOpenLiveClass = exports.getOpenLiveClass = void 0;
 const app_1 = require("firebase-admin/app");
 const auth_1 = require("firebase-admin/auth");
 const storage_1 = require("firebase-admin/storage");
@@ -4863,6 +4863,61 @@ exports.findSeminarCommitteeCandidate = (0, https_1.onCall)({ region: "us-centra
     if (!candidate)
         return { candidate: null };
     return { candidate: { uid: candidate.id, fullName: financeText(candidate.get("fullName") ?? candidate.get("email"), 240) || "Committee member", email: financeText(candidate.get("email"), 320), institutionId: financeText(candidate.get("institutionId"), 180) || null } };
+});
+/** Returns published seminar questions without exposing answers or marking guides. */
+exports.getPublicSeminarQuestions = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 30, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+    const seminarId = financeText(request.data?.seminarId, 180);
+    const eventId = financeText(request.data?.eventId, 180);
+    if (!seminarId)
+        throw new https_1.HttpsError("invalid-argument", "A seminar is required.");
+    const seminar = await db.collection("seminars").doc(seminarId).get();
+    if (!seminar.exists)
+        throw new https_1.HttpsError("not-found", "This seminar is not available.");
+    const snapshot = await db.collection("seminarQuestions").where("seminarId", "==", seminarId).get();
+    const published = snapshot.docs.filter(item => item.get("published") === true && (!eventId || financeText(item.get("eventId"), 180) === eventId));
+    return { questions: published.map(item => ({ id: item.id, eventId: financeText(item.get("eventId"), 180), type: financeText(item.get("type"), 40), prompt: financeText(item.get("prompt"), 12000), options: Array.isArray(item.get("options")) ? item.get("options").map((value) => financeText(value, 1000)) : [], marks: Math.max(0, Number(item.get("marks") ?? 0) || 0) })) };
+});
+/** Stores a trusted audience attempt and automatically marks only objective items. */
+exports.submitSeminarAudienceAnswers = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError("unauthenticated", "Sign in before submitting seminar answers.");
+    const input = (request.data ?? {});
+    const seminarId = financeText(input.seminarId, 180);
+    const eventId = financeText(input.eventId, 180);
+    const answers = input.answers && typeof input.answers === "object" ? input.answers : {};
+    if (!seminarId || !eventId)
+        throw new https_1.HttpsError("invalid-argument", "Choose a seminar event.");
+    const seminar = await db.collection("seminars").doc(seminarId).get();
+    if (!seminar.exists)
+        throw new https_1.HttpsError("not-found", "This seminar is not available.");
+    const questionSnapshot = await db.collection("seminarQuestions").where("seminarId", "==", seminarId).get();
+    const questions = questionSnapshot.docs.filter(item => item.get("published") === true && financeText(item.get("eventId"), 180) === eventId);
+    if (questions.length === 0)
+        throw new https_1.HttpsError("failed-precondition", "No published questions are available for this event.");
+    let score = 0, maximum = 0;
+    let pendingSubjective = false;
+    const cleanAnswers = {};
+    for (const question of questions) {
+        const answer = financeText(answers[question.id], 12000);
+        cleanAnswers[question.id] = answer;
+        const type = financeText(question.get("type"), 40);
+        if (type === "mcq") {
+            const marks = Math.max(0, Number(question.get("marks") ?? 0) || 0);
+            maximum += marks;
+            if (answer && answer === financeText(question.get("correctOption"), 1000))
+                score += marks;
+        }
+        else
+            pendingSubjective = true;
+    }
+    const profile = await db.collection("users").doc(request.auth.uid).get();
+    const participantName = financeText(profile.get("fullName") ?? request.auth.token.email, 240) || "Audience participant";
+    const attemptId = `${seminarId}_${eventId}_${request.auth.uid}`;
+    const reference = db.collection("seminarQuestionAttempts").doc(attemptId);
+    const leaderboardRef = db.collection("seminarAudienceLeaderboard").doc(attemptId);
+    const payload = { seminarId, eventId, userId: request.auth.uid, participantName, answers: cleanAnswers, score, maximum, pendingSubjective, status: pendingSubjective ? "awaiting-review" : "marked", submittedAt: firestore_1.FieldValue.serverTimestamp(), updatedAt: firestore_1.FieldValue.serverTimestamp() };
+    await Promise.all([reference.set(payload, { merge: true }), leaderboardRef.set({ seminarId, eventId, userId: request.auth.uid, participantName, score, maximum, pendingSubjective, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true })]);
+    return { attempt: { id: reference.id, ...payload, submittedAt: null, updatedAt: null } };
 });
 /** Creates a public campaign link for one published lesson, quiz/assessment or examination. */
 exports.createTutorContentShareLink = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {

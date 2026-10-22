@@ -43,6 +43,13 @@ service cloud.firestore {
       );
     }
 
+    function hasSeminarRole(seminarId, role) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/seminarCommittee/$(seminarId + '_' + request.auth.uid))
+        && get(/databases/$(database)/documents/seminarCommittee/$(seminarId + '_' + request.auth.uid)).data.active == true
+        && get(/databases/$(database)/documents/seminarCommittee/$(seminarId + '_' + request.auth.uid)).data.role == role;
+    }
+
     function isPlatformAdmin() {
       return isAdmin()
         && userDocument().data.keys().hasAny(['platformRole'])
@@ -1452,6 +1459,52 @@ service cloud.firestore {
         && request.resource.data.score >= 0
         && request.resource.data.score <= request.resource.data.maximum;
       allow delete: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    match /seminarSessions/{sessionId} {
+      allow read: if true;
+      allow create: if canManageSeminar(request.resource.data.seminarId);
+      allow update: if canManageSeminar(resource.data.seminarId)
+        && request.resource.data.seminarId == resource.data.seminarId;
+      allow delete: if ownsSeminar(resource.data.seminarId) || isAdmin();
+    }
+
+    match /seminarAttendance/{attendanceId} {
+      allow read: if signedIn() && (
+        resource.data.userId == request.auth.uid
+        || canManageSeminar(resource.data.seminarId));
+      allow create: if signedIn()
+        && seminarExists(request.resource.data.seminarId)
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update: if isAdmin() || ownsSeminar(resource.data.seminarId)
+        || (hasSeminarRole(resource.data.seminarId, 'Attendance Officer')
+          && request.resource.data.seminarId == resource.data.seminarId
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'verifiedAt', 'updatedAt'
+          ]));
+      allow delete: if isAdmin() || ownsSeminar(resource.data.seminarId);
+    }
+
+    match /seminarQuestions/{questionId} {
+      allow read: if canManageSeminar(resource.data.seminarId);
+      allow create: if canManageSeminar(request.resource.data.seminarId);
+      allow update: if canManageSeminar(resource.data.seminarId)
+        && request.resource.data.seminarId == resource.data.seminarId;
+      allow delete: if ownsSeminar(resource.data.seminarId) || isAdmin();
+    }
+
+    match /seminarQuestionAttempts/{attemptId} {
+      allow read: if signedIn() && (
+        resource.data.userId == request.auth.uid
+        || canManageSeminar(resource.data.seminarId));
+      allow create, update, delete: if false;
+    }
+
+    match /seminarAudienceLeaderboard/{entryId} {
+      allow read: if true;
+      allow create, update, delete: if false;
     }
 
     match /seminarCommittee/{memberId} {

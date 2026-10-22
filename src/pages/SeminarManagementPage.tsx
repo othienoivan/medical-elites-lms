@@ -394,6 +394,7 @@ function Committee({ seminarId, members, tasks, institutionId }: { seminarId:str
               <option>Logistics and Venue</option>
               <option>Welfare and Protocol</option>
               <option>Publicity and Documentation</option>
+                <option>Attendance Officer</option>
               <option>Track Coordinator</option>
               <option>Judge</option>
               <option>Committee Member</option>
