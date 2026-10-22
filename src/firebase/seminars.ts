@@ -1,5 +1,6 @@
-import { arrayRemove, arrayUnion, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where, type Unsubscribe } from "firebase/firestore";
-import { db } from "../config/firebase";
+import { arrayRemove, arrayUnion, collection, doc, getDoc, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where, type Unsubscribe } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../config/firebase";
 
 export type SeminarCloudState = {
   tasks: unknown[];
@@ -9,8 +10,8 @@ export type SeminarCloudState = {
 };
 
 export const KAWEMPE_SEMINAR_ID = "kawempe-2026";
-export type CommitteeMember = { uid:string; fullName:string; email:string; role:string; responsibilities:string; active:boolean; institutionId:string };
-export type CommitteeTask = { id:string; title:string; assigneeUid:string; assigneeName:string; deadline:string; status:"not-started"|"in-progress"|"done"|"blocked"; institutionId:string };
+export type CommitteeMember = { uid:string; fullName:string; email:string; role:string; responsibilities:string; active:boolean; institutionId?:string|null };
+export type CommitteeTask = { id:string; title:string; assigneeUid:string; assigneeName:string; deadline:string; status:"not-started"|"in-progress"|"done"|"blocked"; institutionId?:string|null };
 
 export function watchSeminar(
   onData: (data: SeminarCloudState | null) => void,
@@ -28,13 +29,12 @@ export function watchSeminar(
   }, onError);
 }
 
-export async function findCommitteeCandidate(email:string,institutionId:string){
-  const result=await getDocs(query(collection(db,"users"),where("email","==",email.trim().toLowerCase()),where("institutionId","==",institutionId),where("role","==","tutor")));
-  const first=result.docs[0]; if(!first)return null; const value=first.data();
-  return {uid:first.id,fullName:String(value.fullName||value.email||"Tutor"),email:String(value.email||email)};
+export async function findCommitteeCandidate(email:string){
+  const call=httpsCallable<{email:string},{candidate:{uid:string;fullName:string;email:string;institutionId:string|null}|null}>(functions,"findSeminarCommitteeCandidate");
+  return (await call({email:email.trim().toLowerCase()})).data.candidate;
 }
-export function watchCommittee(institutionId:string,setter:(rows:CommitteeMember[])=>void){return onSnapshot(query(collection(db,"seminarCommittee"),where("seminarId","==",KAWEMPE_SEMINAR_ID),where("institutionId","==",institutionId)),s=>setter(s.docs.map(d=>({uid:d.id,...d.data()}) as CommitteeMember)))}
-export function watchCommitteeTasks(institutionId:string,setter:(rows:CommitteeTask[])=>void){return onSnapshot(query(collection(db,"seminarCommitteeTasks"),where("seminarId","==",KAWEMPE_SEMINAR_ID),where("institutionId","==",institutionId)),s=>setter(s.docs.map(d=>({id:d.id,...d.data()}) as CommitteeTask)))}
+export function watchCommittee(setter:(rows:CommitteeMember[])=>void){return onSnapshot(query(collection(db,"seminarCommittee"),where("seminarId","==",KAWEMPE_SEMINAR_ID)),s=>setter(s.docs.map(d=>({uid:d.id,...d.data()}) as CommitteeMember)))}
+export function watchCommitteeTasks(setter:(rows:CommitteeTask[])=>void){return onSnapshot(query(collection(db,"seminarCommitteeTasks"),where("seminarId","==",KAWEMPE_SEMINAR_ID)),s=>setter(s.docs.map(d=>({id:d.id,...d.data()}) as CommitteeTask)))}
 export async function authoriseCommitteeMember(member:CommitteeMember){await setDoc(doc(db,"seminarCommittee",member.uid),{...member,seminarId:KAWEMPE_SEMINAR_ID,updatedAt:serverTimestamp()});await updateDoc(doc(db,"seminars",KAWEMPE_SEMINAR_ID),{committeeUids:arrayUnion(member.uid),updatedAt:serverTimestamp()})}
 export async function revokeCommitteeMember(uid:string){await updateDoc(doc(db,"seminarCommittee",uid),{active:false,updatedAt:serverTimestamp()});await updateDoc(doc(db,"seminars",KAWEMPE_SEMINAR_ID),{committeeUids:arrayRemove(uid),updatedAt:serverTimestamp()})}
 export async function saveCommitteeTask(task:Omit<CommitteeTask,"id">){const ref=doc(collection(db,"seminarCommitteeTasks"));await setDoc(ref,{...task,seminarId:KAWEMPE_SEMINAR_ID,createdAt:serverTimestamp(),updatedAt:serverTimestamp()})}
@@ -43,7 +43,7 @@ export async function updateCommitteeTaskStatus(id:string,status:CommitteeTask["
 export async function saveSeminar(input: {
   data: SeminarCloudState;
   userId: string;
-  institutionId: string;
+  institutionId?: string | null;
   userName: string;
 }) {
   const reference = doc(db, "seminars", KAWEMPE_SEMINAR_ID);
@@ -61,7 +61,7 @@ export async function saveSeminar(input: {
   }
   await setDoc(reference, {
     ...common,
-    institutionId: input.institutionId,
+    institutionId: input.institutionId || null,
     ownerUid: input.userId,
     committeeUids: [input.userId],
     createdAt: serverTimestamp(),

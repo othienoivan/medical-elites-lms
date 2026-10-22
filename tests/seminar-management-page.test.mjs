@@ -13,7 +13,7 @@ test("seminar manager exposes the approved workflow and route", async () => {
   for (const section of ["schedule", "tasks", "attendance", "scores", "budget"]) assert.match(page, new RegExp(section));
   assert.match(page, /2-8 November 2026/);
   assert.match(page, /11 programmes/);
-  assert.match(page, /80% of assigned sessions/);
+  assert.match(page, /80%\s+of assigned\s+sessions/);
   assert.match(page, /Changes are retained in this browser/);
 });
 
@@ -77,4 +77,19 @@ test("seminar owner can authorise committee members and assign tracked responsib
   assert.match(rules, /match \/seminarCommittee\/\{memberUid\}/);
   assert.match(rules, /match \/seminarCommitteeTasks\/\{taskId\}/);
   assert.match(rules, /affectedKeys\(\)\.hasOnly\(\['status','updatedAt'\]\)/);
+});
+
+test("seminar ownership and committee access do not require institution membership", async () => {
+  const [page, service, functions, rules] = await Promise.all([
+    readFile("src/pages/SeminarManagementPage.tsx", "utf8"),
+    readFile("src/firebase/seminars.ts", "utf8"),
+    readFile("functions/src/index.ts", "utf8"),
+    readFile("firestore.rules", "utf8"),
+  ]);
+  assert.doesNotMatch(page, /Your account is not assigned to an institution/);
+  assert.match(service, /institutionId: input\.institutionId \|\| null/);
+  assert.match(service, /findSeminarCommitteeCandidate/);
+  assert.match(functions, /Only the seminar owner can authorise committee members/);
+  assert.doesNotMatch(rules, /request\.resource\.data\.ownerUid == request\.auth\.uid\s*&& request\.resource\.data\.institutionId == currentInstitutionId\(\)/);
+  assert.match(page, /do not need to belong to an institution/);
 });

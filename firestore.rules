@@ -1355,15 +1355,13 @@ service cloud.firestore {
 
     match /seminars/{seminarId} {
       allow create: if isTutorOrAdmin()
-        && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.institutionId == currentInstitutionId();
+        && request.resource.data.ownerUid == request.auth.uid;
       // Permit an authorised tutor to observe a missing fixed event document so
       // the first owner can create it. Existing records remain institution scoped.
       allow get: if isAdmin() || (isTutorOrAdmin() && (
         !exists(/databases/$(database)/documents/seminars/$(seminarId))
         || resource.data.ownerUid == request.auth.uid
         || (resource.data.committeeUids is list && request.auth.uid in resource.data.committeeUids)
-        || resource.data.institutionId == currentInstitutionId()
       ));
       allow list: if false;
       allow update: if isAdmin() || (isTutorOrAdmin() && (
@@ -1416,34 +1414,31 @@ service cloud.firestore {
 
     match /seminarCommittee/{memberUid} {
       allow read: if isAdmin() || (isTutorOrAdmin()
-        && resource.data.institutionId == currentInstitutionId()
         && exists(/databases/$(database)/documents/seminars/kawempe-2026)
         && (get(/databases/$(database)/documents/seminars/kawempe-2026).data.ownerUid == request.auth.uid
           || request.auth.uid in get(/databases/$(database)/documents/seminars/kawempe-2026).data.committeeUids));
       allow create: if isAdmin() || (isTutorOrAdmin()
         && exists(/databases/$(database)/documents/seminars/kawempe-2026)
         && get(/databases/$(database)/documents/seminars/kawempe-2026).data.ownerUid == request.auth.uid
-        && request.resource.data.institutionId == currentInstitutionId());
-      allow update, delete: if isAdmin() || (isTutorOrAdmin()
-        && resource.data.institutionId == currentInstitutionId()
-        && request.resource.data.institutionId == resource.data.institutionId
+        && request.resource.data.seminarId == 'kawempe-2026');
+      allow update: if isAdmin() || (isTutorOrAdmin()
+        && request.resource.data.seminarId == resource.data.seminarId
+        && get(/databases/$(database)/documents/seminars/kawempe-2026).data.ownerUid == request.auth.uid);
+      allow delete: if isAdmin() || (isTutorOrAdmin()
         && get(/databases/$(database)/documents/seminars/kawempe-2026).data.ownerUid == request.auth.uid);
     }
     match /seminarCommitteeTasks/{taskId} {
       allow read: if isAdmin() || (isTutorOrAdmin()
-        && resource.data.institutionId == currentInstitutionId()
         && exists(/databases/$(database)/documents/seminars/kawempe-2026)
         && (get(/databases/$(database)/documents/seminars/kawempe-2026).data.ownerUid == request.auth.uid
           || request.auth.uid in get(/databases/$(database)/documents/seminars/kawempe-2026).data.committeeUids));
       allow create: if isAdmin() || (isTutorOrAdmin()
-        && request.resource.data.institutionId == currentInstitutionId()
+        && request.resource.data.seminarId == 'kawempe-2026'
         && get(/databases/$(database)/documents/seminars/kawempe-2026).data.ownerUid == request.auth.uid);
       allow delete: if isAdmin() || (isTutorOrAdmin()
-        && resource.data.institutionId == currentInstitutionId()
         && get(/databases/$(database)/documents/seminars/kawempe-2026).data.ownerUid == request.auth.uid);
       allow update: if isAdmin() || (isTutorOrAdmin() && (
-        resource.data.institutionId == currentInstitutionId()
-        && request.resource.data.institutionId == resource.data.institutionId
+        request.resource.data.seminarId == resource.data.seminarId
         && (
         get(/databases/$(database)/documents/seminars/kawempe-2026).data.ownerUid == request.auth.uid
         || (resource.data.assigneeUid == request.auth.uid

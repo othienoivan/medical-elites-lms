@@ -4987,6 +4987,26 @@ async function assertTutorProfile(uid: string): Promise<FirebaseFirestore.Docume
   return profile;
 }
 
+/** Lets the seminar owner locate a committee candidate without requiring a shared institution. */
+export const findSeminarCommitteeCandidate = onCall(
+  { region: "us-central1", timeoutSeconds: 30, memory: "256MiB", enforceAppCheck: false },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Please sign in.");
+    const profile = await assertTutorProfile(request.auth.uid);
+    const seminar = await db.collection("seminars").doc("kawempe-2026").get();
+    const isAdmin = String(profile.get("role") ?? "") === "admin";
+    if (!seminar.exists || (!isAdmin && seminar.get("ownerUid") !== request.auth.uid)) {
+      throw new HttpsError("permission-denied", "Only the seminar owner can authorise committee members.");
+    }
+    const email = financeText((request.data as { email?: unknown } | undefined)?.email, 320).toLowerCase();
+    if (!email || !email.includes("@")) throw new HttpsError("invalid-argument", "Enter a valid email address.");
+    const matches = await db.collection("users").where("email", "==", email).limit(3).get();
+    const candidate = matches.docs.find((item) => ["tutor", "admin"].includes(String(item.get("role") ?? "")));
+    if (!candidate) return { candidate: null };
+    return { candidate: { uid: candidate.id, fullName: financeText(candidate.get("fullName") ?? candidate.get("email"), 240) || "Committee member", email: financeText(candidate.get("email"), 320), institutionId: financeText(candidate.get("institutionId"), 180) || null } };
+  },
+);
+
 /** Creates a public campaign link for one published lesson, quiz/assessment or examination. */
 export const createTutorContentShareLink = onCall(
   { region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false },
