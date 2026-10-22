@@ -29,6 +29,8 @@ import {
 } from "../firebase/seminarCompetition";
 export default function SeminarLivePage() {
   const { seminarId = "" } = useParams();
+  const seminarReturnPath = `/seminar/${encodeURIComponent(seminarId)}/live`;
+  const seminarLoginPath = `/login?role=student&redirect=${encodeURIComponent(seminarReturnPath)}`;
   const { currentUser, userProfile } = useAuth();
   const [events, setEvents] = useState<CompetitionEvent[]>([]),
     [people, setPeople] = useState<Participant[]>([]),
@@ -119,7 +121,7 @@ export default function SeminarLivePage() {
             </h2>
             {!currentUser ? (
               <p className="mt-3 text-slate-600">
-                <Link className="font-bold text-blue-700" to="/login">
+                <Link className="font-bold text-blue-700" to={seminarLoginPath}>
                   Sign in or create an account
                 </Link>{" "}
                 before registering. This prevents duplicate attendance records.
@@ -177,7 +179,7 @@ export default function SeminarLivePage() {
               onChange={(event) => setSelectedEvent(event.target.value)}
             >
               <option value="">Select event questions</option>
-              {events.map((item) => (
+              {events.filter((item) => item.status === "live").map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.title}
                 </option>
@@ -379,7 +381,7 @@ export default function SeminarLivePage() {
             {!currentUser ? (
               <p className="mt-3">
                 Please{" "}
-                <Link className="font-bold text-blue-700" to="/login">
+                <Link className="font-bold text-blue-700" to={seminarLoginPath}>
                   sign in
                 </Link>{" "}
                 to score. One score per participant is retained.

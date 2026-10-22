@@ -11,6 +11,7 @@ import { loginUser, logoutUser, resetPassword } from "../firebase/auth";
 import useAuth from "../hooks/useAuth";
 import type { UserRole } from "../models/User";
 import { getFirebaseErrorMessage } from "../utils/firebaseErrorMessage";
+import { safeInternalRedirect } from "../utils/safeRedirect";
 
 type PortalRole = UserRole;
 
@@ -31,6 +32,7 @@ export default function LoginPage() {
 
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const initialRole = isPortalRole(searchParams.get("role")) ? searchParams.get("role") as PortalRole : "student";
+  const returnPath = safeInternalRedirect(searchParams.get("redirect"), "");
   const [selectedRole, setSelectedRole] = useState<PortalRole>(initialRole);
 
   const [email, setEmail] = useState("");
@@ -78,7 +80,7 @@ export default function LoginPage() {
           : userProfile.role === "admin"
             ? "/admin"
             : "/tutor";
-      const destination = searchParams.get("redirect") || roleDestination;
+      const destination = safeInternalRedirect(searchParams.get("redirect"), roleDestination);
       navigate(destination, { replace: true });
     }
 
@@ -176,7 +178,7 @@ export default function LoginPage() {
             </form>
 
             <p className="mt-6 text-center text-sm text-slate-600">
-              Don&apos;t have an account? <Link to={`/register?role=${selectedRole}`} className="font-semibold text-blue-700 hover:underline">Register or request access</Link>
+              Don&apos;t have an account? <Link to={`/register?role=${selectedRole}${returnPath ? `&redirect=${encodeURIComponent(returnPath)}` : ""}`} className="font-semibold text-blue-700 hover:underline">Register or request access</Link>
             </p>
           </Card>
         </div>

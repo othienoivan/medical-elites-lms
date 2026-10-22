@@ -171,6 +171,15 @@ export async function addCompetitionEvent(
     createdAt: serverTimestamp(),
   });
 }
+export async function updateCompetitionEventStatus(
+  eventId: string,
+  status: CompetitionEvent["status"],
+) {
+  await updateDoc(doc(db, "seminarEvents", eventId), {
+    status,
+    updatedAt: serverTimestamp(),
+  });
+}
 export async function addParticipant(
   seminarId: string,
   input: Omit<Participant, "id">,

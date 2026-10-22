@@ -135,3 +135,23 @@ test("audience links support registration, verified attendance, browser question
   assert.match(manager, /Review written audience answers/);
   assert.match(manager, /Publish reviewed score/);
 });
+
+test("seminar authentication returns learners to the live event and questions follow event availability", async () => {
+  const [live, login, register, manager, service, functions] = await Promise.all([
+    readFile("src/pages/SeminarLivePage.tsx", "utf8"),
+    readFile("src/pages/LoginPage.tsx", "utf8"),
+    readFile("src/pages/RegisterPage.tsx", "utf8"),
+    readFile("src/pages/SeminarCompetitionManagerPage.tsx", "utf8"),
+    readFile("src/firebase/seminarCompetition.ts", "utf8"),
+    readFile("functions/src/index.ts", "utf8"),
+  ]);
+  assert.match(live, /seminarLoginPath/);
+  assert.match(live, /redirect=\$\{encodeURIComponent\(seminarReturnPath\)\}/);
+  assert.match(login, /safeInternalRedirect/);
+  assert.match(login, /register\?role=\$\{selectedRole\}.*redirect=/);
+  assert.match(register, /navigate\(returnPath, \{ replace: true \}\)/);
+  assert.match(manager, /Audience questions are available only while this event is live/);
+  assert.match(service, /updateCompetitionEventStatus/);
+  assert.match(functions, /seminarEvent\.get\("status"\)!=="live"/);
+  assert.match(functions, /This event's questions are not currently open/);
+});

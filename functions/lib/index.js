@@ -4873,8 +4873,13 @@ exports.getPublicSeminarQuestions = (0, https_1.onCall)({ region: "us-central1",
     const seminar = await db.collection("seminars").doc(seminarId).get();
     if (!seminar.exists)
         throw new https_1.HttpsError("not-found", "This seminar is not available.");
+    if (!eventId)
+        return { questions: [] };
+    const seminarEvent = await db.collection("seminarEvents").doc(eventId).get();
+    if (!seminarEvent.exists || financeText(seminarEvent.get("seminarId"), 180) !== seminarId || seminarEvent.get("status") !== "live")
+        return { questions: [] };
     const snapshot = await db.collection("seminarQuestions").where("seminarId", "==", seminarId).get();
-    const published = snapshot.docs.filter(item => item.get("published") === true && (!eventId || financeText(item.get("eventId"), 180) === eventId));
+    const published = snapshot.docs.filter(item => item.get("published") === true && financeText(item.get("eventId"), 180) === eventId);
     return { questions: published.map(item => ({ id: item.id, eventId: financeText(item.get("eventId"), 180), type: financeText(item.get("type"), 40), prompt: financeText(item.get("prompt"), 12000), options: Array.isArray(item.get("options")) ? item.get("options").map((value) => financeText(value, 1000)) : [], marks: Math.max(0, Number(item.get("marks") ?? 0) || 0) })) };
 });
 /** Stores a trusted audience attempt and automatically marks only objective items. */
@@ -4890,6 +4895,9 @@ exports.submitSeminarAudienceAnswers = (0, https_1.onCall)({ region: "us-central
     const seminar = await db.collection("seminars").doc(seminarId).get();
     if (!seminar.exists)
         throw new https_1.HttpsError("not-found", "This seminar is not available.");
+    const seminarEvent = await db.collection("seminarEvents").doc(eventId).get();
+    if (!seminarEvent.exists || financeText(seminarEvent.get("seminarId"), 180) !== seminarId || seminarEvent.get("status") !== "live")
+        throw new https_1.HttpsError("failed-precondition", "This event's questions are not currently open.");
     const questionSnapshot = await db.collection("seminarQuestions").where("seminarId", "==", seminarId).get();
     const questions = questionSnapshot.docs.filter(item => item.get("published") === true && financeText(item.get("eventId"), 180) === eventId);
     if (questions.length === 0)

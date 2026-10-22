@@ -12,6 +12,7 @@ import { logoutUser, registerUser } from "../firebase/auth";
 import { createUserProfile } from "../firebase/firestore";
 import { claimRegistrationLink } from "../firebase/registrationLinks";
 import { bootstrapTenantWorkspace } from "../firebase/tenants";
+import { safeInternalRedirect } from "../utils/safeRedirect";
 
 type RegistrationRole = "student" | "tutor" | "admin";
 
@@ -31,6 +32,7 @@ export default function RegisterPage() {
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const initialRole = isRegistrationRole(query.get("role")) ? query.get("role") as RegistrationRole : "student";
   const joinCode = query.get("join") || "";
+  const returnPath = safeInternalRedirect(query.get("redirect"), "");
 
   const [selectedRole, setSelectedRole] = useState<RegistrationRole>(initialRole);
   const [fullName, setFullName] = useState("");
@@ -104,6 +106,9 @@ export default function RegisterPage() {
         }
         alert("Tutor account created successfully. Your Free Tutor plan is ready and you can upgrade whenever you need more capacity or advanced tools.");
         navigate("/tutor?welcome=1", { replace: true });
+      } else if (returnPath && createdRole === "student") {
+        alert("Registration successful. You can now join the seminar.");
+        navigate(returnPath, { replace: true });
       } else if (registrationStatus === "approved") {
         alert("Registration and course-unit enrolment completed successfully. Your assigned learning content is now available.");
         navigate("/student/course-units", { replace: true });
@@ -170,7 +175,7 @@ export default function RegisterPage() {
                 <label className="block"><span className="mb-2 block font-medium">Confirm Password</span><Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required /></label>
                 <Button type="submit" className="w-full" disabled={loading}>{loading ? "Submitting..." : selectedRole === "student" ? "Create Student Account" : "Create Tutor Account"}</Button>
               </form>
-              <p className="mt-6 text-center text-sm text-slate-600">Already have an account? <Link to={`/login?role=${selectedRole}`} className="font-semibold text-blue-700 hover:underline">Login</Link></p>
+              <p className="mt-6 text-center text-sm text-slate-600">Already have an account? <Link to={`/login?role=${selectedRole}${returnPath ? `&redirect=${encodeURIComponent(returnPath)}` : ""}`} className="font-semibold text-blue-700 hover:underline">Login</Link></p>
             </Card>
           )}
         </div>

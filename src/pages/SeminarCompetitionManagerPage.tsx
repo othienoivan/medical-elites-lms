@@ -12,6 +12,7 @@ import {
 } from "../firebase/seminars";
 import {
   addCompetitionEvent,
+  updateCompetitionEventStatus,
   addParticipant,
   addSeminarQuestion,
   addSeminarResource,
@@ -230,7 +231,7 @@ export default function SeminarCompetitionManagerPage() {
               e.preventDefault();
               await addCompetitionEvent(seminarId, {
                 title: eventTitle,
-                status: "live",
+                status: "draft",
                 order: events.length + 1,
               });
               setEventTitle("");
@@ -245,6 +246,18 @@ export default function SeminarCompetitionManagerPage() {
             />
             <Button type="submit">Add event</Button>
           </form>
+          <div className="mt-4 space-y-2">
+            {events.map((item) => (
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3" key={item.id}>
+                <div><b>{item.title}</b><p className="text-xs text-slate-500">Audience questions are available only while this event is live.</p></div>
+                <select className="rounded-lg border p-2" value={item.status} onChange={(event) => void updateCompetitionEventStatus(item.id, event.target.value as CompetitionEvent["status"])}>
+                  <option value="draft">Draft</option>
+                  <option value="live">Live</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </div>
+            ))}
+          </div>
           <form
             className="mt-5 grid gap-3 sm:grid-cols-2"
             onSubmit={async (e) => {
