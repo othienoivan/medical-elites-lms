@@ -26,6 +26,7 @@ test("seminar manager supports shared Firestore persistence with restricted rule
   assert.match(page, /Save shared data/);
   assert.match(service, /collection|"seminars"/);
   assert.match(service, /committeeUids/);
+  assert.match(page, /`\$\{STORE_KEY\}-\$\{seminarId\}`/);
   assert.match(rules, /match \/seminars\/\{seminarId\}/);
   assert.match(rules, /request\.resource\.data\.ownerUid == request\.auth\.uid/);
 });
@@ -38,28 +39,39 @@ test("seminar competition publishes two-judge averages, checklists and separate 
     readFile("src/routes/AppRouter.tsx", "utf8"),
     readFile("firestore.rules", "utf8"),
   ]);
-  assert.match(routes, /\/seminar\/competition/);
-  assert.match(routes, /\/seminar\/live/);
+  assert.match(routes, /\/seminar\/:seminarId\/competition/);
+  assert.match(routes, /\/seminar\/:seminarId\/live/);
   assert.match(manager, /Questions/);
   assert.match(manager, /Marking guide/);
   assert.match(manager, /Checklist \/ rubric/);
   assert.match(live, /View published judge checklists/);
-  assert.match(live, /j\.length===2/);
+  assert.match(live, /j\.length\s*===\s*2/);
   assert.match(live, /Audience challenge/);
   assert.match(service, /seminarAudienceScores/);
   assert.match(rules, /match \/seminarJudgeScores/);
   assert.match(rules, /request\.resource\.data\.userId == request\.auth\.uid/);
 });
 
-test("seminar bootstrap permits reading a missing fixed event without exposing seminar lists", async () => {
-  const [page, rules] = await Promise.all([
-    readFile("src/pages/SeminarManagementPage.tsx", "utf8"),
+test("seminar hub creates and lists independently owned dynamic events", async () => {
+  const [hub, service, competition, routes, rules] = await Promise.all([
+    readFile("src/pages/SeminarHubPage.tsx", "utf8"),
+    readFile("src/firebase/seminars.ts", "utf8"),
+    readFile("src/firebase/seminarCompetition.ts", "utf8"),
+    readFile("src/routes/AppRouter.tsx", "utf8"),
     readFile("firestore.rules", "utf8"),
   ]);
-  assert.match(rules, /!exists\(\/databases\/\$\(database\)\/documents\/seminars\/\$\(seminarId\)\)/);
-  assert.match(rules, /allow list: if false/);
-  assert.match(page, /Shared data could not be loaded \(\$\{code\}\)/);
-  assert.match(page, /Shared save failed: \$\{detail\}/);
+  assert.match(hub, /createSeminar/);
+  assert.match(hub, /`\/seminar\/\$\{id\}`/);
+  assert.match(service, /doc\(collection\(db,"seminars"\)\)/);
+  assert.match(service, /where\("ownerUid","==",userId\)/);
+  assert.match(service, /where\("committeeUids","array-contains",userId\)/);
+  assert.match(rules, /allow get, list/);
+  assert.doesNotMatch(service, /kawempe-2026/);
+  assert.doesNotMatch(competition, /kawempe-2026/);
+  assert.doesNotMatch(rules, /kawempe-2026/);
+  assert.match(routes, /path="\/seminar\/:seminarId"/);
+  assert.match(service, /`\$\{seminarId\}_\$\{uid\}`/);
+  assert.match(competition, /`\$\{seminarId\}_\$\{input\.participantId\}_\$\{input\.judgeUid\}`/);
 });
 
 test("seminar owner can authorise committee members and assign tracked responsibilities", async () => {
@@ -74,7 +86,7 @@ test("seminar owner can authorise committee members and assign tracked responsib
   assert.match(service, /findCommitteeCandidate/);
   assert.match(service, /arrayUnion\(member\.uid\)/);
   assert.match(service, /arrayRemove\(uid\)/);
-  assert.match(rules, /match \/seminarCommittee\/\{memberUid\}/);
+  assert.match(rules, /match \/seminarCommittee\/\{memberId\}/);
   assert.match(rules, /match \/seminarCommitteeTasks\/\{taskId\}/);
   assert.match(rules, /affectedKeys\(\)\.hasOnly\(\['status','updatedAt'\]\)/);
 });
@@ -87,7 +99,7 @@ test("seminar ownership and committee access do not require institution membersh
     readFile("firestore.rules", "utf8"),
   ]);
   assert.doesNotMatch(page, /Your account is not assigned to an institution/);
-  assert.match(service, /institutionId: input\.institutionId \|\| null/);
+  assert.match(service, /institutionId:input\.institutionId\|\|null/);
   assert.match(service, /findSeminarCommitteeCandidate/);
   assert.match(functions, /Only the seminar owner can authorise committee members/);
   assert.doesNotMatch(rules, /request\.resource\.data\.ownerUid == request\.auth\.uid\s*&& request\.resource\.data\.institutionId == currentInstitutionId\(\)/);

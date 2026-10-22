@@ -4847,7 +4847,10 @@ exports.findSeminarCommitteeCandidate = (0, https_1.onCall)({ region: "us-centra
     if (!request.auth)
         throw new https_1.HttpsError("unauthenticated", "Please sign in.");
     const profile = await assertTutorProfile(request.auth.uid);
-    const seminar = await db.collection("seminars").doc("kawempe-2026").get();
+    const seminarId = financeText(request.data?.seminarId, 180);
+    if (!seminarId)
+        throw new https_1.HttpsError("invalid-argument", "A seminar is required.");
+    const seminar = await db.collection("seminars").doc(seminarId).get();
     const isAdmin = String(profile.get("role") ?? "") === "admin";
     if (!seminar.exists || (!isAdmin && seminar.get("ownerUid") !== request.auth.uid)) {
         throw new https_1.HttpsError("permission-denied", "Only the seminar owner can authorise committee members.");

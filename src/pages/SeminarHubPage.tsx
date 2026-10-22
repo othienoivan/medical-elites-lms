@@ -1,0 +1,14 @@
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import TutorLayout from "../components/layout/TutorLayout";
+import Button from "../components/ui/Button";
+import Card from "../components/ui/Card";
+import useAuth from "../hooks/useAuth";
+import { createSeminar, watchAccessibleSeminars, type SeminarSummary } from "../firebase/seminars";
+
+export default function SeminarHubPage(){
+  const{currentUser,userProfile}=useAuth();const navigate=useNavigate();const[seminars,setSeminars]=useState<SeminarSummary[]>([]);const[title,setTitle]=useState("");const[busy,setBusy]=useState(false);const[message,setMessage]=useState("");
+  useEffect(()=>{if(!currentUser)return;return watchAccessibleSeminars(currentUser.uid,setSeminars)},[currentUser]);
+  async function create(event:React.FormEvent){event.preventDefault();if(!currentUser||!title.trim())return;try{setBusy(true);setMessage("");const profile=userProfile as Record<string,unknown>|null;const id=await createSeminar({title:title.trim(),userId:currentUser.uid,userName:String(profile?.fullName||currentUser.email||"Seminar chairperson"),institutionId:profile?.institutionId?String(profile.institutionId):null});navigate(`/seminar/${id}`)}catch(error){setMessage(error instanceof Error?error.message:"The seminar could not be created.")}finally{setBusy(false)}}
+  return <TutorLayout title="Seminar Management" subtitle="Create and manage independent seminar event workspaces."><div className="grid gap-6 xl:grid-cols-[380px_1fr]"><Card><h2 className="text-xl font-black">Create a seminar</h2><p className="mt-2 text-sm text-slate-600">Each seminar has its own committee, tasks, competition, resources and public leaderboard. Institution membership is optional.</p><form className="mt-5 space-y-4" onSubmit={create}><label className="block"><span className="mb-1 block text-sm font-bold">Event title</span><input required className="w-full rounded-xl border px-3 py-3" value={title} onChange={event=>setTitle(event.target.value)} placeholder="e.g. National Clinical Skills Seminar 2027"/></label><Button className="w-full" type="submit" loading={busy}>Create seminar</Button></form>{message&&<p className="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-800">{message}</p>}</Card><Card><h2 className="text-xl font-black">Your seminars</h2><div className="mt-4 space-y-3">{seminars.map(seminar=><Link key={seminar.id} to={`/seminar/${seminar.id}`} className="block rounded-xl border p-4 transition hover:border-blue-500 hover:bg-blue-50"><h3 className="font-black">{seminar.title}</h3><p className="mt-1 text-sm text-slate-600">{seminar.ownerUid===currentUser?.uid?"Owner / Chairperson":"Committee member"} · {seminar.institutionId?"Institution-linked":"Independent event"}</p></Link>)}{seminars.length===0&&<p className="rounded-xl bg-slate-50 p-5 text-slate-600">No seminars yet. Create the first event workspace.</p>}</div></Card></div></TutorLayout>
+}

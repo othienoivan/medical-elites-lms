@@ -5,7 +5,7 @@ import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import useAuth from "../hooks/useAuth";
 import { authoriseCommitteeMember, findCommitteeCandidate, revokeCommitteeMember, saveCommitteeTask, saveSeminar, updateCommitteeTaskStatus, watchCommittee, watchCommitteeTasks, watchSeminar, type CommitteeMember, type CommitteeTask } from "../firebase/seminars";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 
 type Tab = "overview" | "committee" | "schedule" | "tasks" | "attendance" | "scores" | "budget";
 type TaskStatus = "not-started" | "in-progress" | "done" | "blocked";
@@ -126,37 +126,46 @@ const money = (value: number) => `UGX ${value.toLocaleString()}`;
 const nextId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 export default function SeminarManagementPage() {
+  const { seminarId = "" } = useParams();
   const { currentUser, userProfile } = useAuth();
   const [tab, setTab] = useState<Tab>("overview");
   const [cloudReady, setCloudReady] = useState(false);
   const [seminarAvailable, setSeminarAvailable] = useState(false);
+  const [seminarTitle, setSeminarTitle] = useState("Seminar event");
   const [cloudMessage, setCloudMessage] = useState("Connecting to shared seminar data...");
   const [members, setMembers] = useState<CommitteeMember[]>([]),
     [committeeTasks, setCommitteeTasks] = useState<CommitteeTask[]>([]);
   const institutionId = String((userProfile as Record<string, unknown> | null)?.institutionId || "");
+  const storageKey = `${STORE_KEY}-${seminarId}`;
   const [data, setData] = useState<SeminarState>(() => {
     try {
-      return JSON.parse(localStorage.getItem(STORE_KEY) || "null") || initialState;
+      return JSON.parse(localStorage.getItem(storageKey) || "null") || initialState;
     } catch {
       return initialState;
     }
   });
-  useEffect(() => localStorage.setItem(STORE_KEY, JSON.stringify(data)), [data]);
+  useEffect(() => {
+    try { setData(JSON.parse(localStorage.getItem(storageKey) || "null") || initialState); } catch { setData(initialState); }
+  }, [storageKey]);
+  useEffect(() => localStorage.setItem(storageKey, JSON.stringify(data)), [data, storageKey]);
   useEffect(() => {
     if (!seminarAvailable) return;
-    const a = watchCommittee(setMembers),
-      b = watchCommitteeTasks(setCommitteeTasks);
+    if (!seminarId) return;
+    const a = watchCommittee(seminarId, setMembers),
+      b = watchCommitteeTasks(seminarId, setCommitteeTasks);
     return () => {
       a();
       b();
     };
-  }, [seminarAvailable]);
+  }, [seminarAvailable, seminarId]);
   useEffect(
     () =>
       watchSeminar(
+        seminarId,
         (remote) => {
           if (remote) {
             setSeminarAvailable(true);
+            setSeminarTitle(remote.title);
             setData(remote as SeminarState);
             setCloudMessage("Shared data is up to date");
           } else {
@@ -171,7 +180,7 @@ export default function SeminarManagementPage() {
           setCloudReady(true);
         },
       ),
-    [],
+    [seminarId],
   );
   const totalBudget = useMemo(() => data.budget.reduce((sum, row) => sum + row.quantity * row.unitCost, 0), [data.budget]);
   const completed = data.tasks.filter((task) => task.status === "done").length;
@@ -203,6 +212,7 @@ export default function SeminarManagementPage() {
       const profile = userProfile as Record<string, unknown> | null;
       const institutionId = String(profile?.institutionId || "");
       await saveSeminar({
+        seminarId,
         data,
         userId: currentUser.uid,
         institutionId: institutionId || null,
@@ -218,12 +228,12 @@ export default function SeminarManagementPage() {
   }
 
   return (
-    <TutorLayout title="Seminar Management" subtitle="Plan, deliver and report the Kawempe seminar and departmental competition.">
+    <TutorLayout title="Seminar Management" subtitle="Plan, deliver and report this seminar and its competition.">
       <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-blue-950 to-blue-700 p-6 text-white sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
             <p className="text-sm font-bold uppercase tracking-[.18em] text-blue-200">2-8 November 2026 · Theory phase</p>
-            <h1 className="mt-2 max-w-4xl text-3xl font-black sm:text-4xl">Strengthening Clinical Competence, Professionalism and Teamwork for Safe Patient Care</h1>
+            <h1 className="mt-2 max-w-4xl text-3xl font-black sm:text-4xl">{seminarTitle}</h1>
             <p className="mt-3 max-w-3xl text-blue-100">Five departments · 11 programmes · theory, practicals and structured competition</p>
             <p className="mt-3 text-sm font-semibold text-cyan-200">{cloudMessage}</p>
           </div>
@@ -250,12 +260,13 @@ export default function SeminarManagementPage() {
       </section>
 
       <div className="mt-6 flex gap-2 overflow-x-auto pb-2">
+        <Link to="/seminar" className="min-h-11 whitespace-nowrap rounded-xl border bg-white px-4 py-3 text-sm font-bold text-slate-700">All seminars</Link>
         {(["overview", "committee", "schedule", "tasks", "attendance", "scores", "budget"] as Tab[]).map((item) => (
           <button key={item} onClick={() => setTab(item)} className={`min-h-11 whitespace-nowrap rounded-xl px-4 text-sm font-bold capitalize ${tab === item ? "bg-blue-700 text-white" : "border bg-white text-slate-700"}`}>
             {item}
           </button>
         ))}
-        <Link to="/seminar/competition" className="min-h-11 whitespace-nowrap rounded-xl bg-emerald-700 px-4 py-3 text-sm font-bold text-white">
+        <Link to={`/seminar/${seminarId}/competition`} className="min-h-11 whitespace-nowrap rounded-xl bg-emerald-700 px-4 py-3 text-sm font-bold text-white">
           Competition control & leaderboard
         </Link>
       </div>
@@ -329,7 +340,7 @@ export default function SeminarManagementPage() {
         </Card>
       )}
 
-      {tab === "committee" && <Committee members={members} tasks={committeeTasks} institutionId={institutionId} />}
+      {tab === "committee" && <Committee seminarId={seminarId} members={members} tasks={committeeTasks} institutionId={institutionId} />}
 
       {tab === "tasks" && <Tasks data={data} setData={setData} />}
       {tab === "attendance" && <Attendance data={data} setData={setData} />}
@@ -344,7 +355,7 @@ function CheckCloud() {
   return <span aria-hidden="true">✓</span>;
 }
 
-function Committee({ members, tasks, institutionId }: { members: CommitteeMember[]; tasks: CommitteeTask[]; institutionId: string }) {
+function Committee({ seminarId, members, tasks, institutionId }: { seminarId:string; members: CommitteeMember[]; tasks: CommitteeTask[]; institutionId: string }) {
   const [email, setEmail] = useState(""),
     [role, setRole] = useState("Committee Member"),
     [responsibilities, setResponsibilities] = useState(""),
@@ -358,7 +369,7 @@ function Committee({ members, tasks, institutionId }: { members: CommitteeMember
     [task, setTask] = useState({ title: "", assigneeUid: "", deadline: "" });
   async function lookup() {
     setMessage("Searching...");
-    const found = await findCommitteeCandidate(email);
+    const found = await findCommitteeCandidate(seminarId, email);
     setCandidate(found);
     setMessage(found ? `Found ${found.fullName}. Review the role before authorising.` : "No registered tutor or administrator with that email was found.");
   }
@@ -390,7 +401,7 @@ function Committee({ members, tasks, institutionId }: { members: CommitteeMember
             <textarea className={`${inputClass} min-h-24`} value={responsibilities} onChange={(e) => setResponsibilities(e.target.value)} placeholder="Specific responsibilities" />
             <Button
               onClick={async () => {
-                await authoriseCommitteeMember({
+                await authoriseCommitteeMember(seminarId, {
                   ...candidate,
                   role,
                   responsibilities,
@@ -420,7 +431,7 @@ function Committee({ members, tasks, institutionId }: { members: CommitteeMember
               </div>
               <p className="mt-2 text-sm">{m.responsibilities || "No responsibilities recorded."}</p>
               {m.active && (
-                <button className="mt-3 text-sm font-bold text-red-700" onClick={() => void revokeCommitteeMember(m.uid)}>
+                <button className="mt-3 text-sm font-bold text-red-700" onClick={() => void revokeCommitteeMember(seminarId, m.uid)}>
                   Revoke access
                 </button>
               )}
@@ -436,7 +447,7 @@ function Committee({ members, tasks, institutionId }: { members: CommitteeMember
             e.preventDefault();
             const member = members.find((m) => m.uid === task.assigneeUid);
             if (!member) return;
-            await saveCommitteeTask({
+            await saveCommitteeTask(seminarId, {
               title: task.title,
               assigneeUid: member.uid,
               assigneeName: member.fullName,

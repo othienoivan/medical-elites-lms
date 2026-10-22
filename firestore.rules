@@ -25,6 +25,24 @@ service cloud.firestore {
       return hasRole('admin');
     }
 
+    function seminarExists(seminarId) {
+      return seminarId is string
+        && exists(/databases/$(database)/documents/seminars/$(seminarId));
+    }
+
+    function ownsSeminar(seminarId) {
+      return isTutorOrAdmin() && seminarExists(seminarId)
+        && get(/databases/$(database)/documents/seminars/$(seminarId)).data.ownerUid == request.auth.uid;
+    }
+
+    function canManageSeminar(seminarId) {
+      return isTutorOrAdmin() && seminarExists(seminarId) && (
+        get(/databases/$(database)/documents/seminars/$(seminarId)).data.ownerUid == request.auth.uid
+        || (get(/databases/$(database)/documents/seminars/$(seminarId)).data.committeeUids is list
+          && request.auth.uid in get(/databases/$(database)/documents/seminars/$(seminarId)).data.committeeUids)
+      );
+    }
+
     function isPlatformAdmin() {
       return isAdmin()
         && userDocument().data.keys().hasAny(['platformRole'])
@@ -1356,47 +1374,63 @@ service cloud.firestore {
     match /seminars/{seminarId} {
       allow create: if isTutorOrAdmin()
         && request.resource.data.ownerUid == request.auth.uid;
-      // Permit an authorised tutor to observe a missing fixed event document so
-      // the first owner can create it. Existing records remain institution scoped.
-      allow get: if isAdmin() || (isTutorOrAdmin() && (
-        !exists(/databases/$(database)/documents/seminars/$(seminarId))
-        || resource.data.ownerUid == request.auth.uid
-        || (resource.data.committeeUids is list && request.auth.uid in resource.data.committeeUids)
-      ));
-      allow list: if false;
-      allow update: if isAdmin() || (isTutorOrAdmin() && (
+      allow get, list: if isAdmin() || (isTutorOrAdmin() && (
         resource.data.ownerUid == request.auth.uid
-        || (resource.data.committeeUids is list && request.auth.uid in resource.data.committeeUids)
-      ) && request.resource.data.ownerUid == resource.data.ownerUid
-        && request.resource.data.institutionId == resource.data.institutionId);
+        || (resource.data.committeeUids is list && request.auth.uid in resource.data.committeeUids)));
+      allow update: if isAdmin() || (ownsSeminar(seminarId)
+        && request.resource.data.ownerUid == resource.data.ownerUid)
+        || (canManageSeminar(seminarId)
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.committeeUids == resource.data.committeeUids
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'tasks', 'attendance', 'scores', 'budget',
+            'updatedByUid', 'updatedByName', 'updatedAt'
+          ]));
       allow delete: if isAdmin() || (isTutorOrAdmin() && resource.data.ownerUid == request.auth.uid);
     }
 
     match /seminarEvents/{documentId} {
       allow read: if true;
-      allow create, update, delete: if isTutorOrAdmin();
+      allow create: if canManageSeminar(request.resource.data.seminarId);
+      allow update: if canManageSeminar(resource.data.seminarId)
+        && request.resource.data.seminarId == resource.data.seminarId;
+      allow delete: if canManageSeminar(resource.data.seminarId);
     }
     match /seminarParticipants/{documentId} {
       allow read: if true;
-      allow create, update, delete: if isTutorOrAdmin();
+      allow create: if canManageSeminar(request.resource.data.seminarId);
+      allow update: if canManageSeminar(resource.data.seminarId)
+        && request.resource.data.seminarId == resource.data.seminarId;
+      allow delete: if canManageSeminar(resource.data.seminarId);
     }
     match /seminarResources/{documentId} {
       allow read: if true;
-      allow create, update, delete: if isTutorOrAdmin();
+      allow create: if canManageSeminar(request.resource.data.seminarId);
+      allow update: if canManageSeminar(resource.data.seminarId)
+        && request.resource.data.seminarId == resource.data.seminarId;
+      allow delete: if canManageSeminar(resource.data.seminarId);
     }
     match /seminarJudgeScores/{documentId} {
       allow read: if true;
-      allow create, update: if isTutorOrAdmin()
+      allow create, update: if canManageSeminar(request.resource.data.seminarId)
         && request.resource.data.judgeUid == request.auth.uid
         && request.resource.data.maximum > 0
         && request.resource.data.total >= 0
         && request.resource.data.total <= request.resource.data.maximum;
-      allow delete: if isAdmin() || (isTutorOrAdmin() && resource.data.judgeUid == request.auth.uid);
+      allow delete: if isAdmin() || (canManageSeminar(resource.data.seminarId) && resource.data.judgeUid == request.auth.uid);
     }
     match /seminarAudienceScores/{documentId} {
       allow read: if true;
-      allow create, update: if signedIn()
+      allow create: if signedIn()
+        && seminarExists(request.resource.data.seminarId)
         && request.resource.data.userId == request.auth.uid
+        && request.resource.data.maximum == 100
+        && request.resource.data.total >= 0
+        && request.resource.data.total <= 100;
+      allow update: if signedIn()
+        && request.resource.data.seminarId == resource.data.seminarId
+        && request.resource.data.userId == request.auth.uid
+        && resource.data.userId == request.auth.uid
         && request.resource.data.maximum == 100
         && request.resource.data.total >= 0
         && request.resource.data.total <= 100;
@@ -1404,46 +1438,40 @@ service cloud.firestore {
     }
     match /seminarAudienceAttempts/{documentId} {
       allow read: if true;
-      allow create, update: if signedIn()
+      allow create: if signedIn()
+        && seminarExists(request.resource.data.seminarId)
         && request.resource.data.userId == request.auth.uid
+        && request.resource.data.maximum > 0
+        && request.resource.data.score >= 0
+        && request.resource.data.score <= request.resource.data.maximum;
+      allow update: if signedIn()
+        && request.resource.data.seminarId == resource.data.seminarId
+        && request.resource.data.userId == request.auth.uid
+        && resource.data.userId == request.auth.uid
         && request.resource.data.maximum > 0
         && request.resource.data.score >= 0
         && request.resource.data.score <= request.resource.data.maximum;
       allow delete: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
     }
 
-    match /seminarCommittee/{memberUid} {
-      allow read: if isAdmin() || (isTutorOrAdmin()
-        && exists(/databases/$(database)/documents/seminars/kawempe-2026)
-        && (get(/databases/$(database)/documents/seminars/kawempe-2026).data.ownerUid == request.auth.uid
-          || request.auth.uid in get(/databases/$(database)/documents/seminars/kawempe-2026).data.committeeUids));
-      allow create: if isAdmin() || (isTutorOrAdmin()
-        && exists(/databases/$(database)/documents/seminars/kawempe-2026)
-        && get(/databases/$(database)/documents/seminars/kawempe-2026).data.ownerUid == request.auth.uid
-        && request.resource.data.seminarId == 'kawempe-2026');
-      allow update: if isAdmin() || (isTutorOrAdmin()
-        && request.resource.data.seminarId == resource.data.seminarId
-        && get(/databases/$(database)/documents/seminars/kawempe-2026).data.ownerUid == request.auth.uid);
-      allow delete: if isAdmin() || (isTutorOrAdmin()
-        && get(/databases/$(database)/documents/seminars/kawempe-2026).data.ownerUid == request.auth.uid);
+    match /seminarCommittee/{memberId} {
+      allow read: if isAdmin() || canManageSeminar(resource.data.seminarId);
+      allow create: if isAdmin() || ownsSeminar(request.resource.data.seminarId);
+      allow update: if isAdmin() || (ownsSeminar(resource.data.seminarId)
+        && request.resource.data.seminarId == resource.data.seminarId);
+      allow delete: if isAdmin() || ownsSeminar(resource.data.seminarId);
     }
     match /seminarCommitteeTasks/{taskId} {
-      allow read: if isAdmin() || (isTutorOrAdmin()
-        && exists(/databases/$(database)/documents/seminars/kawempe-2026)
-        && (get(/databases/$(database)/documents/seminars/kawempe-2026).data.ownerUid == request.auth.uid
-          || request.auth.uid in get(/databases/$(database)/documents/seminars/kawempe-2026).data.committeeUids));
-      allow create: if isAdmin() || (isTutorOrAdmin()
-        && request.resource.data.seminarId == 'kawempe-2026'
-        && get(/databases/$(database)/documents/seminars/kawempe-2026).data.ownerUid == request.auth.uid);
-      allow delete: if isAdmin() || (isTutorOrAdmin()
-        && get(/databases/$(database)/documents/seminars/kawempe-2026).data.ownerUid == request.auth.uid);
-      allow update: if isAdmin() || (isTutorOrAdmin() && (
+      allow read: if isAdmin() || canManageSeminar(resource.data.seminarId);
+      allow create: if isAdmin() || ownsSeminar(request.resource.data.seminarId);
+      allow delete: if isAdmin() || ownsSeminar(resource.data.seminarId);
+      allow update: if isAdmin() || (isTutorOrAdmin() &&
         request.resource.data.seminarId == resource.data.seminarId
         && (
-        get(/databases/$(database)/documents/seminars/kawempe-2026).data.ownerUid == request.auth.uid
+        ownsSeminar(resource.data.seminarId)
         || (resource.data.assigneeUid == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt']))
-        )));
+        ));
     }
 
 

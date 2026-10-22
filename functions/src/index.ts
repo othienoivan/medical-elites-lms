@@ -4993,7 +4993,9 @@ export const findSeminarCommitteeCandidate = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Please sign in.");
     const profile = await assertTutorProfile(request.auth.uid);
-    const seminar = await db.collection("seminars").doc("kawempe-2026").get();
+    const seminarId = financeText((request.data as { seminarId?: unknown } | undefined)?.seminarId, 180);
+    if (!seminarId) throw new HttpsError("invalid-argument", "A seminar is required.");
+    const seminar = await db.collection("seminars").doc(seminarId).get();
     const isAdmin = String(profile.get("role") ?? "") === "admin";
     if (!seminar.exists || (!isAdmin && seminar.get("ownerUid") !== request.auth.uid)) {
       throw new HttpsError("permission-denied", "Only the seminar owner can authorise committee members.");
