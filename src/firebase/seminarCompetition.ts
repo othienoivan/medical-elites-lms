@@ -90,7 +90,7 @@ export type SeminarQuestion = {
   correctOption: string;
   markingGuide: string;
   marks: number;
-  published: boolean;
+  published?: boolean;
 };
 export type SeminarQuestionAttempt = {
   id: string;

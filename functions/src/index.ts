@@ -5009,7 +5009,7 @@ export const findSeminarCommitteeCandidate = onCall(
   },
 );
 
-/** Returns published seminar questions without exposing answers or marking guides. */
+/** Returns the live participant question set without exposing answers or marking guides. */
 export const getPublicSeminarQuestions = onCall(
   { region: "us-central1", timeoutSeconds: 30, memory: "256MiB", enforceAppCheck: false },
   async (request) => {
@@ -5017,7 +5017,7 @@ export const getPublicSeminarQuestions = onCall(
     if(!seminarId)throw new HttpsError("invalid-argument","A seminar is required.");
     const seminar=await db.collection("seminars").doc(seminarId).get();if(!seminar.exists)throw new HttpsError("not-found","This seminar is not available.");
     if(!eventId)return{questions:[]};const seminarEvent=await db.collection("seminarEvents").doc(eventId).get();if(!seminarEvent.exists||financeText(seminarEvent.get("seminarId"),180)!==seminarId||seminarEvent.get("status")!=="live")return{questions:[]};
-    const snapshot=await db.collection("seminarQuestions").where("seminarId","==",seminarId).get();const published=snapshot.docs.filter(item=>item.get("published")===true&&financeText(item.get("eventId"),180)===eventId);return{questions:published.map(item=>({id:item.id,eventId:financeText(item.get("eventId"),180),type:financeText(item.get("type"),40),prompt:financeText(item.get("prompt"),12000),options:Array.isArray(item.get("options"))?item.get("options").map((value:unknown)=>financeText(value,1000)):[],marks:Math.max(0,Number(item.get("marks")??0)||0)}))};
+    const snapshot=await db.collection("seminarQuestions").where("seminarId","==",seminarId).get();const participantQuestions=snapshot.docs.filter(item=>financeText(item.get("eventId"),180)===eventId);return{questions:participantQuestions.map(item=>({id:item.id,eventId:financeText(item.get("eventId"),180),type:financeText(item.get("type"),40),prompt:financeText(item.get("prompt"),12000),options:Array.isArray(item.get("options"))?item.get("options").map((value:unknown)=>financeText(value,1000)):[],marks:Math.max(0,Number(item.get("marks")??0)||0)}))};
   },
 );
 
@@ -5028,7 +5028,7 @@ export const submitSeminarAudienceAnswers = onCall(
     if(!request.auth)throw new HttpsError("unauthenticated","Sign in before submitting seminar answers.");
     const input=(request.data??{}) as Record<string,unknown>;const seminarId=financeText(input.seminarId,180);const eventId=financeText(input.eventId,180);const answers=input.answers&&typeof input.answers==="object"?input.answers as Record<string,unknown>:{};
     if(!seminarId||!eventId)throw new HttpsError("invalid-argument","Choose a seminar event.");const seminar=await db.collection("seminars").doc(seminarId).get();if(!seminar.exists)throw new HttpsError("not-found","This seminar is not available.");const seminarEvent=await db.collection("seminarEvents").doc(eventId).get();if(!seminarEvent.exists||financeText(seminarEvent.get("seminarId"),180)!==seminarId||seminarEvent.get("status")!=="live")throw new HttpsError("failed-precondition","This event's questions are not currently open.");
-    const questionSnapshot=await db.collection("seminarQuestions").where("seminarId","==",seminarId).get();const questions=questionSnapshot.docs.filter(item=>item.get("published")===true&&financeText(item.get("eventId"),180)===eventId);if(questions.length===0)throw new HttpsError("failed-precondition","No published questions are available for this event.");
+    const questionSnapshot=await db.collection("seminarQuestions").where("seminarId","==",seminarId).get();const questions=questionSnapshot.docs.filter(item=>financeText(item.get("eventId"),180)===eventId);if(questions.length===0)throw new HttpsError("failed-precondition","No participant questions are available for this live event.");
     let score=0,maximum=0;let pendingSubjective=false;const cleanAnswers:Record<string,string>={};for(const question of questions){const answer=financeText(answers[question.id],12000);cleanAnswers[question.id]=answer;const type=financeText(question.get("type"),40);if(type==="mcq"){const marks=Math.max(0,Number(question.get("marks")??0)||0);maximum+=marks;if(answer&&answer===financeText(question.get("correctOption"),1000))score+=marks}else pendingSubjective=true}
     const profile=await db.collection("users").doc(request.auth.uid).get();const participantName=financeText(profile.get("fullName")??request.auth.token.email,240)||"Audience participant";const attemptId=`${seminarId}_${eventId}_${request.auth.uid}`;const reference=db.collection("seminarQuestionAttempts").doc(attemptId);const leaderboardRef=db.collection("seminarAudienceLeaderboard").doc(attemptId);const payload={seminarId,eventId,userId:request.auth.uid,participantName,answers:cleanAnswers,score,maximum,pendingSubjective,status:pendingSubjective?"awaiting-review":"marked",submittedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()};await Promise.all([reference.set(payload,{merge:true}),leaderboardRef.set({seminarId,eventId,userId:request.auth.uid,participantName,score,maximum,pendingSubjective,updatedAt:FieldValue.serverTimestamp()},{merge:true})]);return{attempt:{id:reference.id,...payload,submittedAt:null,updatedAt:null}};
   },

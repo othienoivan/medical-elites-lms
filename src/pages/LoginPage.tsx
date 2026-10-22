@@ -47,6 +47,10 @@ export default function LoginPage() {
   const [passwordResetMessage, setPasswordResetMessage] = useState("");
 
   useEffect(() => {
+    if (returnPath) sessionStorage.setItem("redirectAfterLogin", returnPath);
+  }, [returnPath]);
+
+  useEffect(() => {
     async function finishLogin() {
       if (authLoading || !currentUser || !userProfile) return;
 
@@ -73,14 +77,21 @@ export default function LoginPage() {
         return;
       }
 
-      sessionStorage.removeItem("redirectAfterLogin");
       const roleDestination =
         userProfile.role === "student"
           ? "/dashboard"
           : userProfile.role === "admin"
             ? "/admin"
             : "/tutor";
-      const destination = safeInternalRedirect(searchParams.get("redirect"), roleDestination);
+      const storedDestination = safeInternalRedirect(
+        sessionStorage.getItem("redirectAfterLogin"),
+        roleDestination,
+      );
+      const destination = safeInternalRedirect(
+        searchParams.get("redirect"),
+        storedDestination,
+      );
+      sessionStorage.removeItem("redirectAfterLogin");
       navigate(destination, { replace: true });
     }
 

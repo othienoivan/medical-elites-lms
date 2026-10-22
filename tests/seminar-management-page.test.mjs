@@ -150,8 +150,15 @@ test("seminar authentication returns learners to the live event and questions fo
   assert.match(login, /safeInternalRedirect/);
   assert.match(login, /register\?role=\$\{selectedRole\}.*redirect=/);
   assert.match(register, /navigate\(returnPath, \{ replace: true \}\)/);
+  assert.match(login, /sessionStorage\.getItem\("redirectAfterLogin"\)/);
+  assert.match(register, /sessionStorage\.getItem\("redirectAfterLogin"\)/);
+  assert.match(live, /seminarRegistrationPath/);
+  assert.match(live, /setInterval\(refreshQuestions, 5000\)/);
   assert.match(manager, /Audience questions are available only while this event is live/);
+  assert.doesNotMatch(manager, /Publish to audience immediately/);
   assert.match(service, /updateCompetitionEventStatus/);
   assert.match(functions, /seminarEvent\.get\("status"\)!=="live"/);
   assert.match(functions, /This event's questions are not currently open/);
+  assert.match(functions, /participantQuestions/);
+  assert.doesNotMatch(functions, /item\.get\("published"\)===true&&financeText\(item\.get\("eventId"\),180\)===eventId/);
 });

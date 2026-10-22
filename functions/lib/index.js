@@ -4864,7 +4864,7 @@ exports.findSeminarCommitteeCandidate = (0, https_1.onCall)({ region: "us-centra
         return { candidate: null };
     return { candidate: { uid: candidate.id, fullName: financeText(candidate.get("fullName") ?? candidate.get("email"), 240) || "Committee member", email: financeText(candidate.get("email"), 320), institutionId: financeText(candidate.get("institutionId"), 180) || null } };
 });
-/** Returns published seminar questions without exposing answers or marking guides. */
+/** Returns the live participant question set without exposing answers or marking guides. */
 exports.getPublicSeminarQuestions = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 30, memory: "256MiB", enforceAppCheck: false }, async (request) => {
     const seminarId = financeText(request.data?.seminarId, 180);
     const eventId = financeText(request.data?.eventId, 180);
@@ -4879,8 +4879,8 @@ exports.getPublicSeminarQuestions = (0, https_1.onCall)({ region: "us-central1",
     if (!seminarEvent.exists || financeText(seminarEvent.get("seminarId"), 180) !== seminarId || seminarEvent.get("status") !== "live")
         return { questions: [] };
     const snapshot = await db.collection("seminarQuestions").where("seminarId", "==", seminarId).get();
-    const published = snapshot.docs.filter(item => item.get("published") === true && financeText(item.get("eventId"), 180) === eventId);
-    return { questions: published.map(item => ({ id: item.id, eventId: financeText(item.get("eventId"), 180), type: financeText(item.get("type"), 40), prompt: financeText(item.get("prompt"), 12000), options: Array.isArray(item.get("options")) ? item.get("options").map((value) => financeText(value, 1000)) : [], marks: Math.max(0, Number(item.get("marks") ?? 0) || 0) })) };
+    const participantQuestions = snapshot.docs.filter(item => financeText(item.get("eventId"), 180) === eventId);
+    return { questions: participantQuestions.map(item => ({ id: item.id, eventId: financeText(item.get("eventId"), 180), type: financeText(item.get("type"), 40), prompt: financeText(item.get("prompt"), 12000), options: Array.isArray(item.get("options")) ? item.get("options").map((value) => financeText(value, 1000)) : [], marks: Math.max(0, Number(item.get("marks") ?? 0) || 0) })) };
 });
 /** Stores a trusted audience attempt and automatically marks only objective items. */
 exports.submitSeminarAudienceAnswers = (0, https_1.onCall)({ region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false }, async (request) => {
@@ -4899,9 +4899,9 @@ exports.submitSeminarAudienceAnswers = (0, https_1.onCall)({ region: "us-central
     if (!seminarEvent.exists || financeText(seminarEvent.get("seminarId"), 180) !== seminarId || seminarEvent.get("status") !== "live")
         throw new https_1.HttpsError("failed-precondition", "This event's questions are not currently open.");
     const questionSnapshot = await db.collection("seminarQuestions").where("seminarId", "==", seminarId).get();
-    const questions = questionSnapshot.docs.filter(item => item.get("published") === true && financeText(item.get("eventId"), 180) === eventId);
+    const questions = questionSnapshot.docs.filter(item => financeText(item.get("eventId"), 180) === eventId);
     if (questions.length === 0)
-        throw new https_1.HttpsError("failed-precondition", "No published questions are available for this event.");
+        throw new https_1.HttpsError("failed-precondition", "No participant questions are available for this live event.");
     let score = 0, maximum = 0;
     let pendingSubjective = false;
     const cleanAnswers = {};

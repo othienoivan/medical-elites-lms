@@ -101,7 +101,6 @@ export default function SeminarCompetitionManagerPage() {
       correctOption: "",
       markingGuide: "",
       marks: 1,
-      published: true,
     }),
     [message, setMessage] = useState("");
   useEffect(() => {
@@ -490,7 +489,6 @@ export default function SeminarCompetitionManagerPage() {
                   question.type === "mcq" ? question.correctOption : "",
                 markingGuide: question.markingGuide,
                 marks: question.marks,
-                published: question.published,
               });
               setQuestion({
                 ...question,
@@ -589,16 +587,9 @@ export default function SeminarCompetitionManagerPage() {
               }
               placeholder="Marks"
             />
-            <label className="flex items-center gap-2 text-sm font-bold">
-              <input
-                type="checkbox"
-                checked={question.published}
-                onChange={(event) =>
-                  setQuestion({ ...question, published: event.target.checked })
-                }
-              />
-              Publish to audience immediately
-            </label>
+            <p className="rounded-xl bg-blue-50 p-3 text-sm font-semibold text-blue-900">
+              This question is part of the participant question set. The audience will receive it automatically when this event is set to Live, and access will close when the event closes.
+            </p>
             <Button type="submit">Save question</Button>
           </form>
           <p className="mt-4 text-sm font-semibold text-slate-600">

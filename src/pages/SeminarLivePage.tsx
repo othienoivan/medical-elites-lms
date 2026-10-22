@@ -31,6 +31,7 @@ export default function SeminarLivePage() {
   const { seminarId = "" } = useParams();
   const seminarReturnPath = `/seminar/${encodeURIComponent(seminarId)}/live`;
   const seminarLoginPath = `/login?role=student&redirect=${encodeURIComponent(seminarReturnPath)}`;
+  const seminarRegistrationPath = `/register?role=student&redirect=${encodeURIComponent(seminarReturnPath)}`;
   const { currentUser, userProfile } = useAuth();
   const [events, setEvents] = useState<CompetitionEvent[]>([]),
     [people, setPeople] = useState<Participant[]>([]),
@@ -67,9 +68,36 @@ export default function SeminarLivePage() {
     return () => u.forEach((x) => x());
   }, [seminarId]);
   useEffect(() => {
-    void getPublicSeminarQuestions(seminarId, selectedEvent)
-      .then(setQuestions)
-      .catch(() => setQuestions([]));
+    if (currentUser) return;
+    sessionStorage.setItem("redirectAfterLogin", seminarReturnPath);
+  }, [currentUser, seminarReturnPath]);
+  useEffect(() => {
+    const liveEvents = events.filter((item) => item.status === "live");
+    if (!liveEvents.some((item) => item.id === selectedEvent)) {
+      setSelectedEvent(liveEvents[0]?.id || "");
+    }
+  }, [events, selectedEvent]);
+  useEffect(() => {
+    if (!selectedEvent) {
+      setQuestions([]);
+      return;
+    }
+    let active = true;
+    const refreshQuestions = () => {
+      void getPublicSeminarQuestions(seminarId, selectedEvent)
+        .then((items) => {
+          if (active) setQuestions(items);
+        })
+        .catch(() => {
+          if (active) setQuestions([]);
+        });
+    };
+    refreshQuestions();
+    const refreshTimer = window.setInterval(refreshQuestions, 5000);
+    return () => {
+      active = false;
+      window.clearInterval(refreshTimer);
+    };
   }, [seminarId, selectedEvent]);
   const board = useMemo(
     () =>
@@ -120,12 +148,17 @@ export default function SeminarLivePage() {
               Register and record attendance
             </h2>
             {!currentUser ? (
-              <p className="mt-3 text-slate-600">
-                <Link className="font-bold text-blue-700" to={seminarLoginPath}>
-                  Sign in or create an account
-                </Link>{" "}
-                before registering. This prevents duplicate attendance records.
-              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <Link className="rounded-xl bg-blue-700 px-4 py-3 text-center font-bold text-white" to={seminarLoginPath}>
+                  Sign in to join seminar
+                </Link>
+                <Link className="rounded-xl border border-blue-700 px-4 py-3 text-center font-bold text-blue-700" to={seminarRegistrationPath}>
+                  Create student account
+                </Link>
+                <p className="text-sm text-slate-600 sm:col-span-2">
+                  You will return directly to this seminar after signing in or registering.
+                </p>
+              </div>
             ) : (
               <div className="mt-4 space-y-3">
                 <select
@@ -173,6 +206,9 @@ export default function SeminarLivePage() {
           </div>
           <div className="rounded-2xl border bg-white p-6 shadow-sm">
             <h2 className="text-xl font-black">Audience question challenge</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              The audience receives the same question set as participants, and only while the selected event is live.
+            </p>
             <select
               className="mt-4 w-full rounded-xl border p-3"
               value={selectedEvent}
@@ -265,7 +301,7 @@ export default function SeminarLivePage() {
             )}
             {selectedEvent && questions.length === 0 && (
               <p className="mt-3 text-sm text-slate-500">
-                No published questions for this event.
+                Questions are not currently available for this live event.
               </p>
             )}
           </div>

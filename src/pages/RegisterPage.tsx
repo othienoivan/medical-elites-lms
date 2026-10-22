@@ -1,6 +1,6 @@
 import { FirebaseError } from "firebase/app";
 import { ShieldCheck, Stethoscope, UserCog } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import PublicLayout from "../components/layout/PublicLayout";
@@ -32,7 +32,11 @@ export default function RegisterPage() {
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const initialRole = isRegistrationRole(query.get("role")) ? query.get("role") as RegistrationRole : "student";
   const joinCode = query.get("join") || "";
-  const returnPath = safeInternalRedirect(query.get("redirect"), "");
+  const queryReturnPath = safeInternalRedirect(query.get("redirect"), "");
+  const returnPath = safeInternalRedirect(
+    queryReturnPath || sessionStorage.getItem("redirectAfterLogin"),
+    "",
+  );
 
   const [selectedRole, setSelectedRole] = useState<RegistrationRole>(initialRole);
   const [fullName, setFullName] = useState("");
@@ -41,6 +45,12 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (queryReturnPath) {
+      sessionStorage.setItem("redirectAfterLogin", queryReturnPath);
+    }
+  }, [queryReturnPath]);
 
   async function handleRegister(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -108,6 +118,7 @@ export default function RegisterPage() {
         navigate("/tutor?welcome=1", { replace: true });
       } else if (returnPath && createdRole === "student") {
         alert("Registration successful. You can now join the seminar.");
+        sessionStorage.removeItem("redirectAfterLogin");
         navigate(returnPath, { replace: true });
       } else if (registrationStatus === "approved") {
         alert("Registration and course-unit enrolment completed successfully. Your assigned learning content is now available.");
