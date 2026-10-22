@@ -125,10 +125,13 @@ test("audience links support registration, verified attendance, browser question
   assert.match(service, /seminarAudienceLeaderboard/);
   assert.match(functions, /getPublicSeminarQuestions/);
   assert.match(functions, /submitSeminarAudienceAnswers/);
+  assert.match(functions, /markSeminarAudienceAttempt/);
   assert.match(functions, /correctOption/);
   assert.match(rules, /match \/seminarAttendance\/\{attendanceId\}/);
   assert.match(rules, /hasSeminarRole\(resource\.data\.seminarId, 'Attendance Officer'\)/);
   assert.match(rules, /match \/seminarQuestions\/\{questionId\}/);
   assert.match(rules, /match \/seminarAudienceLeaderboard\/\{entryId\}/);
   assert.doesNotMatch(live, /markingGuide/);
+  assert.match(manager, /Review written audience answers/);
+  assert.match(manager, /Publish reviewed score/);
 });

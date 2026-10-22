@@ -97,10 +97,11 @@ export type SeminarQuestionAttempt = {
   eventId: string;
   userId: string;
   participantName: string;
-  answers: Record<string, string>;
+  answers?: Record<string, string>;
   score: number;
   maximum: number;
   pendingSubjective: boolean;
+  feedback?: string;
 };
 
 const watch = <T>(
@@ -155,6 +156,10 @@ export const watchSeminarQuestionAttempts = (
   seminarId: string,
   set: (x: SeminarQuestionAttempt[]) => void,
 ) => watch("seminarAudienceLeaderboard", seminarId, set);
+export const watchSeminarResponseSubmissions = (
+  seminarId: string,
+  set: (x: SeminarQuestionAttempt[]) => void,
+) => watch("seminarQuestionAttempts", seminarId, set);
 
 export async function addCompetitionEvent(
   seminarId: string,
@@ -296,4 +301,16 @@ export async function submitSeminarAnswers(
     { attempt: SeminarQuestionAttempt }
   >(functions, "submitSeminarAudienceAnswers");
   return (await call({ seminarId, eventId, answers })).data.attempt;
+}
+export async function markSeminarAnswerAttempt(input: {
+  attemptId: string;
+  score: number;
+  maximum: number;
+  feedback: string;
+}) {
+  const call = httpsCallable<
+    typeof input,
+    { attemptId: string; score: number; maximum: number }
+  >(functions, "markSeminarAudienceAttempt");
+  return (await call(input)).data;
 }

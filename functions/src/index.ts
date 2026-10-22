@@ -5033,6 +5033,16 @@ export const submitSeminarAudienceAnswers = onCall(
   },
 );
 
+/** Finalises committee-reviewed written answers and republishes the trusted leaderboard entry. */
+export const markSeminarAudienceAttempt = onCall(
+  { region: "us-central1", timeoutSeconds: 30, memory: "256MiB", enforceAppCheck: false },
+  async (request) => {
+    if(!request.auth)throw new HttpsError("unauthenticated","Please sign in.");await assertTutorProfile(request.auth.uid);const input=(request.data??{}) as Record<string,unknown>;const attemptId=financeText(input.attemptId,300);const attempt=await db.collection("seminarQuestionAttempts").doc(attemptId).get();if(!attempt.exists)throw new HttpsError("not-found","The audience submission was not found.");
+    const seminarId=financeText(attempt.get("seminarId"),180);const seminar=await db.collection("seminars").doc(seminarId).get();const committeeUids=Array.isArray(seminar.get("committeeUids"))?seminar.get("committeeUids") as unknown[]:[];if(!seminar.exists||(seminar.get("ownerUid")!==request.auth.uid&&!committeeUids.includes(request.auth.uid)))throw new HttpsError("permission-denied","You are not authorised to mark this seminar submission.");
+    const score=Number(input.score),maximum=Number(input.maximum);if(!Number.isFinite(score)||!Number.isFinite(maximum)||maximum<=0||score<0||score>maximum)throw new HttpsError("invalid-argument","Enter a valid score and total.");const feedback=financeText(input.feedback,12000);const update={score,maximum,feedback,pendingSubjective:false,status:"marked",markedByUid:request.auth.uid,markedAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()};await Promise.all([attempt.ref.set(update,{merge:true}),db.collection("seminarAudienceLeaderboard").doc(attemptId).set({seminarId,eventId:financeText(attempt.get("eventId"),180),userId:financeText(attempt.get("userId"),180),participantName:financeText(attempt.get("participantName"),240),...update},{merge:true})]);return{attemptId,score,maximum};
+  },
+);
+
 /** Creates a public campaign link for one published lesson, quiz/assessment or examination. */
 export const createTutorContentShareLink = onCall(
   { region: "us-central1", timeoutSeconds: 60, memory: "256MiB", enforceAppCheck: false },

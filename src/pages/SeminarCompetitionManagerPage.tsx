@@ -16,6 +16,7 @@ import {
   addSeminarQuestion,
   addSeminarResource,
   addSeminarSession,
+  markSeminarAnswerAttempt,
   saveJudgeScore,
   verifySeminarAttendance,
   watchSeminarAttendance,
@@ -23,6 +24,7 @@ import {
   watchJudgeScores,
   watchParticipants,
   watchSeminarQuestions,
+  watchSeminarResponseSubmissions,
   watchSeminarResources,
   watchSeminarSessions,
   type CompetitionEvent,
@@ -30,6 +32,7 @@ import {
   type Participant,
   type SeminarAttendance,
   type SeminarQuestion,
+  type SeminarQuestionAttempt,
   type SeminarResource,
   type SeminarSession,
 } from "../firebase/seminarCompetition";
@@ -44,6 +47,12 @@ export default function SeminarCompetitionManagerPage() {
     [sessions, setSessions] = useState<SeminarSession[]>([]),
     [attendance, setAttendance] = useState<SeminarAttendance[]>([]),
     [questions, setQuestions] = useState<SeminarQuestion[]>([]);
+  const [responseAttempts, setResponseAttempts] = useState<
+      SeminarQuestionAttempt[]
+    >([]),
+    [markDrafts, setMarkDrafts] = useState<
+      Record<string, { score: string; maximum: string; feedback: string }>
+    >({});
   const [committee, setCommittee] = useState<CommitteeMember[]>([]),
     [ownerUid, setOwnerUid] = useState("");
   const [eventTitle, setEventTitle] = useState(""),
@@ -103,6 +112,7 @@ export default function SeminarCompetitionManagerPage() {
       watchSeminarSessions(seminarId, setSessions),
       watchSeminarAttendance(seminarId, setAttendance),
       watchSeminarQuestions(seminarId, setQuestions),
+      watchSeminarResponseSubmissions(seminarId, setResponseAttempts),
     ];
     return () => un.forEach((x) => x());
   }, [seminarId]);
@@ -582,6 +592,137 @@ export default function SeminarCompetitionManagerPage() {
             {questions.length} browser-authored question
             {questions.length === 1 ? "" : "s"}
           </p>
+        </Card>
+        <Card>
+          <h2 className="text-xl font-black">
+            Review written audience answers
+          </h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Use the saved marking guide, enter the final combined score, and
+            publish it to the audience leaderboard.
+          </p>
+          <div className="mt-4 space-y-4">
+            {responseAttempts
+              .filter((attempt) => attempt.pendingSubjective)
+              .map((attempt) => {
+                const eventQuestions = questions.filter(
+                  (question) => question.eventId === attempt.eventId,
+                );
+                const totalMarks = eventQuestions.reduce(
+                  (sum, question) => sum + question.marks,
+                  0,
+                );
+                const draft = markDrafts[attempt.id] || {
+                  score: String(attempt.score || ""),
+                  maximum: String(totalMarks || attempt.maximum || ""),
+                  feedback: attempt.feedback || "",
+                };
+                return (
+                  <div key={attempt.id} className="rounded-xl border p-4">
+                    <h3 className="font-black">{attempt.participantName}</h3>
+                    <p className="text-sm text-slate-500">
+                      {events.find((item) => item.id === attempt.eventId)
+                        ?.title || "Event"}
+                    </p>
+                    <div className="mt-3 space-y-3">
+                      {eventQuestions.map((question, index) => (
+                        <div
+                          key={question.id}
+                          className="rounded-lg bg-slate-50 p-3"
+                        >
+                          <p className="font-bold">
+                            {index + 1}. {question.prompt}
+                          </p>
+                          <p className="mt-2">
+                            <strong>Answer:</strong>{" "}
+                            {attempt.answers?.[question.id] || "No response"}
+                          </p>
+                          <details className="mt-2">
+                            <summary className="cursor-pointer text-sm font-bold text-blue-700">
+                              View marking guide
+                            </summary>
+                            <p className="mt-2 whitespace-pre-wrap text-sm">
+                              {question.markingGuide}
+                            </p>
+                          </details>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <input
+                        className={field}
+                        type="number"
+                        min="0"
+                        value={draft.score}
+                        onChange={(event) =>
+                          setMarkDrafts({
+                            ...markDrafts,
+                            [attempt.id]: {
+                              ...draft,
+                              score: event.target.value,
+                            },
+                          })
+                        }
+                        placeholder="Final score"
+                      />
+                      <input
+                        className={field}
+                        type="number"
+                        min="1"
+                        value={draft.maximum}
+                        onChange={(event) =>
+                          setMarkDrafts({
+                            ...markDrafts,
+                            [attempt.id]: {
+                              ...draft,
+                              maximum: event.target.value,
+                            },
+                          })
+                        }
+                        placeholder="Total marks"
+                      />
+                    </div>
+                    <textarea
+                      className={`${field} mt-3 min-h-24`}
+                      value={draft.feedback}
+                      onChange={(event) =>
+                        setMarkDrafts({
+                          ...markDrafts,
+                          [attempt.id]: {
+                            ...draft,
+                            feedback: event.target.value,
+                          },
+                        })
+                      }
+                      placeholder="Feedback or corrections"
+                    />
+                    <Button
+                      className="mt-3"
+                      disabled={!draft.score || !draft.maximum}
+                      onClick={async () => {
+                        await markSeminarAnswerAttempt({
+                          attemptId: attempt.id,
+                          score: Number(draft.score),
+                          maximum: Number(draft.maximum),
+                          feedback: draft.feedback,
+                        });
+                        setMessage(
+                          "Written answers marked and leaderboard updated.",
+                        );
+                      }}
+                    >
+                      Publish reviewed score
+                    </Button>
+                  </div>
+                );
+              })}
+            {responseAttempts.filter((attempt) => attempt.pendingSubjective)
+              .length === 0 && (
+              <p className="text-sm text-slate-500">
+                No written responses are awaiting review.
+              </p>
+            )}
+          </div>
         </Card>
         <Card>
           <h2 className="text-xl font-black">
