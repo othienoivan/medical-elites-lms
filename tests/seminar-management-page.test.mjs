@@ -126,6 +126,8 @@ test("audience links support registration, verified attendance, browser question
   assert.match(functions, /getPublicSeminarQuestions/);
   assert.match(functions, /submitSeminarAudienceAnswers/);
   assert.match(functions, /markSeminarAudienceAttempt/);
+  assert.match(functions, /aiMarkSeminarAudienceAttempt/);
+  assert.match(functions, /scope:"ai_seminar_marking"/);
   assert.match(functions, /correctOption/);
   assert.match(rules, /match \/seminarAttendance\/\{attendanceId\}/);
   assert.match(rules, /hasSeminarRole\(resource\.data\.seminarId, 'Attendance Officer'\)/);
@@ -133,6 +135,8 @@ test("audience links support registration, verified attendance, browser question
   assert.match(rules, /match \/seminarAudienceLeaderboard\/\{entryId\}/);
   assert.doesNotMatch(live, /markingGuide/);
   assert.match(manager, /Review written audience answers/);
+  assert.match(manager, /AI-assisted marking/);
+  assert.match(manager, /AI draft — committee review required/);
   assert.match(manager, /Publish reviewed score/);
 });
 

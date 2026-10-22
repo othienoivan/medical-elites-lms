@@ -103,6 +103,21 @@ export type SeminarQuestionAttempt = {
   pendingSubjective: boolean;
   feedback?: string;
 };
+export type AiSeminarMarkingDraft = {
+  attemptId: string;
+  score: number;
+  maximum: number;
+  percentage: number;
+  feedback: string;
+  usedMarkingGuides: boolean;
+  questionMarks: Array<{
+    questionId: string;
+    prompt: string;
+    marksAwarded: number;
+    maximumMarks: number;
+    feedback: string;
+  }>;
+};
 
 const watch = <T>(
   name: string,
@@ -322,4 +337,11 @@ export async function markSeminarAnswerAttempt(input: {
     { attemptId: string; score: number; maximum: number }
   >(functions, "markSeminarAudienceAttempt");
   return (await call(input)).data;
+}
+export async function aiMarkSeminarAnswerAttempt(attemptId: string) {
+  const call = httpsCallable<
+    { attemptId: string },
+    AiSeminarMarkingDraft
+  >(functions, "aiMarkSeminarAudienceAttempt", { timeout: 540000 });
+  return (await call({ attemptId })).data;
 }

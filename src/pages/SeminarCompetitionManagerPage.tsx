@@ -17,6 +17,7 @@ import {
   addSeminarQuestion,
   addSeminarResource,
   addSeminarSession,
+  aiMarkSeminarAnswerAttempt,
   markSeminarAnswerAttempt,
   saveJudgeScore,
   verifySeminarAttendance,
@@ -34,6 +35,7 @@ import {
   type SeminarAttendance,
   type SeminarQuestion,
   type SeminarQuestionAttempt,
+  type AiSeminarMarkingDraft,
   type SeminarResource,
   type SeminarSession,
 } from "../firebase/seminarCompetition";
@@ -53,7 +55,9 @@ export default function SeminarCompetitionManagerPage() {
     >([]),
     [markDrafts, setMarkDrafts] = useState<
       Record<string, { score: string; maximum: string; feedback: string }>
-    >({});
+    >({}),
+    [aiDrafts, setAiDrafts] = useState<Record<string, AiSeminarMarkingDraft>>({}),
+    [aiBusyAttempt, setAiBusyAttempt] = useState("");
   const [committee, setCommittee] = useState<CommitteeMember[]>([]),
     [ownerUid, setOwnerUid] = useState("");
   const [eventTitle, setEventTitle] = useState(""),
@@ -700,23 +704,75 @@ export default function SeminarCompetitionManagerPage() {
                       }
                       placeholder="Feedback or corrections"
                     />
-                    <Button
-                      className="mt-3"
-                      disabled={!draft.score || !draft.maximum}
-                      onClick={async () => {
-                        await markSeminarAnswerAttempt({
-                          attemptId: attempt.id,
-                          score: Number(draft.score),
-                          maximum: Number(draft.maximum),
-                          feedback: draft.feedback,
-                        });
-                        setMessage(
-                          "Written answers marked and leaderboard updated.",
-                        );
-                      }}
-                    >
-                      Publish reviewed score
-                    </Button>
+                    {aiDrafts[attempt.id] && (
+                      <div className="mt-3 rounded-xl border border-cyan-200 bg-cyan-50 p-4">
+                        <p className="font-black text-cyan-950">AI draft — committee review required</p>
+                        <p className="mt-1 text-sm text-cyan-900">
+                          {aiDrafts[attempt.id].usedMarkingGuides
+                            ? "The saved marking guides were used as the authoritative standard."
+                            : "One or more questions had no marking guide; the AI used a provisional medically accurate standard for those items."}
+                        </p>
+                        <div className="mt-3 space-y-2">
+                          {aiDrafts[attempt.id].questionMarks.map((item, index) => (
+                            <div key={item.questionId} className="rounded-lg bg-white p-3 text-sm">
+                              <strong>{index + 1}. {item.marksAwarded}/{item.maximumMarks}</strong>
+                              <p className="mt-1 line-clamp-2 text-slate-600">{item.prompt}</p>
+                              <p className="mt-1">{item.feedback}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      <Button
+                        variant="outline"
+                        disabled={aiBusyAttempt === attempt.id}
+                        onClick={async () => {
+                          try {
+                            setAiBusyAttempt(attempt.id);
+                            setMessage("AI is reviewing the submission. Long answers may take several minutes...");
+                            const aiDraft = await aiMarkSeminarAnswerAttempt(attempt.id);
+                            setAiDrafts((current) => ({ ...current, [attempt.id]: aiDraft }));
+                            setMarkDrafts((current) => ({
+                              ...current,
+                              [attempt.id]: {
+                                score: String(aiDraft.score),
+                                maximum: String(aiDraft.maximum),
+                                feedback: aiDraft.feedback,
+                              },
+                            }));
+                            setMessage("AI draft completed. Review and edit it before publishing the score.");
+                          } catch (error) {
+                            const detail = error instanceof Error ? error.message : "AI marking could not be completed.";
+                            setMessage(
+                              detail.includes("deadline-exceeded") || detail.toLowerCase().includes("deadline exceeded")
+                                ? "AI marking exceeded nine minutes. No official score was published; review the work manually or try again."
+                                : detail,
+                            );
+                          } finally {
+                            setAiBusyAttempt("");
+                          }
+                        }}
+                      >
+                        {aiBusyAttempt === attempt.id ? "AI is marking..." : "AI-assisted marking"}
+                      </Button>
+                      <Button
+                        disabled={!draft.score || !draft.maximum || aiBusyAttempt === attempt.id}
+                        onClick={async () => {
+                          await markSeminarAnswerAttempt({
+                            attemptId: attempt.id,
+                            score: Number(draft.score),
+                            maximum: Number(draft.maximum),
+                            feedback: draft.feedback,
+                          });
+                          setMessage(
+                            "Reviewed score published and the audience leaderboard updated.",
+                          );
+                        }}
+                      >
+                        Publish reviewed score
+                      </Button>
+                    </div>
                   </div>
                 );
               })}
